@@ -4347,7 +4347,11 @@ function buildDateSelect(prefix, currentIso, opts){
       </select>
       <select id="${prefix}-m" class="dob-sel dob-m" aria-label="Month">
         ${emptyOpt}
-        ${months.map(m => `<option value="${m}"${m===curM?' selected':''}>${parseInt(m,10)}</option>`).join('')}
+        ${months.map(m => {
+          const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const label = monthNames[parseInt(m,10)-1] || m;
+          return `<option value="${m}"${m===curM?' selected':''}>${label}</option>`;
+        }).join('')}
       </select>
       <select id="${prefix}-d" class="dob-sel dob-d" aria-label="Day">
         ${emptyOpt}
