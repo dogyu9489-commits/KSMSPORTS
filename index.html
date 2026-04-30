@@ -319,7 +319,7 @@
 
   .app-foot{margin-top:auto;padding:24px 32px;border-top:1px solid var(--hair);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-mute);gap:16px;flex-wrap:wrap}
 
-  .toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);z-index:9000;padding:12px 22px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:12.5px;letter-spacing:.04em;opacity:0;pointer-events:none;transition:opacity .3s,transform .35s cubic-bezier(.2,.8,.2,1)}
+  .toast{position:fixed;left:50%;bottom:32px;transform:translateX(-50%) translateY(20px);z-index:99999;padding:12px 22px;border-radius:999px;background:var(--ink);color:var(--paper);font-size:12.5px;letter-spacing:.04em;opacity:0;pointer-events:none;transition:opacity .3s,transform .35s cubic-bezier(.2,.8,.2,1);max-width:90vw;text-align:center;box-shadow:0 8px 24px rgba(0,0,0,.25)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
   @media (max-width:760px){
@@ -609,6 +609,8 @@
   /* ===== PROFILE EDIT MODAL ===== */
   .prof-form{display:flex;flex-direction:column;gap:12px}
   .prof-readonly{padding:14px 16px;background:rgba(11,11,10,.025);border:1px solid var(--hair);display:flex;flex-direction:column;gap:8px;margin-bottom:6px}
+  .prof-verify-wrap{display:flex;flex-direction:column;gap:14px}
+  .prof-verify-msg{font-family:var(--serif-kr);font-size:14px;line-height:1.6;color:var(--ink-soft);margin:0;padding:12px 14px;background:rgba(11,11,10,.04);border-left:2px solid var(--ink);border-radius:2px}
   .prof-row{display:flex;align-items:center;gap:14px}
   .prof-key{font-family:var(--mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-mute);width:80px;flex:none}
   .prof-val{font-family:var(--serif-kr);font-size:13.5px;color:var(--ink);font-weight:500}
@@ -2614,16 +2616,54 @@ async function logout(){
 }
 
 /* ========== REALTIME NOTIFICATIONS SUBSCRIPTION ==========
-   When a row is INSERTED into the notifications table where user_email = me,
-   refresh the notification panel so it appears without a page reload.
-   Also flashes the bell icon briefly.
+   Two-layer system for reliability:
+   1. Realtime subscription via WebSocket (instant, primary)
+   2. Polling every 20s (backup — catches missed events if WebSocket drops)
    ========================================================== */
 let _notifRealtimeChannel = null;
+let _notifPollTimer = null;
+let _lastNotifCheck = 0;
+
+async function checkForNewNotifications(){
+  // Lightweight check: just count unread to detect changes
+  if (!Sb || !state.session) return;
+  const myEmail = (state.session.email || '').toLowerCase();
+  const since = new Date(_lastNotifCheck || (Date.now() - 60000)).toISOString();
+  const { data, error } = await Sb.from('notifications')
+    .select('id')
+    .eq('user_email', myEmail)
+    .gt('created_at', since)
+    .limit(1);
+  if (error){ console.warn('[poll]', error); return; }
+  if (data && data.length > 0){
+    console.log('[poll] detected new notifications, refreshing panel');
+    if (typeof renderNotifications === 'function') renderNotifications();
+    flashBell();
+  }
+  _lastNotifCheck = Date.now();
+}
+
+function flashBell(){
+  const $btn = document.getElementById('notif-btn');
+  if ($btn){
+    $btn.classList.remove('notif-flash');
+    // Force reflow to restart animation
+    void $btn.offsetWidth;
+    $btn.classList.add('notif-flash');
+    setTimeout(() => $btn.classList.remove('notif-flash'), 1500);
+  }
+}
+
 function startNotificationRealtime(){
   if (!Sb || !state.session) return;
-  if (_notifRealtimeChannel) return; // already subscribed
+  stopNotificationRealtime(); // clean up any prior subscription
   const myEmail = (state.session.email || '').toLowerCase();
-  _notifRealtimeChannel = Sb.channel('notifications:' + myEmail)
+  _lastNotifCheck = Date.now();
+
+  console.log('[realtime] starting subscription for', myEmail);
+
+  // Layer 1: Realtime WebSocket subscription (instant)
+  _notifRealtimeChannel = Sb.channel('notif-' + myEmail.replace(/[^a-z0-9]/g, ''))
     .on('postgres_changes',
       {
         event: 'INSERT',
@@ -2632,28 +2672,39 @@ function startNotificationRealtime(){
         filter: `user_email=eq.${myEmail}`
       },
       (payload) => {
-        console.log('[realtime] new notification:', payload.new);
-        // Refresh notification panel + badge
+        console.log('[realtime] ⚡ new notification received:', payload.new);
         if (typeof renderNotifications === 'function') renderNotifications();
-        // Brief flash on the bell icon to draw attention
-        const $btn = document.getElementById('notif-btn');
-        if ($btn){
-          $btn.classList.add('notif-flash');
-          setTimeout(() => $btn.classList.remove('notif-flash'), 1500);
-        }
+        flashBell();
+        _lastNotifCheck = Date.now();
       })
-    .subscribe((status) => {
+    .subscribe((status, err) => {
       if (status === 'SUBSCRIBED'){
-        console.log('[realtime] subscribed to notifications for', myEmail);
+        console.log('[realtime] ✅ subscribed for', myEmail);
       } else if (status === 'CHANNEL_ERROR'){
-        console.warn('[realtime] subscription error');
+        console.warn('[realtime] ❌ channel error — falling back to polling only', err);
+      } else if (status === 'TIMED_OUT'){
+        console.warn('[realtime] ⏱ timed out — falling back to polling only');
+      } else if (status === 'CLOSED'){
+        console.log('[realtime] channel closed');
+      } else {
+        console.log('[realtime] status:', status);
       }
     });
+
+  // Layer 2: Polling backup (every 20s, catches anything realtime might miss)
+  if (_notifPollTimer) clearInterval(_notifPollTimer);
+  _notifPollTimer = setInterval(checkForNewNotifications, 20000);
 }
+
 function stopNotificationRealtime(){
-  if (!_notifRealtimeChannel) return;
-  try { Sb.removeChannel(_notifRealtimeChannel); } catch(_){}
-  _notifRealtimeChannel = null;
+  if (_notifRealtimeChannel){
+    try { Sb.removeChannel(_notifRealtimeChannel); } catch(_){}
+    _notifRealtimeChannel = null;
+  }
+  if (_notifPollTimer){
+    clearInterval(_notifPollTimer);
+    _notifPollTimer = null;
+  }
 }
 
 const $auth = document.getElementById('auth');
@@ -2970,6 +3021,59 @@ async function checkBirthdayNotifications(){
 }
 
 function openProfileModal(){
+  // Two-step flow: first verify current password, then show edit form
+  openProfileVerification();
+}
+
+function openProfileVerification(){
+  const s = state.session;
+  if (!s) return;
+  openModal({
+    eyebrow: 'VERIFY IDENTITY',
+    title: 'Confirm Your Password',
+    fields: [{
+      type:'rawHtml',
+      html: `
+        <div class="prof-verify-wrap">
+          <p class="prof-verify-msg">For your security, please enter your current password to edit your profile.</p>
+          <div class="mf">
+            <label for="prof-verify-pw">Current Password</label>
+            <input id="prof-verify-pw" type="password" autocomplete="current-password" placeholder="••••••••" required autofocus />
+          </div>
+        </div>
+      `
+    }],
+    values: {},
+    submitLabel: 'Verify',
+    onSubmit: async () => {
+      const pw = document.getElementById('prof-verify-pw').value;
+      if (!pw){ toast('Please enter your password.'); return false; }
+      if (!Sb){ toast('Service unavailable.'); return false; }
+      // Verify by re-signing in
+      const { error } = await Sb.auth.signInWithPassword({ email: s.email, password: pw });
+      if (error){ toast('Password does not match.'); return false; }
+      // Verified — open the edit form (will close the verify modal first)
+      closeModal();
+      setTimeout(() => openProfileEditModal(), 60);
+      return false; // keep modal closed by us, not by openModal default
+    }
+  });
+  // Allow Enter to submit
+  setTimeout(() => {
+    const $pw = document.getElementById('prof-verify-pw');
+    if ($pw){
+      $pw.focus();
+      $pw.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter'){
+          e.preventDefault();
+          document.getElementById('modal-submit')?.click();
+        }
+      });
+    }
+  }, 80);
+}
+
+function openProfileEditModal(){
   const s = state.session;
   if (!s) return;
   const u = state.users.find(x => x.email.toLowerCase() === s.email.toLowerCase());
@@ -3040,12 +3144,9 @@ function openProfileModal(){
 
       <div class="prof-divider">
         <span class="prof-divider-label">Change Password</span>
-        <span class="prof-divider-hint">Leave blank to keep unchanged</span>
+        <span class="prof-divider-hint">Optional · leave blank to keep current</span>
       </div>
 
-      <div class="mf"><label for="prof-pw-cur">Current Password</label>
-        <input id="prof-pw-cur" type="password" autocomplete="current-password" placeholder="••••••••" />
-      </div>
       <div class="mf"><label for="prof-pw-new">New Password (6+ chars)</label>
         <input id="prof-pw-new" type="password" autocomplete="new-password" placeholder="••••••••" minlength="6" />
       </div>
@@ -3064,7 +3165,6 @@ function openProfileModal(){
       const name = (document.getElementById('prof-name').value || '').trim();
       const dobRes = readDateSelect('prof-dob');
       const dept = isAdmin ? 'MD' : document.getElementById('prof-dept').value;
-      const pwCur = document.getElementById('prof-pw-cur').value;
       const pwNew = document.getElementById('prof-pw-new').value;
       const pwCf  = document.getElementById('prof-pw-cf').value;
 
@@ -3078,15 +3178,11 @@ function openProfileModal(){
       }
       if (!dept || !VALID_DEPTS.includes(dept)){ toast('Please select a department.'); return false; }
 
-      const wantsPwChange = pwCur || pwNew || pwCf;
+      const wantsPwChange = pwNew || pwCf;
       if (wantsPwChange){
         if (!pwNew || pwNew.length < 6){ toast('New password must be at least 6 characters.'); return false; }
         if (pwNew !== pwCf){ toast('New password confirmation does not match.'); return false; }
-        // Verify current password by re-signing in
-        if (Sb){
-          const { error: verifyErr } = await Sb.auth.signInWithPassword({ email: state.session.email, password: pwCur });
-          if (verifyErr){ toast('Current password does not match.'); return false; }
-        }
+        // No need to verify current password again — already verified at gate
       }
 
       // Save profile fields to Supabase
@@ -3963,11 +4059,14 @@ const $modalTitle = document.getElementById('modal-title');
 const $modalEyebrow = document.getElementById('modal-eyebrow');
 let modalSubmitHandler = null;
 
-function openModal({ eyebrow, title, fields, values = {}, onSubmit }){
+function openModal({ eyebrow, title, fields, values = {}, onSubmit, submitLabel }){
   $modalEyebrow.textContent = eyebrow || '';
   $modalTitle.innerHTML = title || '—';
   $modalForm.innerHTML = fields.map(f => renderField(f, values)).join('');
   modalSubmitHandler = onSubmit;
+  // Customize submit button label (e.g. "Verify" for password gate)
+  const $sb = document.getElementById('modal-submit');
+  if ($sb) $sb.textContent = submitLabel || 'Save';
   $modal.classList.add('show');
   $modal.setAttribute('aria-hidden','false');
   setTimeout(()=>{ const first = $modalForm.querySelector('input,textarea,select'); if (first) first.focus(); }, 60);
