@@ -1657,7 +1657,7 @@
       <form class="pane active" id="pane-login" autocomplete="on" novalidate>
         <div class="field">
           <label for="li-email">Email</label>
-          <input id="li-email" type="email" name="email" placeholder="name@KSMSPORTS.COM" autocomplete="username" required />
+          <input id="li-email" type="email" name="email" placeholder="your@email.com" autocomplete="username" required />
         </div>
         <div class="field">
           <label for="li-pw">Password</label>
@@ -1680,8 +1680,8 @@
           <input id="su-name" type="text" name="name" placeholder="Jane Doe" autocomplete="name" required />
         </div>
         <div class="field">
-          <label for="su-email">Company Email · KSMSPORTS.COM</label>
-          <input id="su-email" type="email" name="email" placeholder="name@KSMSPORTS.COM" autocomplete="email" required />
+          <label for="su-email">Email Address</label>
+          <input id="su-email" type="email" name="email" placeholder="your@email.com" autocomplete="email" required />
         </div>
         <div class="field">
           <label for="su-pw">Password (6+ chars)</label>
@@ -2552,7 +2552,6 @@ async function signup(name, email, password, department, birthdate){
   const VALID_DEPTS = ['BM','HR','ACF','IE','IMPEX','MNT'];
   if (!name) return { error:'Please enter a name.' };
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error:'Please enter a valid email address.' };
-  if (!email.endsWith('@ksmsports.com')) return { error:'Only KSMSPORTS.COM email addresses can register.' };
   if (!password || password.length < 6) return { error:'Password must be at least 6 characters.' };
   if (!birthdate || !/^\d{4}-\d{2}-\d{2}$/.test(birthdate)) return { error:'Please enter a date of birth.' };
   const dob = new Date(birthdate + 'T00:00:00');
@@ -4346,13 +4345,13 @@ function buildDateSelect(prefix, currentIso, opts){
         ${emptyOpt}
         ${years.map(y => `<option value="${y}"${String(y)===curY?' selected':''}>${y}</option>`).join('')}
       </select>
-      <select id="${prefix}-m" class="dob-sel dob-m" aria-label="Mon">
+      <select id="${prefix}-m" class="dob-sel dob-m" aria-label="Month">
         ${emptyOpt}
-        ${months.map(m => `<option value="${m}"${m===curM?' selected':''}>${parseInt(m,10)}Mon</option>`).join('')}
+        ${months.map(m => `<option value="${m}"${m===curM?' selected':''}>${parseInt(m,10)}</option>`).join('')}
       </select>
-      <select id="${prefix}-d" class="dob-sel dob-d" aria-label="Sun">
+      <select id="${prefix}-d" class="dob-sel dob-d" aria-label="Day">
         ${emptyOpt}
-        ${days.map(d => `<option value="${d}"${d===curD?' selected':''}>${parseInt(d,10)}Sun</option>`).join('')}
+        ${days.map(d => `<option value="${d}"${d===curD?' selected':''}>${parseInt(d,10)}</option>`).join('')}
       </select>
     </div>
   `;
@@ -9163,7 +9162,7 @@ function openMemberModal(){
         <div style="padding:8px 0 4px;font-family:var(--serif-kr);font-size:13.5px;color:var(--ink);line-height:1.55">
           <p style="margin-bottom:14px"><b>To add a new member:</b></p>
           <ol style="margin:0 0 14px 18px;padding:0;display:flex;flex-direction:column;gap:8px">
-            <li>Ask the person to sign up themselves at the login page using their <b>@ksmsports.com</b> email.</li>
+            <li>Ask the person to sign up themselves at the login page using their email address.</li>
             <li>Their request will appear in the <b>Pending</b> list below.</li>
             <li>Click <b>Approve</b> to grant access.</li>
           </ol>
