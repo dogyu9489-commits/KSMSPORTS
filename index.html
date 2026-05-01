@@ -1117,6 +1117,20 @@
   .tg-actions button:hover{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   .tg-actions button.danger:hover{background:var(--warn);border-color:var(--warn)}
 
+  /* Group drag-to-reorder (admin only) */
+  .task-group[data-admin="1"] .tg-head{cursor:grab}
+  .task-group[data-admin="1"] .tg-head:active{cursor:grabbing}
+  .tg-drag-handle{
+    flex:none;font-family:var(--mono);font-size:14px;letter-spacing:-1px;
+    color:var(--ink-mute);user-select:none;padding:0 4px;line-height:1;
+    opacity:.4;transition:opacity .15s,color .15s;
+  }
+  .task-group:hover .tg-drag-handle{opacity:1;color:var(--ink-soft)}
+  .task-group.is-group-dragging{opacity:.5}
+  .task-group.is-group-dragging .tg-head{cursor:grabbing}
+  .task-group.is-drop-above{box-shadow:0 -3px 0 0 #4f46e5;border-radius:2px}
+  .task-group.is-drop-below{box-shadow:0 3px 0 0 #4f46e5;border-radius:2px}
+
   .tg-table{display:grid;border-left:3px solid var(--ink);background:var(--paper)}
   .tg-row{display:grid;grid-template-columns:var(--tg-cols, 36px minmax(0,1fr) 170px 170px 150px 36px);align-items:stretch;border-bottom:1px solid var(--hair)}
   .tg-row-head{font-family:var(--mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-mute);min-height:38px}
@@ -4211,8 +4225,9 @@ async function setRole(email, role){
 }
 
 async function logout(){
-  // Stop realtime subscription before signing out
+  // Stop realtime subscriptions before signing out
   stopNotificationRealtime();
+  stopContentRealtime();
   if (Sb){ try { await Sb.auth.signOut(); } catch(_){} }
   state.session = null;
   if (typeof _monitorTimer !== 'undefined' && _monitorTimer){
@@ -4311,6 +4326,173 @@ function stopNotificationRealtime(){
     clearInterval(_notifPollTimer);
     _notifPollTimer = null;
   }
+}
+
+/* ========== CONTENT REALTIME (shared posts/threads/tasks/etc.) ==========
+   When ANY user creates/edits/deletes a record in these shared tables,
+   every signed-in client re-fetches and re-renders that section live.
+   Realtime is the fast path; a 25-second polling loop + visibilitychange
+   refresh make sure updates still arrive even if a table isn't in the
+   realtime publication or the websocket silently drops.
+   To enable realtime for a table in Supabase:
+     alter publication supabase_realtime add table <table_name>;
+========================================================================== */
+let _contentRealtimeChannel = null;
+let _contentPollTimer = null;
+let _contentVisibilityHandler = null;
+const _contentReloadTimers = {};
+let _contentHandlers = null;
+
+function _scheduleContentReload(table, fn){
+  // Debounce per-table: collapse rapid bursts (e.g., bulk insert) into 1 reload
+  if (_contentReloadTimers[table]) clearTimeout(_contentReloadTimers[table]);
+  _contentReloadTimers[table] = setTimeout(() => {
+    delete _contentReloadTimers[table];
+    Promise.resolve(fn()).catch(e => console.warn('[content-rt] reload failed for', table, e));
+  }, 250);
+}
+
+function _runAllContentHandlers(reason){
+  if (!Sb || !state.session || !_contentHandlers) return;
+  Object.entries(_contentHandlers).forEach(([table, fn]) => {
+    Promise.resolve(fn()).catch(e =>
+      console.warn(`[content-${reason}] reload failed for`, table, e));
+  });
+}
+
+function startContentRealtime(){
+  if (!Sb || !state.session) return;
+  stopContentRealtime();
+
+  // Re-fetch + re-render handlers per table.
+  // Each fires only the views that depend on that table; others are unaffected.
+  _contentHandlers = {
+    // Library posts
+    posts: async () => {
+      content.posts = await fetchPosts();
+      if (typeof renderLibrary === 'function') renderLibrary();
+      if (typeof renderDashStats === 'function') renderDashStats();
+    },
+    // Forum meetings
+    threads: async () => {
+      content.threads = await fetchThreads();
+      if (typeof renderForum === 'function') renderForum();
+      if (typeof renderMeetingMonitor === 'function') renderMeetingMonitor();
+      if (typeof renderDashStats === 'function') renderDashStats();
+    },
+    // Library files
+    files: async () => {
+      content.files = await fetchFiles();
+      if (typeof renderLibrary === 'function') renderLibrary();
+    },
+    // Project board: tasks AND group changes both reload the whole board
+    tasks: async () => {
+      content.projectBoard = await fetchProjectBoard();
+      if (typeof renderProject === 'function') renderProject();
+      if (typeof renderProjectDashboard === 'function') renderProjectDashboard();
+      if (typeof renderProjects === 'function') renderProjects();
+      if (typeof renderDashStats === 'function') renderDashStats();
+    },
+    project_groups: async () => {
+      content.projectBoard = await fetchProjectBoard();
+      if (typeof renderProject === 'function') renderProject();
+      if (typeof renderProjects === 'function') renderProjects();
+    },
+    // Personal/team schedules
+    schedules: async () => {
+      content.schedules = await fetchSchedules();
+      if (typeof renderSchedules === 'function') renderSchedules();
+      if (typeof renderPersonalSchedule === 'function') renderPersonalSchedule();
+      if (typeof renderSchedule === 'function') renderSchedule();
+    },
+    // Company-wide calendar events
+    company_events: async () => {
+      content.companyEvents = await fetchCompanyEvents();
+      if (typeof renderCompanyCalendar === 'function') renderCompanyCalendar();
+      if (typeof renderSchedule === 'function') renderSchedule();
+    },
+    // Org chart (everyone shares the same chart)
+    org_chart: async () => {
+      if (typeof orgFetchAll === 'function'){
+        _orgState.nodes = await orgFetchAll();
+        if (typeof renderOrgChart === 'function') renderOrgChart();
+      }
+    },
+    // Profiles: name/role/avatar/status changes by admin
+    profiles: async () => {
+      if (typeof loadUsers === 'function'){
+        await loadUsers();
+        // Re-render anything that displays user names / avatars
+        if (typeof renderAdmin === 'function') renderAdmin();
+        if (typeof renderProject === 'function') renderProject();
+        if (typeof renderForum === 'function') renderForum();
+        if (typeof renderOrgChart === 'function') renderOrgChart();
+      }
+    },
+  };
+
+  console.log('[content-rt] starting subscriptions for', Object.keys(_contentHandlers).length, 'tables');
+
+  let ch = Sb.channel('content-rt-' + Date.now() + '-' + Math.random().toString(36).slice(2,7));
+  Object.keys(_contentHandlers).forEach(table => {
+    ch = ch.on('postgres_changes',
+      { event: '*', schema: 'public', table },
+      (payload) => {
+        console.log('[content-rt] ⚡', table, payload.eventType);
+        _scheduleContentReload(table, _contentHandlers[table]);
+      });
+  });
+  ch.subscribe((status, err) => {
+    if (status === 'SUBSCRIBED'){
+      console.log('[content-rt] ✅ subscribed to all content tables');
+    } else if (status === 'CHANNEL_ERROR'){
+      console.warn('[content-rt] ❌ channel error', err);
+    } else if (status === 'TIMED_OUT'){
+      console.warn('[content-rt] ⏱ timed out');
+    } else if (status === 'CLOSED'){
+      console.log('[content-rt] channel closed');
+    } else {
+      console.log('[content-rt] status:', status);
+    }
+  });
+  _contentRealtimeChannel = ch;
+
+  // Polling backup: every 12s, refresh all content tables.
+  // Catches changes from tables not in the realtime publication, or when
+  // the websocket drops silently.
+  if (_contentPollTimer) clearInterval(_contentPollTimer);
+  _contentPollTimer = setInterval(() => {
+    if (document.hidden) return; // skip when tab not visible
+    _runAllContentHandlers('poll');
+  }, 12000);
+
+  // Immediate refresh when tab regains focus
+  if (_contentVisibilityHandler){
+    document.removeEventListener('visibilitychange', _contentVisibilityHandler);
+  }
+  _contentVisibilityHandler = () => {
+    if (!document.hidden) _runAllContentHandlers('focus');
+  };
+  document.addEventListener('visibilitychange', _contentVisibilityHandler);
+}
+
+function stopContentRealtime(){
+  if (_contentRealtimeChannel){
+    try { Sb.removeChannel(_contentRealtimeChannel); } catch(_){}
+    _contentRealtimeChannel = null;
+  }
+  if (_contentPollTimer){
+    clearInterval(_contentPollTimer);
+    _contentPollTimer = null;
+  }
+  if (_contentVisibilityHandler){
+    document.removeEventListener('visibilitychange', _contentVisibilityHandler);
+    _contentVisibilityHandler = null;
+  }
+  Object.keys(_contentReloadTimers).forEach(k => {
+    clearTimeout(_contentReloadTimers[k]);
+    delete _contentReloadTimers[k];
+  });
 }
 
 const $auth = document.getElementById('auth');
@@ -7343,8 +7525,10 @@ function renderProject(){
     const gridStyle = `--tg-cols:${gridDesktop};--tg-cols-sm:${gridMobile}`;
     const tableMinWidth = tableMinWidthFromOrder(order);
     const tableStyle = `${gridStyle};min-width:${tableMinWidth}px`;
-    return `<div class="task-group${collapsed?' is-collapsed':''}" data-gid="${g.id}">
-      <div class="tg-head">
+    const isAdminUser = state.session?.role === 'admin';
+    return `<div class="task-group${collapsed?' is-collapsed':''}" data-gid="${g.id}"${isAdminUser?' data-admin="1"':''}>
+      <div class="tg-head"${isAdminUser?' draggable="true"':''}>
+        ${isAdminUser?'<span class="tg-drag-handle" title="Drag to reorder">⋮⋮</span>':''}
         <span class="tg-bar" style="background:${headerColor}"></span>
         <button class="tg-toggle" data-act="toggle" aria-label="Collapse/Expand">▾</button>
         <h3 class="tg-name" style="color:${headerColor}">${esc(g.name)}</h3>
@@ -7390,10 +7574,72 @@ function renderProject(){
   }).join('');
 
   // wire interactions
+  // Module-scoped: track which group is being dragged (admin reorder)
+  let _draggedGroupId = null;
   $root.querySelectorAll('.task-group').forEach(groupEl => {
     const gid = groupEl.dataset.gid;
     const group = groups.find(x => x.id === gid);
     if (!group) return;
+
+    // ===== Admin: drag-to-reorder groups =====
+    if (groupEl.dataset.admin === '1'){
+      const head = groupEl.querySelector('.tg-head');
+      head.addEventListener('dragstart', (e) => {
+        // Don't initiate drag from buttons / editable areas / inside table body
+        if (e.target.closest('button, [contenteditable="true"], input, select, textarea')){
+          e.preventDefault();
+          return;
+        }
+        _draggedGroupId = gid;
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', `group:${gid}`);
+        groupEl.classList.add('is-group-dragging');
+      });
+      head.addEventListener('dragend', () => {
+        groupEl.classList.remove('is-group-dragging');
+        $root.querySelectorAll('.task-group').forEach(el => el.classList.remove('is-drop-above', 'is-drop-below'));
+        _draggedGroupId = null;
+      });
+      groupEl.addEventListener('dragover', (e) => {
+        if (!_draggedGroupId || _draggedGroupId === gid) return;
+        // Only react if the drag is a group drag (ignore task-row drags)
+        const types = e.dataTransfer.types || [];
+        // We can't read data during dragover, so use _draggedGroupId as the marker
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const r = groupEl.getBoundingClientRect();
+        const isAbove = (e.clientY - r.top) < r.height / 2;
+        $root.querySelectorAll('.task-group').forEach(el => el.classList.remove('is-drop-above', 'is-drop-below'));
+        groupEl.classList.add(isAbove ? 'is-drop-above' : 'is-drop-below');
+      });
+      groupEl.addEventListener('dragleave', (e) => {
+        // Only clear when leaving the group entirely (not when entering a child)
+        if (e.target === groupEl || !groupEl.contains(e.relatedTarget)){
+          groupEl.classList.remove('is-drop-above', 'is-drop-below');
+        }
+      });
+      groupEl.addEventListener('drop', (e) => {
+        if (!_draggedGroupId || _draggedGroupId === gid) return;
+        e.preventDefault();
+        const isAbove = groupEl.classList.contains('is-drop-above');
+        groupEl.classList.remove('is-drop-above', 'is-drop-below');
+        const draggedId = _draggedGroupId;
+        const arr = content.projectBoard;
+        const fromIdx = arr.findIndex(x => x.id === draggedId);
+        if (fromIdx < 0) return;
+        const [moved] = arr.splice(fromIdx, 1);
+        let toIdx = arr.findIndex(x => x.id === gid);
+        if (toIdx < 0){
+          arr.push(moved);
+        } else {
+          if (!isAbove) toIdx += 1;
+          arr.splice(toIdx, 0, moved);
+        }
+        renderProject();
+        saveProjectBoardToCloud().catch(() => {});
+        toast('Group order updated.');
+      });
+    }
 
     // group head actions
     groupEl.querySelector('[data-act="toggle"]').addEventListener('click', (e) => {
@@ -9161,12 +9407,18 @@ function openGroupModal(existing){
   const currentColor = existing?.color || GROUP_COLORS[0];
   let pickedColor = currentColor;
 
+  // Build color picker HTML inline (no setTimeout race)
+  const colorPickerHtml = `<label>COLOR</label>
+    <div class="color-grid" id="gm-color-grid">
+      ${GROUP_COLORS.map(c => `<div class="color-swatch${c===currentColor?' is-on':''}" style="background:${c}" data-color="${c}"></div>`).join('')}
+    </div>`;
+
   openModal({
     eyebrow: isEdit ? 'Edit · Group Edit' : 'New · New Group',
     title: isEdit ? `Edit <em>group.</em>` : `New <em>group.</em>`,
     fields: [
       { name:'name', label:'Group Name', placeholder:'e.g., To-Do, In Progress, Completed', required:true },
-      { name:'_color', type:'colorPicker', label:'Color' },
+      { type:'rawHtml', html: colorPickerHtml },
     ],
     values: existing || {},
     onSubmit: async (v) => {
@@ -9187,23 +9439,21 @@ function openGroupModal(existing){
     }
   });
 
-  // Inject color picker manually since renderField does not have a colorPicker type
-  setTimeout(() => {
-    const $form = document.getElementById('modal-form');
-    const placeholder = $form.querySelector('input[name="_color"]');
-    if (placeholder){
-      const wrap = document.createElement('div');
-      wrap.className = 'mf';
-      wrap.innerHTML = `<label>COLOR</label>
-        <div class="color-grid" id="color-grid">${GROUP_COLORS.map(c => `<div class="color-swatch${c===currentColor?' is-on':''}" style="background:${c}" data-color="${c}"></div>`).join('')}</div>`;
-      placeholder.closest('.mf').replaceWith(wrap);
-      wrap.querySelectorAll('.color-swatch').forEach(s => s.addEventListener('click', () => {
-        wrap.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('is-on'));
-        s.classList.add('is-on');
-        pickedColor = s.dataset.color;
-      }));
-    }
-  }, 0);
+  // Bind color swatch clicks via event delegation on the modal form.
+  // The grid is inside the form by the time openModal returns synchronously.
+  const $form = document.getElementById('modal-form');
+  const $grid = $form.querySelector('#gm-color-grid');
+  if ($grid){
+    $grid.addEventListener('click', (e) => {
+      const swatch = e.target.closest('.color-swatch');
+      if (!swatch) return;
+      $grid.querySelectorAll('.color-swatch').forEach(x => x.classList.remove('is-on'));
+      swatch.classList.add('is-on');
+      pickedColor = swatch.dataset.color;
+    });
+  } else {
+    console.warn('[openGroupModal] color grid not found in modal form');
+  }
 }
 
 /* ============ RICH EDITOR (post / thread) ============ */
@@ -14495,6 +14745,8 @@ async function bootContent(){
   ensureNotificationPermission().catch(()=>{});
   // Org chart: load data + bind once
   initOrgChart().catch(e => console.warn('[org] init failed:', e));
+  // Live sync of shared content (posts/threads/tasks/schedules/etc.) across all users
+  startContentRealtime();
 }
 
 (async () => {
