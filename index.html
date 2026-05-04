@@ -12062,11 +12062,16 @@ function openThreadDetailModal(thread){
   const $body = document.getElementById('td-body');
   $body.innerHTML = thread.body || '<em style="color:var(--ink-mute)">No description</em>';
 
-  // Attendees
+  // Attendees may be strings or objects ({name, email}) — handle both
   const $att = document.getElementById('td-attendees');
   const att = thread.attendees || [];
   $att.innerHTML = att.length
-    ? att.map(a => `<span class="td-attendee">${esc(a)}</span>`).join('')
+    ? att.map(a => {
+        const label = (typeof a === 'object' && a !== null)
+          ? (a.name || a.email || a.label || '—')
+          : a;
+        return `<span class="td-attendee">${esc(label)}</span>`;
+      }).join('')
     : '';
 
   // Author actions (Edit/Delete) — only for the author
