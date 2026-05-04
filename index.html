@@ -4542,6 +4542,13 @@ function startContentRealtime(){
         if (typeof renderOrgChart === 'function') renderOrgChart();
       }
     },
+    // Org chart department colors — refresh chart with new colors when any user changes them
+    org_dept_colors: async () => {
+      if (typeof orgLoadDeptColors === 'function'){
+        _orgState.deptColors = await orgLoadDeptColors();
+        if (typeof renderOrgChart === 'function') renderOrgChart();
+      }
+    },
     // Profiles: name/role/avatar/status changes by admin
     profiles: async () => {
       if (typeof loadUsers === 'function'){
@@ -12618,13 +12625,41 @@ function orgSaveLocal(){
   try { localStorage.setItem(ORG_LS_KEY, JSON.stringify(_orgState.nodes)); } catch(_){}
 }
 
-// Department-color map persistence (always client-side; small, simple)
-function orgLoadDeptColors(){
+// Department-color map persistence — stored in DB so all users share the same
+// colors. Falls back to localStorage when Supabase is unavailable.
+async function orgLoadDeptColors(){
+  if (Sb){
+    const { data, error } = await Sb.from('org_dept_colors').select('*');
+    if (!error){
+      const map = {};
+      (data || []).forEach(r => { if (r.department && r.color) map[r.department] = r.color; });
+      return map;
+    }
+    if (!/(does not exist|relation)/.test(error.message || '')){
+      console.warn('[org] dept colors fetch failed, using local cache:', error);
+    }
+  }
+  // Local fallback
   try {
     const raw = localStorage.getItem(ORG_DEPT_COLORS_LS_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch(_){ return {}; }
 }
+
+async function orgSaveDeptColor(department, color){
+  // Always update local cache first for snappy UI
+  try { localStorage.setItem(ORG_DEPT_COLORS_LS_KEY, JSON.stringify(_orgState.deptColors || {})); } catch(_){}
+  if (!Sb || !department) return;
+  const { error } = await Sb.from('org_dept_colors')
+    .upsert({ department, color }, { onConflict: 'department' });
+  if (error){
+    if (!/(does not exist|relation)/.test(error.message || '')){
+      console.warn('[org] dept color save failed:', error);
+    }
+  }
+}
+
+// Backward-compat wrapper: legacy code calls orgSaveDeptColors() with no args
 function orgSaveDeptColors(){
   try { localStorage.setItem(ORG_DEPT_COLORS_LS_KEY, JSON.stringify(_orgState.deptColors || {})); } catch(_){}
 }
@@ -13057,7 +13092,8 @@ function openOrgModal(opts){
       const color = sw.dataset.color;
       _orgState.deptColors = _orgState.deptColors || {};
       _orgState.deptColors[dept] = color;
-      orgSaveDeptColors();
+      // Save to DB so all users see this color
+      orgSaveDeptColor(dept, color).catch(e => console.warn('[org] color save error:', e));
       $deptColorDot.style.background = color;
       $deptColorGrid.querySelectorAll('.org-dept-swatch').forEach(x => x.classList.remove('is-on'));
       sw.classList.add('is-on');
@@ -13387,7 +13423,7 @@ function bindOrgChart(){
 async function initOrgChart(){
   if (_orgState.loaded) return;
   bindOrgChart();
-  _orgState.deptColors = orgLoadDeptColors();
+  _orgState.deptColors = await orgLoadDeptColors();
   _orgState.nodes = await orgFetchAll();
   _orgState.loaded = true;
   console.log('[org] backend:', _orgState.backend, '| nodes:', _orgState.nodes.length, '| dept colors:', Object.keys(_orgState.deptColors).length);
