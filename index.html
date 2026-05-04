@@ -4692,18 +4692,8 @@ function startContentRealtime(){
       if (typeof renderLibrary === 'function') renderLibrary();
     },
     // Project board: tasks AND group changes both reload the whole board
-    tasks: async () => {
-      content.projectBoard = await fetchProjectBoard();
-      if (typeof renderProject === 'function') renderProject();
-      if (typeof renderProjectDashboard === 'function') renderProjectDashboard();
-      if (typeof renderProjects === 'function') renderProjects();
-      if (typeof renderDashStats === 'function') renderDashStats();
-    },
-    project_groups: async () => {
-      content.projectBoard = await fetchProjectBoard();
-      if (typeof renderProject === 'function') renderProject();
-      if (typeof renderProjects === 'function') renderProjects();
-    },
+    tasks: () => scheduleProjectBoardReload('tasks'),
+    project_groups: () => scheduleProjectBoardReload('project_groups'),
     // Personal/team schedules
     schedules: async () => {
       content.schedules = await fetchSchedules();
@@ -6483,16 +6473,77 @@ async function fetchProjectBoard(){
 // the network round-trip completes.
 let _projectBoardSyncTimer = null;
 let _projectBoardSyncPending = null;
+let _projectBoardSyncPendingFollowUp = false;
+// Cooldown timestamp — after a save completes, we ignore realtime echoes for a short
+// window because Supabase echoes our own UPDATE events back to us via the realtime
+// channel. Without this, our just-saved data could be clobbered by a stale fetch.
+let _projectBoardSyncCooldownUntil = 0;
+
+// Debounced realtime reload — coalesces bursts of UPDATE/INSERT echoes into one
+// fetch that runs only after the burst stops. Combined with the cooldown, this
+// reliably prevents the user's own save from being overwritten by its own echo.
+let _projectBoardReloadTimer = null;
+function scheduleProjectBoardReload(source){
+  // If our own save is in flight or in cooldown, ignore the echo entirely
+  if (_projectBoardSyncPending || _projectBoardSyncTimer || Date.now() < _projectBoardSyncCooldownUntil){
+    console.log('[realtime] ignoring', source, '— own save in flight or cooldown');
+    return;
+  }
+  if (_projectBoardReloadTimer){ clearTimeout(_projectBoardReloadTimer); }
+  _projectBoardReloadTimer = setTimeout(async () => {
+    _projectBoardReloadTimer = null;
+    // Re-check cooldown right before fetching — events may have arrived just before
+    // a user's own save completed
+    if (_projectBoardSyncPending || _projectBoardSyncTimer || Date.now() < _projectBoardSyncCooldownUntil){
+      console.log('[realtime] cancelled reload at last moment — own save in flight or cooldown');
+      return;
+    }
+    // If user is currently typing somewhere in the project view (any input,
+    // textarea, contenteditable), defer the rerender so we don't blow away
+    // their in-progress input. Try again in 2 seconds.
+    const $active = document.activeElement;
+    const isProjectInput = $active && (
+      // Inline new-task input on a group
+      $active.classList?.contains('tg-add-task-input') ||
+      // Task detail modal — any input inside it
+      $active.closest?.('#task-detail-modal') ||
+      // Any input/textarea/contenteditable inside the project board
+      ($active.closest?.('#project-board') &&
+       (['INPUT','TEXTAREA'].includes($active.tagName) || $active.isContentEditable))
+    );
+    if (isProjectInput){
+      console.log('[realtime] user is typing — deferring reload by 2s');
+      setTimeout(() => scheduleProjectBoardReload(source), 2000);
+      return;
+    }
+    console.log('[realtime] reloading project board (debounced) — source:', source,
+                '| activeEl:', document.activeElement?.tagName,
+                document.activeElement?.className?.slice(0, 40),
+                '| inputValue:', document.activeElement?.value?.slice(0, 30));
+    content.projectBoard = await fetchProjectBoard();
+    if (typeof renderProject === 'function') renderProject();
+    if (typeof renderProjectDashboard === 'function') renderProjectDashboard();
+    if (typeof renderProjects === 'function') renderProjects();
+    if (typeof renderDashStats === 'function') renderDashStats();
+  }, 600); // wait 600ms after last echo to ensure burst is done
+}
 function saveProjectBoardToCloud(){
   if (!Sb) return Promise.resolve();
   // Coalesce rapid successive calls (cell edits, drag-drops, etc.).
   // Each call resets the timer, so the actual network write happens shortly
   // after the user stops editing — never blocks the UI.
   if (_projectBoardSyncTimer){ clearTimeout(_projectBoardSyncTimer); _projectBoardSyncTimer = null; }
-  if (_projectBoardSyncPending) return _projectBoardSyncPending;
+  // If a sync is already in flight, mark that another sync should run after it
+  // completes. This ensures the LATEST in-memory state always reaches the DB,
+  // even if the user makes changes while a save is in progress.
+  if (_projectBoardSyncPending){
+    _projectBoardSyncPendingFollowUp = true;
+    return _projectBoardSyncPending;
+  }
   _projectBoardSyncPending = new Promise((resolve) => {
     _projectBoardSyncTimer = setTimeout(async () => {
       try {
+        // Read the freshest in-memory state at this moment (not at call time)
         const { groups, tasks } = flattenBoardForDb();
         const memGroupIds = new Set(groups.map(g => g.id));
         const memTaskIds = new Set(tasks.map(t => t.id));
@@ -6533,6 +6584,21 @@ function saveProjectBoardToCloud(){
       } finally {
         _projectBoardSyncPending = null;
         _projectBoardSyncTimer = null;
+        // Set cooldown — ignore realtime echoes for the next 4 seconds.
+        // Supabase realtime echoes can arrive 500ms~3s after the save completes
+        // depending on connection. 4s is generous and won't be noticed by users.
+        _projectBoardSyncCooldownUntil = Date.now() + 4000;
+        // Force one render to ensure UI reflects our latest in-memory state
+        // (in case any earlier render missed it during the save flow)
+        try {
+          if (typeof renderProject === 'function') renderProject();
+        } catch(_){}
+        // If changes happened while we were saving, run another sync to capture them
+        if (_projectBoardSyncPendingFollowUp){
+          _projectBoardSyncPendingFollowUp = false;
+          // Schedule on next tick so the resolve() below fires first
+          setTimeout(() => saveProjectBoardToCloud(), 0);
+        }
         resolve();
       }
     }, 100); // tightened debounce — UI updates instantly via render(), this just persists
@@ -6730,6 +6796,16 @@ document.getElementById('modal-submit').addEventListener('click', async (e) => {
   if (!modalSubmitHandler) return;
   const $btn = e.currentTarget;
   if ($btn.disabled) return; // prevent double-click while processing
+
+  // Force-commit any in-flight IME composition (Korean / Japanese / Chinese).
+  // Without this, the last unconverted character may not be captured by FormData.
+  // We blur the active element if it's inside the form, then refocus it.
+  const $active = document.activeElement;
+  if ($active && $modalForm.contains($active)){
+    $active.blur();
+    // Refocus so the user can continue typing if save fails
+    setTimeout(() => $active.focus && $active.focus(), 0);
+  }
 
   const fd = new FormData($modalForm);
   const obj = {};
@@ -7441,22 +7517,16 @@ function bindSelectionBar(){
 }
 
 async function moveTaskTo(sourceTid, targetTid, insertBefore){
-  // Find source group + task
-  let srcGroup = null, srcTask = null;
-  for (const g of content.projectBoard){
-    const i = (g.tasks||[]).findIndex(t => t.id === sourceTid);
-    if (i >= 0){ srcGroup = g; srcTask = g.tasks[i]; break; }
-  }
-  if (!srcTask){ return; }
+  // Find source group + task — use findGroupOfTask which already searches subgroups
+  const srcGroup = findGroupOfTask(sourceTid);
+  if (!srcGroup) return;
+  const srcTask = (srcGroup.tasks||[]).find(t => t.id === sourceTid);
+  if (!srcTask) return;
   if (!canEdit(srcTask)){ toast('No move permission.'); return; }
   // Remove from source first
   srcGroup.tasks = (srcGroup.tasks||[]).filter(t => t.id !== sourceTid);
   // Find target group (after removal so indices are stable)
-  let tgtGroup = null;
-  for (const g of content.projectBoard){
-    const j = (g.tasks||[]).findIndex(t => t.id === targetTid);
-    if (j >= 0){ tgtGroup = g; break; }
-  }
+  const tgtGroup = findGroupOfTask(targetTid);
   if (!tgtGroup){
     // Target gone? Fallback: append back to source
     srcGroup.tasks.push(srcTask);
@@ -7950,6 +8020,21 @@ function renderProjectDashboard(){
 }
 
 function renderProject(){
+  // Diagnostic: log who called renderProject when an input is focused
+  // Only when actively focused on a project-board input — otherwise stays quiet
+  try {
+    const $a = document.activeElement;
+    const isInputInProject = $a && (
+      $a.classList?.contains('tg-add-task-input') ||
+      ($a.closest?.('#project-board') && (['INPUT','TEXTAREA'].includes($a.tagName) || $a.isContentEditable)) ||
+      $a.closest?.('#task-detail-modal')
+    );
+    if (isInputInProject){
+      console.warn('[renderProject] called while user is typing! activeEl=',
+        $a.tagName, $a.className, '| value=', ($a.value || '').slice(0, 40),
+        '\nStack:', new Error().stack?.split('\n').slice(2, 6).join('\n'));
+    }
+  } catch(_){}
   bindProjectTabs();
   paintProjectTabs();
   const rootGroups = content.projectBoard;
@@ -7959,10 +8044,17 @@ function renderProject(){
   (rootGroups || []).forEach(g => {
     groups.push(g);  // parent first
     (g.subgroups || []).forEach(sg => {
-      // Subgroup inherits parent columns — UI stays consistent
-      sg.columns = g.columns || [];
-      sg.headerLabels = g.headerLabels || {};
-      sg.columnOrder = g.columnOrder || [];
+      // Initialize subgroup columns from parent ONLY if subgroup doesn't have its own yet.
+      // After that, subgroup's columns are independent — user can add/remove/reorder freely.
+      if (!sg.columns || !sg.columns.length){
+        sg.columns = g.columns ? JSON.parse(JSON.stringify(g.columns)) : [];
+      }
+      if (!sg.headerLabels || !Object.keys(sg.headerLabels).length){
+        sg.headerLabels = g.headerLabels ? JSON.parse(JSON.stringify(g.headerLabels)) : {};
+      }
+      if (!sg.columnOrder || !sg.columnOrder.length){
+        sg.columnOrder = g.columnOrder ? g.columnOrder.slice() : [];
+      }
       sg.parentId = g.id;
       groups.push(sg);
     });
@@ -8124,29 +8216,8 @@ function renderProject(){
     const addSubgroupBtn = groupEl.querySelector('[data-act="add-subgroup"]');
     if (addSubgroupBtn) addSubgroupBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      const name = window.prompt(`Add subgroup under "${group.name}":`, '');
-      if (!name || !name.trim()) return;
-      // Create subgroup nested under the parent group
-      const newSub = {
-        id: uid('g'),
-        name: name.trim(),
-        color: group.color || '#0B0B0A',
-        columns: group.columns || [],          // share parent columns
-        headerLabels: group.headerLabels || {},
-        columnOrder: group.columnOrder || [],
-        sortConfig: null,
-        tasks: [],
-        subgroups: [],
-        parentId: group.id,
-        authorEmail: state.session?.email || '',
-        createdAt: Date.now(),
-      };
-      group.subgroups = group.subgroups || [];
-      group.subgroups.push(newSub);
-      saveProjectBoardToCloud().then(() => {
-        renderProject();
-        toast('Subgroup added.');
-      });
+      // Open the same group modal in "new subgroup" mode — gives user a name + color picker
+      openGroupModal(null, { parentForNewSub: group });
     });
     const editGroupBtn = groupEl.querySelector('[data-act="edit-group"]');
     if (editGroupBtn) editGroupBtn.addEventListener('click', (e) => { e.stopPropagation(); openGroupModal(group); });
@@ -9936,9 +10007,12 @@ function openAddColumnModal(groupId){
   }, 30);
 }
 
-function openGroupModal(existing){
+function openGroupModal(existing, opts){
+  opts = opts || {};
+  const parentForNewSub = opts.parentForNewSub || null;  // when set, we are creating a subgroup under this parent
   const isEdit = !!existing;
-  const currentColor = existing?.color || GROUP_COLORS[0];
+  const isNewSubgroup = !isEdit && !!parentForNewSub;
+  const currentColor = existing?.color || (parentForNewSub?.color) || GROUP_COLORS[0];
   let pickedColor = currentColor;
 
   // Build color picker HTML inline (no setTimeout race)
@@ -9947,22 +10021,53 @@ function openGroupModal(existing){
       ${GROUP_COLORS.map(c => `<div class="color-swatch${c===currentColor?' is-on':''}" style="background:${c}" data-color="${c}"></div>`).join('')}
     </div>`;
 
+  let modalEyebrow, modalTitle;
+  if (isEdit){
+    const editingSubgroup = !!existing.parentId;
+    modalEyebrow = editingSubgroup ? 'Edit · Subgroup' : 'Edit · Group';
+    modalTitle = editingSubgroup ? `Edit <em>subgroup.</em>` : `Edit <em>group.</em>`;
+  } else if (isNewSubgroup){
+    modalEyebrow = `New · Subgroup under "${parentForNewSub.name}"`;
+    modalTitle = `New <em>subgroup.</em>`;
+  } else {
+    modalEyebrow = 'New · New Group';
+    modalTitle = `New <em>group.</em>`;
+  }
+
   openModal({
-    eyebrow: isEdit ? 'Edit · Group Edit' : 'New · New Group',
-    title: isEdit ? `Edit <em>group.</em>` : `New <em>group.</em>`,
+    eyebrow: modalEyebrow,
+    title: modalTitle,
     fields: [
-      { name:'name', label:'Group Name', placeholder:'e.g., To-Do, In Progress, Completed', required:true },
+      { name:'name', label: isNewSubgroup ? 'Subgroup Name' : 'Group Name',
+        placeholder: isNewSubgroup ? 'e.g., IE Department, QC Team' : 'e.g., To-Do, In Progress, Completed',
+        required:true },
       { type:'rawHtml', html: colorPickerHtml },
     ],
     values: existing || {},
     onSubmit: async (v) => {
       const name = String(v.name||'').trim();
-      if (!name){ toast('Group Please enter a name.'); return false; }
+      if (!name){ toast('Please enter a name.'); return false; }
       if (isEdit){
-        console.log('[group edit] before:', existing.name, '→ new:', name, '| id:', existing.id, '| parentId:', existing.parentId);
         existing.name = name;
         existing.color = pickedColor;
-        console.log('[group edit] after:', existing.name);
+      } else if (isNewSubgroup){
+        // Create a subgroup nested under the parent
+        const newSub = {
+          id: uid('g'),
+          name,
+          color: pickedColor,
+          columns: parentForNewSub.columns ? JSON.parse(JSON.stringify(parentForNewSub.columns)) : [],
+          headerLabels: parentForNewSub.headerLabels ? JSON.parse(JSON.stringify(parentForNewSub.headerLabels)) : {},
+          columnOrder: parentForNewSub.columnOrder ? parentForNewSub.columnOrder.slice() : [],
+          sortConfig: null,
+          tasks: [],
+          subgroups: [],
+          parentId: parentForNewSub.id,
+          authorEmail: state.session?.email || '',
+          createdAt: Date.now(),
+        };
+        parentForNewSub.subgroups = parentForNewSub.subgroups || [];
+        parentForNewSub.subgroups.push(newSub);
       } else {
         content.projectBoard.push({
           id: uid('g'), name, color: pickedColor, tasks: [],
@@ -9970,8 +10075,8 @@ function openGroupModal(existing){
         });
       }
       renderProject();
-      saveProjectBoardToCloud().catch(() => {});
-      toast(isEdit ? 'Group updated.' : 'Group added.');
+      saveProjectBoardToCloud().catch((e) => console.warn('[group save] error:', e));
+      toast(isEdit ? 'Group updated.' : (isNewSubgroup ? 'Subgroup added.' : 'Group added.'));
     }
   });
 
@@ -9987,8 +10092,6 @@ function openGroupModal(existing){
       swatch.classList.add('is-on');
       pickedColor = swatch.dataset.color;
     });
-  } else {
-    console.warn('[openGroupModal] color grid not found in modal form');
   }
 }
 
