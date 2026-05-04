@@ -6502,17 +6502,34 @@ function scheduleProjectBoardReload(source){
     // textarea, contenteditable), defer the rerender so we don't blow away
     // their in-progress input. Try again in 2 seconds.
     const $active = document.activeElement;
-    const isProjectInput = $active && (
-      // Inline new-task input on a group
+    // Check 1: focus-based detection
+    const focusedInProject = $active && (
       $active.classList?.contains('tg-add-task-input') ||
-      // Task detail modal — any input inside it
       $active.closest?.('#task-detail-modal') ||
-      // Any input/textarea/contenteditable inside the project board
       ($active.closest?.('#project-board') &&
        (['INPUT','TEXTAREA'].includes($active.tagName) || $active.isContentEditable))
     );
-    if (isProjectInput){
-      console.log('[realtime] user is typing — deferring reload by 2s');
+    // Check 2: any inline new-task input that has been switched to "input" mode
+    // and contains a non-empty value — this catches cases where focus has been
+    // lost (e.g. due to a rerender on a sibling) but the user has typed something
+    const $activeInputWrap = document.querySelector('.tg-add-task-wrap[data-mode="input"]');
+    const $activeInput = $activeInputWrap?.querySelector('input.tg-add-task-input');
+    const hasUnsavedInline = !!($activeInput && ($activeInput.value || '').length > 0);
+    // Check 3: any input/textarea inside the project board with a value but BODY focus
+    // (i.e. the user typed something then a stray rerender stole focus)
+    let hasUnsavedBoardInput = false;
+    document.querySelectorAll('#project-board input, #project-board textarea').forEach(el => {
+      if (el.value && el.value.length > 0 && el !== $active){
+        // Only count visible inputs that aren't read-only
+        if (el.offsetParent !== null && !el.readOnly && !el.disabled){
+          // The "value" attribute persists across rerenders for some inputs (cell edits),
+          // so we ONLY count the inline new-task input where unsaved typing matters.
+          if (el.classList.contains('tg-add-task-input')) hasUnsavedBoardInput = true;
+        }
+      }
+    });
+    if (focusedInProject || hasUnsavedInline || hasUnsavedBoardInput){
+      console.log('[realtime] user is typing — deferring reload by 2s. focused:', focusedInProject, 'inline:', hasUnsavedInline, 'board:', hasUnsavedBoardInput);
       setTimeout(() => scheduleProjectBoardReload(source), 2000);
       return;
     }
