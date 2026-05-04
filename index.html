@@ -334,7 +334,134 @@
 
   .app-foot{margin-top:auto;padding:24px 32px;border-top:1px solid var(--hair);display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-mute);gap:16px;flex-wrap:wrap}
 
-  /* ============ ORG CHART ============ */
+  /* ============ THREAD DETAIL MODAL ============ */
+  .td-modal{
+    position:fixed;inset:0;z-index:9000;display:none;
+    align-items:center;justify-content:center;padding:20px;
+  }
+  .td-modal.show{display:flex}
+  .td-backdrop{
+    position:absolute;inset:0;background:rgba(0,0,0,.45);backdrop-filter:blur(2px);
+  }
+  .td-card{
+    position:relative;background:var(--paper);
+    border:1px solid var(--hair);border-radius:8px;
+    width:min(720px, 100%);max-height:90vh;
+    display:flex;flex-direction:column;
+    box-shadow:0 20px 60px rgba(0,0,0,.2);overflow:hidden;
+  }
+  .td-head{
+    display:flex;align-items:flex-start;justify-content:space-between;
+    padding:20px 24px 16px;border-bottom:1px solid var(--hair);
+  }
+  .td-meta{flex:1;min-width:0}
+  .td-dept{
+    font-family:var(--mono);font-size:10px;letter-spacing:.1em;
+    color:var(--ink-mute);text-transform:uppercase;margin-bottom:6px;
+  }
+  .td-title{
+    margin:0 0 6px;font-family:var(--serif-kr);font-size:22px;font-weight:600;
+    color:var(--ink);line-height:1.25;letter-spacing:-.005em;
+  }
+  .td-info{
+    font-family:var(--mono);font-size:11px;color:var(--ink-mute);letter-spacing:.02em;
+    display:flex;align-items:center;flex-wrap:wrap;gap:6px;
+  }
+  .td-dot{opacity:.5}
+  .td-x{
+    background:none;border:none;cursor:pointer;font-size:24px;line-height:1;
+    color:var(--ink-mute);padding:0;width:32px;height:32px;flex:none;
+  }
+  .td-x:hover{color:var(--ink)}
+  .td-body{
+    padding:18px 24px;font-family:var(--serif-kr);font-size:14.5px;
+    color:var(--ink);line-height:1.6;overflow-y:auto;flex:none;
+    max-height:30vh;
+  }
+  .td-body img{max-width:100%;height:auto;border-radius:4px}
+  .td-body p{margin:0 0 12px}
+  .td-body p:last-child{margin-bottom:0}
+  .td-attendees{
+    padding:0 24px 12px;display:flex;flex-wrap:wrap;gap:6px;
+  }
+  .td-attendees:empty{display:none}
+  .td-attendee{
+    font-family:var(--mono);font-size:11px;
+    padding:3px 10px;border-radius:999px;
+    background:rgba(11,11,10,.05);color:var(--ink-soft);
+  }
+  .td-actions{
+    padding:0 24px 12px;display:flex;gap:8px;
+  }
+  .td-actions:empty{display:none}
+  .td-edit-btn{
+    background:var(--ink);color:var(--paper);border:1px solid var(--ink);
+    border-radius:5px;padding:6px 14px;cursor:pointer;
+    font-family:var(--sans);font-size:13px;
+  }
+  .td-edit-btn:hover{opacity:.85}
+  .td-del-btn{
+    background:transparent;color:#dc2626;border:1px solid #dc2626;
+    border-radius:5px;padding:6px 14px;cursor:pointer;
+    font-family:var(--sans);font-size:13px;
+  }
+  .td-del-btn:hover{background:#dc2626;color:#fff}
+  .td-comments-sec{
+    border-top:1px solid var(--hair);padding:18px 24px 20px;
+    background:rgba(11,11,10,.02);overflow-y:auto;flex:1;min-height:0;
+  }
+  .td-comments-title{
+    margin:0 0 12px;font-family:var(--sans);font-size:13px;font-weight:600;
+    color:var(--ink-soft);text-transform:uppercase;letter-spacing:.06em;
+  }
+  .td-comments-title span{color:var(--ink-mute);font-weight:400}
+  .td-comments-list{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+  .td-comments-empty{
+    font-family:var(--sans);font-size:13px;color:var(--ink-mute);
+    padding:18px 0;text-align:center;
+  }
+  .td-comment{
+    display:flex;flex-direction:column;gap:4px;
+    padding:10px 12px;border-radius:6px;background:var(--paper);
+    border:1px solid var(--hair);
+  }
+  .td-comment-head{
+    display:flex;justify-content:space-between;align-items:center;
+    font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);
+    letter-spacing:.04em;
+  }
+  .td-comment-author{font-weight:600;color:var(--ink-soft);text-transform:none}
+  .td-comment-text{
+    font-family:var(--serif-kr);font-size:13.5px;color:var(--ink);
+    line-height:1.5;white-space:pre-wrap;word-break:break-word;
+  }
+  .td-comment-del{
+    background:none;border:none;cursor:pointer;color:var(--ink-mute);
+    font-size:14px;line-height:1;padding:2px 6px;
+    opacity:0;transition:opacity .12s,color .12s;
+  }
+  .td-comment:hover .td-comment-del{opacity:1}
+  .td-comment-del:hover{color:#dc2626}
+  .td-comment-form{
+    display:flex;gap:8px;align-items:flex-start;
+  }
+  .td-comment-form textarea{
+    flex:1;padding:8px 12px;border:1px solid var(--hair);border-radius:5px;
+    background:var(--paper);font-family:var(--serif-kr);font-size:13.5px;
+    color:var(--ink);resize:vertical;min-height:38px;outline:none;
+    transition:border-color .12s;box-sizing:border-box;
+  }
+  .td-comment-form textarea:focus{border-color:var(--ink)}
+  .td-comment-send{
+    flex:none;background:var(--ink);color:var(--paper);
+    border:1px solid var(--ink);border-radius:5px;padding:8px 16px;
+    cursor:pointer;font-family:var(--sans);font-size:13px;font-weight:600;
+    align-self:stretch;
+  }
+  .td-comment-send:hover{opacity:.85}
+  .td-comment-send:disabled{opacity:.5;cursor:default}
+
+  /* ============ THREAD DETAIL MODAL END ============ */
   .org-toolbar{display:flex;align-items:center;gap:6px;padding:10px 0 14px;border-bottom:1px solid var(--hair);margin-bottom:18px}
   .org-tool-btn{
     width:30px;height:30px;border:1px solid var(--hair);background:var(--paper);
@@ -4039,6 +4166,39 @@
   <button type="button" class="sb-close" data-sbact="close" aria-label="Close">×</button>
 </div>
 
+<div class="td-modal" id="thread-detail-modal" aria-hidden="true">
+  <div class="td-backdrop" data-td-close></div>
+  <div class="td-card" role="dialog" aria-modal="true">
+    <div class="td-head">
+      <div class="td-meta">
+        <div class="td-dept" id="td-dept">—</div>
+        <h2 class="td-title" id="td-title">—</h2>
+        <div class="td-info">
+          <span id="td-author">—</span>
+          <span class="td-dot">·</span>
+          <span id="td-date">—</span>
+          <span class="td-dot">·</span>
+          <span id="td-time">—</span>
+        </div>
+      </div>
+      <button type="button" class="td-x" data-td-close aria-label="Close">×</button>
+    </div>
+    <div class="td-body" id="td-body">—</div>
+    <div class="td-attendees" id="td-attendees"></div>
+    <div class="td-actions" id="td-actions"></div>
+    <div class="td-comments-sec">
+      <h3 class="td-comments-title">Comments <span id="td-comments-count">(0)</span></h3>
+      <div class="td-comments-list" id="td-comments-list">
+        <div class="td-comments-empty">Loading comments…</div>
+      </div>
+      <div class="td-comment-form">
+        <textarea id="td-comment-input" placeholder="Add a comment…" rows="2"></textarea>
+        <button type="button" class="td-comment-send" id="td-comment-send">Post</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="org-modal" id="org-modal" aria-hidden="true">
   <div class="org-modal-backdrop" data-org-close></div>
   <div class="org-modal-card" role="dialog" aria-modal="true">
@@ -4575,6 +4735,12 @@ function startContentRealtime(){
         _todoState.items = await fetchTodos();
       }
       if (typeof renderTodo === 'function') renderTodo();
+    },
+    // Thread comments: refresh detail modal if it's open for that thread
+    thread_comments: async () => {
+      if (_tdState && _tdState.thread && typeof loadAndRenderComments === 'function'){
+        await loadAndRenderComments(_tdState.thread.id);
+      }
     },
   };
 
@@ -10840,6 +11006,17 @@ function renderForum(){
       renderForum(); renderDashStats(); toast('Meeting deleted.');
     });
   }));
+  // Card body click → detail modal (read + comments for everyone)
+  $list.querySelectorAll('article.thread').forEach(card => {
+    card.addEventListener('click', (e) => {
+      // Don't fire when clicking action buttons
+      if (e.target.closest('[data-act]')) return;
+      const id = card.dataset.id;
+      const t = content.threads.find(x => x.id === id);
+      if (t) openThreadDetailModal(t);
+    });
+    card.style.cursor = 'pointer';
+  });
 }
 
 /* ===== SCHEDULES MODULE ===== */
@@ -11750,9 +11927,8 @@ function renderMeetingMonitor(){
         }
         return;
       }
-      // bare click — edit if can, otherwise show meta toast
-      if (canEdit(t)) openThreadModal(t);
-      else toast(`${t.title} · ${t.startTime}–${t.endTime}`);
+      // bare click — open detail view for everyone (read + comment for all, edit only for author)
+      openThreadDetailModal(t);
     });
   });
 }
@@ -11808,6 +11984,228 @@ function startMonitorLoop(){
     }, 5 * 60 * 1000);
   }
 }
+/* ============ THREAD DETAIL MODAL + COMMENTS ============
+   Read-only meeting view with inline comments. Open for everyone (clicking a
+   meeting card). Author sees Edit/Delete; everyone can post comments.
+
+   Required Supabase table:
+     create table if not exists thread_comments (
+       id uuid primary key default gen_random_uuid(),
+       thread_id uuid not null references threads(id) on delete cascade,
+       author_email text not null,
+       author_name text default '',
+       body text not null,
+       created_at timestamptz default now()
+     );
+     alter table thread_comments enable row level security;
+     create policy "tc_read" on thread_comments
+       for select using (
+         exists(select 1 from profiles 
+                where lower(email) = lower(auth.jwt()->>'email')
+                  and status = 'approved'));
+     create policy "tc_insert" on thread_comments
+       for insert with check (
+         lower(author_email) = lower(auth.jwt()->>'email'));
+     create policy "tc_delete" on thread_comments
+       for delete using (lower(author_email) = lower(auth.jwt()->>'email'));
+============================================================ */
+
+let _tdState = { thread: null, comments: [] };
+
+async function fetchThreadComments(threadId){
+  if (!Sb) return [];
+  const { data, error } = await Sb.from('thread_comments')
+    .select('*').eq('thread_id', threadId)
+    .order('created_at', { ascending: true });
+  if (error){
+    if (!/(does not exist|relation)/.test(error.message || '')){
+      console.warn('[fetchThreadComments]', error);
+    }
+    return [];
+  }
+  return data || [];
+}
+
+async function postThreadComment(threadId, body){
+  if (!Sb || !state.session) return { error: 'Not logged in' };
+  const me = (state.session.email||'').toLowerCase();
+  const myName = state.session.name || me.split('@')[0];
+  const { error } = await Sb.from('thread_comments').insert({
+    thread_id: threadId,
+    author_email: me,
+    author_name: myName,
+    body: body,
+  });
+  return { error };
+}
+
+async function deleteThreadComment(commentId){
+  if (!Sb) return { error: 'No connection' };
+  const { error } = await Sb.from('thread_comments').delete().eq('id', commentId);
+  return { error };
+}
+
+function openThreadDetailModal(thread){
+  _tdState.thread = thread;
+  const $m = document.getElementById('thread-detail-modal');
+  if (!$m) return;
+
+  // Fill meta
+  document.getElementById('td-dept').textContent = thread.department || (thread.notifyTeams && thread.notifyTeams[0]) || 'GENERAL';
+  document.getElementById('td-title').textContent = thread.title || '(no title)';
+  document.getElementById('td-author').textContent = thread.authorName || thread.authorEmail || '—';
+  document.getElementById('td-date').textContent = thread.meetingDate ? fmtMDDate(thread.meetingDate) : 'Date TBD';
+  document.getElementById('td-time').textContent = thread.startTime
+    ? `${thread.startTime}${thread.endTime ? '–' + thread.endTime : ''}`
+    : 'Time TBD';
+  // Body (rich HTML, sanitized via existing stripHtml fallback)
+  const $body = document.getElementById('td-body');
+  $body.innerHTML = thread.body || '<em style="color:var(--ink-mute)">No description</em>';
+
+  // Attendees
+  const $att = document.getElementById('td-attendees');
+  const att = thread.attendees || [];
+  $att.innerHTML = att.length
+    ? att.map(a => `<span class="td-attendee">${esc(a)}</span>`).join('')
+    : '';
+
+  // Author actions (Edit/Delete) — only for the author
+  const $actions = document.getElementById('td-actions');
+  if (canEdit(thread)){
+    $actions.innerHTML = `
+      <button type="button" class="td-edit-btn" id="td-edit-btn">Edit</button>
+      <button type="button" class="td-del-btn" id="td-del-btn">Delete</button>
+    `;
+    document.getElementById('td-edit-btn').addEventListener('click', () => {
+      closeThreadDetailModal();
+      openThreadModal(thread);
+    });
+    document.getElementById('td-del-btn').addEventListener('click', () => {
+      confirmDelete(thread.title, async () => {
+        const res = await deleteThreadDb(thread.id);
+        if (res.error){ toast('Delete failed: ' + res.error); return; }
+        content.threads = await fetchThreads();
+        renderForum(); renderDashStats();
+        closeThreadDetailModal();
+        toast('Meeting deleted.');
+      });
+    });
+  } else {
+    $actions.innerHTML = '';
+  }
+
+  // Comments
+  loadAndRenderComments(thread.id);
+
+  $m.classList.add('show');
+  $m.setAttribute('aria-hidden', 'false');
+}
+
+function closeThreadDetailModal(){
+  const $m = document.getElementById('thread-detail-modal');
+  if (!$m) return;
+  $m.classList.remove('show');
+  $m.setAttribute('aria-hidden', 'true');
+  _tdState.thread = null;
+  _tdState.comments = [];
+}
+
+async function loadAndRenderComments(threadId){
+  _tdState.comments = await fetchThreadComments(threadId);
+  renderComments();
+}
+
+function renderComments(){
+  const list = _tdState.comments || [];
+  const $list = document.getElementById('td-comments-list');
+  const $count = document.getElementById('td-comments-count');
+  if (!$list) return;
+  $count.textContent = `(${list.length})`;
+  if (!list.length){
+    $list.innerHTML = `<div class="td-comments-empty">No comments yet — be the first to comment.</div>`;
+    return;
+  }
+  const me = (state.session?.email || '').toLowerCase();
+  $list.innerHTML = list.map(c => {
+    const isOwn = (c.author_email || '').toLowerCase() === me;
+    return `<div class="td-comment" data-cid="${esc(c.id)}">
+      <div class="td-comment-head">
+        <span class="td-comment-author">${esc(c.author_name || c.author_email || '—')}</span>
+        <span style="display:inline-flex;align-items:center;gap:6px">
+          <span>${esc(fmtAgoShort(c.created_at))}</span>
+          ${isOwn ? `<button type="button" class="td-comment-del" data-del-cid="${esc(c.id)}" title="Delete">×</button>` : ''}
+        </span>
+      </div>
+      <div class="td-comment-text">${esc(c.body || '')}</div>
+    </div>`;
+  }).join('');
+  // Wire delete buttons
+  $list.querySelectorAll('[data-del-cid]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const cid = btn.dataset.delCid;
+      if (!confirm('Delete this comment?')) return;
+      const res = await deleteThreadComment(cid);
+      if (res.error){ toast('Delete failed: ' + res.error); return; }
+      // Optimistic local update
+      _tdState.comments = _tdState.comments.filter(c => c.id !== cid);
+      renderComments();
+    });
+  });
+}
+
+function bindThreadDetailModal(){
+  const $m = document.getElementById('thread-detail-modal');
+  if (!$m || $m.dataset.bound) return;
+  $m.dataset.bound = '1';
+
+  // Close handlers
+  $m.querySelectorAll('[data-td-close]').forEach(el => {
+    el.addEventListener('click', closeThreadDetailModal);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $m.classList.contains('show')) closeThreadDetailModal();
+  });
+
+  // Comment posting
+  const $input = document.getElementById('td-comment-input');
+  const $send = document.getElementById('td-comment-send');
+  const submitComment = async () => {
+    const body = ($input.value || '').trim();
+    if (!body) return;
+    if (!_tdState.thread) return;
+    $send.disabled = true;
+    const original = $send.textContent;
+    $send.textContent = 'Posting…';
+    try {
+      const res = await postThreadComment(_tdState.thread.id, body);
+      if (res.error){
+        toast('Failed: ' + res.error.message);
+      } else {
+        $input.value = '';
+        // Reload comments (also triggered by realtime, but immediate feedback is nice)
+        await loadAndRenderComments(_tdState.thread.id);
+      }
+    } finally {
+      $send.disabled = false;
+      $send.textContent = original;
+    }
+  };
+  $send.addEventListener('click', submitComment);
+  $input.addEventListener('keydown', (e) => {
+    // Cmd/Ctrl+Enter to submit; plain Enter inserts newline
+    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)){
+      e.preventDefault();
+      submitComment();
+    }
+  });
+}
+
+// Bind once on first load
+document.addEventListener('DOMContentLoaded', bindThreadDetailModal);
+// Also bind immediately if DOM already loaded
+if (document.readyState !== 'loading') bindThreadDetailModal();
+
 function openThreadModal(existing){
   const isEdit = !!existing;
   openRichEditor({
@@ -12297,17 +12695,33 @@ async function sendTodoInvitations(todo, recipientEmails){
 
   const errors = [];
   let inserted = [];
-  const { data, error } = await Sb.from('todo_invitations').insert(rows).select();
+  console.log('[invitations] inserting rows:', rows);
+  // Don't use .select() — RETURNING gets blocked by SELECT policy when row
+  // belongs to another user. Insert without returning, then fetch back.
+  const { error } = await Sb.from('todo_invitations').insert(rows);
   if (error){
+    console.warn('[invitations] insert error:', error);
     if (/(does not exist|relation)/.test(error.message || '')){
       console.warn('[invitations] table not present — run the migration SQL.');
       toast('Invitation table missing — see console.');
       return { sent: 0, errors: ['table missing'] };
     }
     errors.push(error.message);
-  } else {
-    inserted = data || [];
+    return { sent: 0, errors };
   }
+  // Fetch back the rows we just inserted (sender can read own invitations via SELECT policy)
+  const { data: backData, error: fetchErr } = await Sb.from('todo_invitations')
+    .select('id, recipient_email')
+    .eq('sender_email', senderEmail)
+    .in('recipient_email', recipients)
+    .order('created_at', { ascending: false })
+    .limit(recipients.length);
+  if (fetchErr){
+    console.warn('[invitations] fetch-back failed:', fetchErr);
+  } else {
+    inserted = backData || [];
+  }
+  console.log('[invitations] inserted count:', inserted.length);
 
   // Also create an in-app notification per recipient so they see it in the bell panel
   // (we use type 'invite' so renderNotifications can render the accept/decline UI)
@@ -15101,15 +15515,25 @@ function bindTodoNotionModal(){
 
       // Send task invitations to "with whom" members if user opted in.
       // Excludes the owner themselves; fires only after a successful save.
+      console.log('[invitations] check: savedTodo=', !!savedTodo, 
+                  '_sendInvitation=', _tnState._sendInvitation,
+                  'whoWithEmails=', savedTodo?.whoWithEmails);
       if (savedTodo && _tnState._sendInvitation){
         const meEmail = (state.session.email || '').toLowerCase();
         const recipients = (savedTodo.whoWithEmails || [])
           .filter(em => em && em.toLowerCase() !== meEmail);
+        console.log('[invitations] recipients:', recipients);
         if (recipients.length){
           sendTodoInvitations(savedTodo, recipients).then(r => {
+            console.log('[invitations] send result:', r);
             if (r.sent > 0) toast(`${r.sent} invitation${r.sent>1?'s':''} sent.`);
+            else if (r.errors && r.errors.length) toast('Send failed: ' + r.errors[0]);
           }).catch(e => console.warn('[invitations] send failed:', e));
+        } else {
+          console.log('[invitations] no valid recipients (excluded self)');
         }
+      } else {
+        console.log('[invitations] skipped — flag off or no saved todo');
       }
 
       renderTodo();
