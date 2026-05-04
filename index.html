@@ -4553,6 +4553,22 @@ function startContentRealtime(){
         if (typeof renderOrgChart === 'function') renderOrgChart();
       }
     },
+    // Todo invitations: when a sender INSERTs invitation rows or a recipient
+    // accepts/declines, refresh the bell panel so accept/decline buttons appear
+    // and unread count updates.
+    todo_invitations: async () => {
+      if (typeof renderNotifications === 'function') renderNotifications();
+    },
+    // Personal todos: when an invitation is accepted, the new copy appears in
+    // the recipient's todos via this handler (insertTodoDb fires INSERT).
+    todos: async () => {
+      if (typeof loadTodos === 'function'){
+        await loadTodos();
+      } else if (typeof fetchTodos === 'function'){
+        _todoState.items = await fetchTodos();
+      }
+      if (typeof renderTodo === 'function') renderTodo();
+    },
   };
 
   console.log('[content-rt] starting subscriptions for', Object.keys(_contentHandlers).length, 'tables');
