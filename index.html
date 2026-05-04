@@ -1313,6 +1313,28 @@
 
   /* ===== PROJECT VIEW ===== */
   .task-group{margin-bottom:48px}
+
+  /* Subgroups: indented with a left rail to show hierarchy */
+  .task-group.is-subgroup{
+    margin-left:36px;
+    margin-top:-32px;       /* pull closer to parent */
+    margin-bottom:36px;
+    padding-left:18px;
+    border-left:2px solid var(--hair);
+    position:relative;
+  }
+  .task-group.is-subgroup::before{
+    content:'';
+    position:absolute;left:-2px;top:0;width:14px;height:24px;
+    border-bottom-left-radius:8px;
+    border-left:2px solid var(--hair);
+    border-bottom:2px solid var(--hair);
+    pointer-events:none;
+  }
+  .tg-sub-icon{
+    flex:none;color:var(--ink-mute);font-size:14px;line-height:1;
+    margin-right:2px;user-select:none;
+  }
   .tg-head{display:flex;align-items:center;gap:14px;padding:14px 0;border-bottom:1px solid var(--hair);position:relative}
   .tg-bar{width:4px;height:24px;background:var(--ink);flex:none}
   .tg-toggle{background:transparent;border:none;color:var(--ink-mute);cursor:pointer;font-size:13px;padding:0;width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;transition:transform .2s}
@@ -6349,40 +6371,51 @@ async function deleteCompanyEventDb(id){
 function flattenBoardForDb(){
   const groups = [];
   const tasks = [];
-  (content.projectBoard || []).forEach((g, gi) => {
-    groups.push({
-      id: g.id,
-      name: g.name || '',
-      color: g.color || '#0B0B0A',
-      columns: g.columns || [],
-      header_labels: g.headerLabels || {},
-      column_order: g.columnOrder || [],
-      sort_config: g.sortConfig || null,
-      position: gi,
-      author_email: g.authorEmail || state.session?.email || '',
-    });
-    (g.tasks || []).forEach((t, ti) => {
-      tasks.push({
-        id: t.id,
-        group_id: g.id,
-        title: t.title || '',
-        owner_email: t.ownerEmail || null,
-        owner_name: t.ownerName || null,
-        status: t.status || 'notstarted',
-        progress: typeof t.progress === 'number' ? t.progress : 0,
-        due_date: t.dueDate || null,
-        custom_values: t.customValues || {},
-        updates: t.updates || [],
-        position: ti,
-        author_email: t.authorEmail || state.session?.email || '',
+  // Walk both top-level groups AND their subgroups, flattening all into one
+  // groups array. Subgroups keep parent_id pointing to their parent.
+  const walkGroups = (list, parentId, baseIndex) => {
+    (list || []).forEach((g, gi) => {
+      groups.push({
+        id: g.id,
+        name: g.name || '',
+        color: g.color || '#0B0B0A',
+        columns: g.columns || [],
+        header_labels: g.headerLabels || {},
+        column_order: g.columnOrder || [],
+        sort_config: g.sortConfig || null,
+        position: baseIndex + gi,
+        parent_id: parentId,
+        author_email: g.authorEmail || state.session?.email || '',
       });
+      (g.tasks || []).forEach((t, ti) => {
+        tasks.push({
+          id: t.id,
+          group_id: g.id,
+          title: t.title || '',
+          owner_email: t.ownerEmail || null,
+          owner_name: t.ownerName || null,
+          status: t.status || 'notstarted',
+          progress: typeof t.progress === 'number' ? t.progress : 0,
+          due_date: t.dueDate || null,
+          custom_values: t.customValues || {},
+          updates: t.updates || [],
+          position: ti,
+          author_email: t.authorEmail || state.session?.email || '',
+        });
+      });
+      // Recurse into subgroups (1 level deep is enforced by the UI but schema supports more)
+      if (g.subgroups && g.subgroups.length){
+        walkGroups(g.subgroups, g.id, 0);
+      }
     });
-  });
+  };
+  walkGroups(content.projectBoard || [], null, 0);
   return { groups, tasks };
 }
 
 function reconstructBoardFromDb(groupsRows, tasksRows){
-  // Build nested format expected by the UI: each group has a tasks[] array
+  // Build nested format expected by the UI: each group has a tasks[] array.
+  // Subgroups (parent_id != null) are nested under their parent group's `subgroups` array.
   const sortedGroups = (groupsRows || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
   const sortedTasks = (tasksRows || []).slice().sort((a, b) => (a.position || 0) - (b.position || 0));
   const tasksByGroup = {};
@@ -6396,23 +6429,42 @@ function reconstructBoardFromDb(groupsRows, tasksRows){
       progress: typeof t.progress === 'number' ? t.progress : 0,
       dueDate: t.due_date || '',
       customValues: t.custom_values || {},
-      updates: t.updates || [],
+      updates: Array.isArray(t.updates) ? t.updates : [],
+      attachments: Array.isArray(t.attachments) ? t.attachments : [],
+      activity: Array.isArray(t.activity) ? t.activity : [],
       authorEmail: t.author_email || '',
       createdAt: t.created_at ? new Date(t.created_at).getTime() : Date.now(),
     });
   });
-  return sortedGroups.map(g => ({
-    id: g.id,
-    name: g.name || '',
-    color: g.color || '#0B0B0A',
-    columns: g.columns || [],
-    headerLabels: g.header_labels || {},
-    columnOrder: g.column_order || [],
-    sortConfig: g.sort_config || null,
-    authorEmail: g.author_email || '',
-    createdAt: g.created_at ? new Date(g.created_at).getTime() : Date.now(),
-    tasks: tasksByGroup[g.id] || [],
-  }));
+  // First pass — build group nodes keyed by id
+  const nodes = {};
+  sortedGroups.forEach(g => {
+    nodes[g.id] = {
+      id: g.id,
+      name: g.name || '',
+      color: g.color || '#0B0B0A',
+      columns: g.columns || [],
+      headerLabels: g.header_labels || {},
+      columnOrder: g.column_order || [],
+      sortConfig: g.sort_config || null,
+      authorEmail: g.author_email || '',
+      createdAt: g.created_at ? new Date(g.created_at).getTime() : Date.now(),
+      tasks: tasksByGroup[g.id] || [],
+      subgroups: [],
+      parentId: g.parent_id || null,
+    };
+  });
+  // Second pass — link subgroups under their parents
+  const roots = [];
+  sortedGroups.forEach(g => {
+    const node = nodes[g.id];
+    if (g.parent_id && nodes[g.parent_id]){
+      nodes[g.parent_id].subgroups.push(node);
+    } else {
+      roots.push(node);
+    }
+  });
+  return roots;
 }
 
 async function fetchProjectBoard(){
@@ -6658,6 +6710,22 @@ document.getElementById('modal-cancel').addEventListener('click', closeModal);
 // Outside click does NOT close the modal — only X button or Cancel button do
 // $modal.addEventListener('click', (e) => { if (e.target === $modal) closeModal(); });  // disabled
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $modal.classList.contains('show')) closeModal(); });
+
+// Disable Enter key inside modal text inputs entirely — prevents form submission /
+// page reload AND avoids accidental save. User must click the Save button explicitly.
+// Textareas still allow Enter (newline) since they're meant for multi-line content.
+$modalForm.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA'){
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+// Also block the form's submit event itself (in case any browser autofill triggers it)
+$modalForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+});
+
 document.getElementById('modal-submit').addEventListener('click', async (e) => {
   if (!modalSubmitHandler) return;
   const $btn = e.currentTarget;
@@ -7266,7 +7334,25 @@ let _selectionBarBound = false;
 let _focusAddTaskGroupId = null;
 
 function findGroupOfTask(tid){
-  return content.projectBoard.find(g => (g.tasks||[]).some(t => t.id === tid));
+  // Search root groups first, then their subgroups
+  for (const g of (content.projectBoard || [])){
+    if ((g.tasks||[]).some(t => t.id === tid)) return g;
+    for (const sg of (g.subgroups || [])){
+      if ((sg.tasks||[]).some(t => t.id === tid)) return sg;
+    }
+  }
+  return undefined;
+}
+
+// Find any group (root or subgroup) by id
+function findAnyGroupById(gid){
+  for (const g of (content.projectBoard || [])){
+    if (g.id === gid) return g;
+    for (const sg of (g.subgroups || [])){
+      if (sg.id === gid) return sg;
+    }
+  }
+  return undefined;
 }
 
 function clearSelection(){
@@ -7315,14 +7401,24 @@ function bindSelectionBar(){
       // toggle popover
       const pop = document.getElementById('sb-move-pop');
       if (pop.classList.contains('show')){ pop.classList.remove('show'); return; }
-      // build group list
+      // Build group list — include subgroups, indented under their parent
       const taskGroupIds = new Set(ids.map(id => findGroupOfTask(id)?.id).filter(Boolean));
       const isSingleGroup = taskGroupIds.size === 1;
       const currentGroupId = isSingleGroup ? [...taskGroupIds][0] : null;
-      pop.innerHTML = content.projectBoard.map(g => {
+      // Flatten root + subgroups, marking each row with depth so we can indent
+      const flatList = [];
+      content.projectBoard.forEach(g => {
+        flatList.push({ group: g, depth: 0 });
+        (g.subgroups || []).forEach(sg => {
+          flatList.push({ group: sg, depth: 1 });
+        });
+      });
+      pop.innerHTML = flatList.map(({group: g, depth}) => {
         const isCurrent = currentGroupId === g.id;
-        return `<button type="button" class="sb-move-item${isCurrent?' is-current':''}" data-target="${esc(g.id)}" ${isCurrent?'disabled':''}>
-          <span class="sb-dot" style="background:${esc(g.color||'#0B0B0A')}"></span>
+        const indentStyle = depth > 0 ? `padding-left:${12 + depth*16}px` : '';
+        const arrow = depth > 0 ? '<span style="color:var(--ink-mute);margin-right:6px">↳</span>' : '';
+        return `<button type="button" class="sb-move-item${isCurrent?' is-current':''}" data-target="${esc(g.id)}" ${isCurrent?'disabled':''} style="${indentStyle}">
+          ${arrow}<span class="sb-dot" style="background:${esc(g.color||'#0B0B0A')}"></span>
           <span>${esc(g.name)}</span>
         </button>`;
       }).join('');
@@ -7422,7 +7518,8 @@ async function deleteSelectedTasks(ids){
 }
 
 async function moveSelectedTasks(ids, targetGroupId){
-  const target = content.projectBoard.find(g => g.id === targetGroupId);
+  // Target may be a root group or a subgroup
+  const target = findAnyGroupById(targetGroupId);
   if (!target){ toast('Target group not found.'); return; }
   let count = 0;
   ids.forEach(tid => {
@@ -7855,12 +7952,26 @@ function renderProjectDashboard(){
 function renderProject(){
   bindProjectTabs();
   paintProjectTabs();
-  const groups = content.projectBoard;
+  const rootGroups = content.projectBoard;
+  // Flatten parent + subgroups for rendering. Each entry knows its parent id
+  // (or null for top-level) and a flat 'all groups' list for cross-references.
+  const groups = [];
+  (rootGroups || []).forEach(g => {
+    groups.push(g);  // parent first
+    (g.subgroups || []).forEach(sg => {
+      // Subgroup inherits parent columns — UI stays consistent
+      sg.columns = g.columns || [];
+      sg.headerLabels = g.headerLabels || {};
+      sg.columnOrder = g.columnOrder || [];
+      sg.parentId = g.id;
+      groups.push(sg);
+    });
+  });
   const allTasks = groups.reduce((acc, g) => acc.concat(g.tasks||[]), []);
-  document.getElementById('project-count').textContent = `${allTasks.length} tasks · ${groups.length} groups`;
+  document.getElementById('project-count').textContent = `${allTasks.length} tasks · ${rootGroups.length} groups`;
 
   const $root = document.getElementById('project-board');
-  if (!groups.length){
+  if (!rootGroups.length){
     $root.innerHTML = `<div style="padding:60px 20px;text-align:center;font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink-mute);border:1px dashed var(--hair-strong)">No groups yet · add your first group</div>`;
     return;
   }
@@ -7884,15 +7995,18 @@ function renderProject(){
     const tableMinWidth = tableMinWidthFromOrder(order);
     const tableStyle = `${gridStyle};min-width:${tableMinWidth}px`;
     const isAdminUser = state.session?.role === 'admin';
-    return `<div class="task-group${collapsed?' is-collapsed':''}" data-gid="${g.id}"${isAdminUser?' data-admin="1"':''}>
+    const isSubgroup = !!g.parentId;
+    return `<div class="task-group${collapsed?' is-collapsed':''}${isSubgroup?' is-subgroup':''}" data-gid="${g.id}"${g.parentId?` data-parent-id="${esc(g.parentId)}"`:''}${isAdminUser?' data-admin="1"':''}>
       <div class="tg-head"${isAdminUser?' draggable="true"':''}>
         ${isAdminUser?'<span class="tg-drag-handle" title="Drag to reorder">⋮⋮</span>':''}
         <span class="tg-bar" style="background:${headerColor}"></span>
         <button class="tg-toggle" data-act="toggle" aria-label="Collapse/Expand">▾</button>
+        ${isSubgroup?'<span class="tg-sub-icon" title="Subgroup">↳</span>':''}
         <h3 class="tg-name" style="color:${headerColor}">${esc(g.name)}</h3>
         <span class="tg-count">${tasks.length} tasks</span>
         <div class="tg-actions">
           <button data-act="add-task">+ task</button>
+          ${isSubgroup?'':'<button data-act="add-subgroup">+ subgroup</button>'}
           <button data-act="edit-group">edit</button>
           <button data-act="del-group" class="danger">delete</button>
         </div>
@@ -8007,15 +8121,58 @@ function renderProject(){
     });
     const addTaskBtn = groupEl.querySelector('[data-act="add-task"]');
     if (addTaskBtn) addTaskBtn.addEventListener('click', (e) => { e.stopPropagation(); openTaskModal(null, gid); });
+    const addSubgroupBtn = groupEl.querySelector('[data-act="add-subgroup"]');
+    if (addSubgroupBtn) addSubgroupBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = window.prompt(`Add subgroup under "${group.name}":`, '');
+      if (!name || !name.trim()) return;
+      // Create subgroup nested under the parent group
+      const newSub = {
+        id: uid('g'),
+        name: name.trim(),
+        color: group.color || '#0B0B0A',
+        columns: group.columns || [],          // share parent columns
+        headerLabels: group.headerLabels || {},
+        columnOrder: group.columnOrder || [],
+        sortConfig: null,
+        tasks: [],
+        subgroups: [],
+        parentId: group.id,
+        authorEmail: state.session?.email || '',
+        createdAt: Date.now(),
+      };
+      group.subgroups = group.subgroups || [];
+      group.subgroups.push(newSub);
+      saveProjectBoardToCloud().then(() => {
+        renderProject();
+        toast('Subgroup added.');
+      });
+    });
     const editGroupBtn = groupEl.querySelector('[data-act="edit-group"]');
     if (editGroupBtn) editGroupBtn.addEventListener('click', (e) => { e.stopPropagation(); openGroupModal(group); });
     const delGroupBtn = groupEl.querySelector('[data-act="del-group"]');
     if (delGroupBtn) delGroupBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       const taskCount = (group.tasks||[]).length;
-      const msg = taskCount ? `'${group.name}' Groupand contents ${taskCount} Delete all tasks?` : `'${group.name}' Group? Delete?`;
+      const subCount = (group.subgroups||[]).length;
+      let msg;
+      if (subCount){
+        const subTaskCount = (group.subgroups||[]).reduce((acc, sg) => acc + (sg.tasks||[]).length, 0);
+        msg = `'${group.name}' group has ${subCount} subgroup${subCount>1?'s':''} and ${taskCount + subTaskCount} task${(taskCount+subTaskCount)!==1?'s':''}. Delete all?`;
+      } else if (taskCount){
+        msg = `'${group.name}' group and ${taskCount} task${taskCount>1?'s':''} — delete all?`;
+      } else {
+        msg = `Delete '${group.name}' group?`;
+      }
       if (window.confirm(msg)){
-        content.projectBoard = content.projectBoard.filter(x => x.id !== gid);
+        // If this is a subgroup, remove from parent's subgroups array.
+        // Otherwise remove from top-level board.
+        if (group.parentId){
+          const parent = content.projectBoard.find(p => p.id === group.parentId);
+          if (parent) parent.subgroups = (parent.subgroups || []).filter(x => x.id !== gid);
+        } else {
+          content.projectBoard = content.projectBoard.filter(x => x.id !== gid);
+        }
         saveProjectBoardToCloud().then(() => {
           renderProject(); toast('Group deleted.');
         });
@@ -9026,7 +9183,7 @@ function addActivity(task, type, detail){
 
 function getTaskAndGroup(){
   if (!_taskDetailState) return [null, null];
-  const group = content.projectBoard.find(g => g.id === _taskDetailState.groupId);
+  const group = findAnyGroupById(_taskDetailState.groupId);
   if (!group) return [null, null];
   const task = (group.tasks||[]).find(t => t.id === _taskDetailState.taskId);
   return [task, group];
@@ -9068,6 +9225,12 @@ function refreshTaskDetail(){
   const [task, group] = getTaskAndGroup();
   if (!task){ closeTaskDetail(); return; }
 
+  // Defensive: ensure all collection fields are valid arrays so downstream
+  // .length / .map calls don't throw if a fresh fetch missed them
+  if (!Array.isArray(task.updates))     task.updates = [];
+  if (!Array.isArray(task.attachments)) task.attachments = [];
+  if (!Array.isArray(task.activity))    task.activity = [];
+
   const $title = document.getElementById('td-title');
   if (document.activeElement !== $title) $title.value = task.title || '';
 
@@ -9092,8 +9255,16 @@ function refreshTaskDetail(){
   }
 
   const $group = document.getElementById('td-group-select');
-  $group.innerHTML = content.projectBoard.map(g =>
-    `<option value="${esc(g.id)}" ${g.id===_taskDetailState.groupId?'selected':''}>${esc(g.name)}</option>`
+  // Populate with root groups + their subgroups (subgroups indented with ↳)
+  const groupOptions = [];
+  content.projectBoard.forEach(g => {
+    groupOptions.push({ id: g.id, label: g.name });
+    (g.subgroups || []).forEach(sg => {
+      groupOptions.push({ id: sg.id, label: '↳ ' + sg.name });
+    });
+  });
+  $group.innerHTML = groupOptions.map(opt =>
+    `<option value="${esc(opt.id)}" ${opt.id===_taskDetailState.groupId?'selected':''}>${esc(opt.label)}</option>`
   ).join('');
 
   document.querySelectorAll('#task-detail-modal .td-tab').forEach(t =>
@@ -9418,7 +9589,7 @@ function bindTaskDetail(){
     if (!task || !group) return;
     const newGroupId = e.target.value;
     if (newGroupId === group.id) return;
-    const newGroup = content.projectBoard.find(g => g.id === newGroupId);
+    const newGroup = findAnyGroupById(newGroupId);
     if (!newGroup) return;
     group.tasks = group.tasks.filter(t => t.id !== task.id);
     newGroup.tasks = newGroup.tasks || [];
@@ -9545,12 +9716,14 @@ function bindTaskDetail(){
     if (!hasText && !_pendingAttachments.length){ toast('Please enter content.'); return; }
     const session = state.session || {};
     task.updates = task.updates || [];
-    task.updates.push({
+    const newUpdate = {
       id: uid('u'), body: html,
       authorEmail: session.email, authorName: session.name,
       createdAt: Date.now(),
       likes: [], replies: [], attachments: _pendingAttachments.slice()
-    });
+    };
+    task.updates.push(newUpdate);
+    console.log('[update] pushed. task.updates.length =', task.updates.length, 'task.id =', task.id);
     addActivity(task, 'update_added');
     saveProjectBoardToCloud().catch(() => {});
     $body.innerHTML = '';
@@ -9558,6 +9731,9 @@ function bindTaskDetail(){
     renderPending();
     $editor.classList.add('is-collapsed');
     refreshTaskDetail();
+    // Verify after refresh
+    const [taskAfter] = getTaskAndGroup();
+    console.log('[update] after refreshTaskDetail. task.updates.length =', taskAfter?.updates?.length);
     toast('Update added.');
   });
 
@@ -9783,8 +9959,10 @@ function openGroupModal(existing){
       const name = String(v.name||'').trim();
       if (!name){ toast('Group Please enter a name.'); return false; }
       if (isEdit){
+        console.log('[group edit] before:', existing.name, '→ new:', name, '| id:', existing.id, '| parentId:', existing.parentId);
         existing.name = name;
         existing.color = pickedColor;
+        console.log('[group edit] after:', existing.name);
       } else {
         content.projectBoard.push({
           id: uid('g'), name, color: pickedColor, tasks: [],
