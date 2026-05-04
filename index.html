@@ -15270,25 +15270,9 @@ function renderTnFromState(){
   document.getElementById('tn-completed').checked = !!t.completed;
   document.getElementById('tn-completed-label').textContent = t.completed ? 'Completed' : '';
 
-  // Invitation row: visible only when there are "with whom" members.
-  // Default checked when there's at least one member; user can toggle off.
-  const inviteRow = document.getElementById('tn-invite-row');
-  const inviteCb = document.getElementById('tn-invite');
-  const inviteLabel = document.getElementById('tn-invite-label');
-  const memberCount = (t.whoWithEmails || []).filter(Boolean).length;
-  if (memberCount > 0){
-    inviteRow.hidden = false;
-    // For NEW tasks: always default ON (regardless of any leftover state).
-    // For EDITS: default OFF — user must explicitly opt in to re-send invitations.
-    // The user's checkbox toggle within this modal session is tracked via the
-    // change handler below, so they can override before saving.
-    t._sendInvitation = !_tnEditId;
-    inviteCb.checked = !!t._sendInvitation;
-    inviteLabel.textContent = `Send invitation to ${memberCount} member${memberCount>1?'s':''}`;
-  } else {
-    inviteRow.hidden = true;
-    t._sendInvitation = false;
-  }
+  // Invitation row: managed by updateInviteRowVisibility() — called both on
+  // initial render and whenever the member list changes
+  updateInviteRowVisibility();
 
   // Priority
   // Priority is set in the dynamic populate block above
@@ -15601,8 +15585,37 @@ function renderTnWhoChips(){
       const em = b.dataset.remEmail;
       _tnState.whoWithEmails = (_tnState.whoWithEmails || []).filter(x => x.toLowerCase() !== em.toLowerCase());
       renderTnWhoChips();
+      updateInviteRowVisibility();
     });
   });
+}
+
+// Update invite row visibility + checkbox to reflect current whoWithEmails.
+// Called when members are added or removed.
+function updateInviteRowVisibility(){
+  if (!_tnState) return;
+  const inviteRow = document.getElementById('tn-invite-row');
+  const inviteCb = document.getElementById('tn-invite');
+  const inviteLabel = document.getElementById('tn-invite-label');
+  if (!inviteRow || !inviteCb) return;
+  const validEmails = (_tnState.whoWithEmails || []).filter(em => typeof em === 'string' && em.trim().length > 0);
+  const memberCount = validEmails.length;
+  if (memberCount > 0){
+    inviteRow.hidden = false;
+    inviteRow.style.display = '';
+    // For new tasks, default ON when members are added; for edits, default OFF.
+    // If the user already toggled the checkbox in this session, keep their choice.
+    if (typeof _tnState._sendInvitation === 'undefined' || _tnState._sendInvitation === null){
+      _tnState._sendInvitation = !_tnEditId;
+    }
+    inviteCb.checked = !!_tnState._sendInvitation;
+    inviteLabel.textContent = `Send invitation to ${memberCount} member${memberCount>1?'s':''}`;
+  } else {
+    inviteRow.hidden = true;
+    inviteRow.style.display = 'none';
+    inviteCb.checked = false;
+    _tnState._sendInvitation = false;
+  }
 }
 
 function showTnWhoPopup(anchorEl){
@@ -15664,6 +15677,7 @@ function showTnWhoPopup(anchorEl){
           _tnState.whoWithEmails.push(em);
         }
         renderTnWhoChips();
+        updateInviteRowVisibility();
         // Re-render list to show updated selection state
         $list.innerHTML = renderList($search.value);
         wireListClicks();
