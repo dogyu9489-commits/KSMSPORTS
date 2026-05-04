@@ -159,6 +159,20 @@
   .notif-icon.file{background:#dcfce7;color:#166534}
   .notif-icon.event{background:#ede9fe;color:#5b21b6}
   .notif-icon.birthday{background:#fef3c7;color:#92400e}
+  .notif-icon.invite{background:#fce7f3;color:#9d174d}
+  .notif-item.is-invite{cursor:default}
+  .notif-invite-actions{display:flex;gap:6px;margin-top:8px}
+  .notif-inv-btn{
+    flex:1;padding:6px 12px;border-radius:5px;cursor:pointer;
+    font-family:var(--sans);font-size:12px;font-weight:600;
+    border:1px solid var(--hair);background:var(--paper);
+    transition:background .12s,border-color .12s,color .12s;
+  }
+  .notif-inv-btn:disabled{opacity:.6;cursor:default}
+  .notif-inv-accept{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+  .notif-inv-accept:hover:not(:disabled){opacity:.85}
+  .notif-inv-decline{color:var(--ink-soft)}
+  .notif-inv-decline:hover:not(:disabled){border-color:#dc2626;color:#dc2626;background:rgba(220,38,38,.04)}
   .notif-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
   .notif-i-title{font-family:var(--serif-kr);font-size:13.5px;color:var(--ink);font-weight:500;line-height:1.35;letter-spacing:-.005em}
   .notif-i-text{font-family:var(--serif-kr);font-size:12px;color:var(--ink-soft);line-height:1.4;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
@@ -493,6 +507,66 @@
   }
   .org-field input:focus,
   .org-field select:focus{border-color:var(--ink)}
+
+  /* Photo upload field */
+  .org-field-photo{
+    display:flex;align-items:center;gap:14px;
+    padding:6px 0 4px;
+  }
+  .org-photo-preview{
+    width:72px;height:72px;border-radius:50%;
+    background:rgba(11,11,10,.04);
+    border:2px dashed var(--hair-strong);
+    display:flex;align-items:center;justify-content:center;
+    overflow:hidden;flex:none;
+    transition:border-color .12s, background .12s;
+  }
+  .org-photo-preview.has-photo{
+    border-style:solid;border-color:var(--ink-soft);
+    background:var(--paper);
+  }
+  .org-photo-preview img{width:100%;height:100%;object-fit:cover;display:block}
+  .org-photo-placeholder{
+    font-family:var(--sans);font-size:30px;color:var(--ink-mute);
+    line-height:1;font-weight:300;
+  }
+  .org-photo-actions{display:flex;flex-direction:column;gap:6px}
+  .org-btn-sm{padding:5px 12px;font-size:12px}
+
+  /* Department color picker */
+  .org-dept-row{display:flex;gap:8px;align-items:stretch}
+  .org-dept-row input{flex:1}
+  .org-dept-color-btn{
+    flex:none;width:38px;height:38px;
+    border:1px solid var(--hair);border-radius:5px;
+    background:var(--paper);cursor:pointer;
+    display:inline-flex;align-items:center;justify-content:center;
+    transition:border-color .12s;
+  }
+  .org-dept-color-btn:hover{border-color:var(--ink-soft)}
+  .org-dept-color-dot{
+    width:18px;height:18px;border-radius:50%;
+    background:#9ca3af;border:1px solid rgba(0,0,0,.1);
+    transition:background .15s;
+  }
+  .org-dept-color-grid{
+    display:grid;grid-template-columns:repeat(8, 28px);gap:6px;
+    padding:8px 10px;margin-top:4px;
+    background:rgba(11,11,10,.03);border:1px solid var(--hair);
+    border-radius:5px;
+  }
+  .org-dept-color-grid[hidden]{display:none}
+  .org-dept-swatch{
+    width:28px;height:28px;border-radius:50%;cursor:pointer;
+    border:2px solid transparent;transition:all .12s;
+  }
+  .org-dept-swatch:hover{transform:scale(1.1)}
+  .org-dept-swatch.is-on{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--paper)}
+  .org-dept-color-hint{
+    grid-column:1 / -1;font-family:var(--mono);font-size:10px;
+    color:var(--ink-mute);letter-spacing:.04em;text-transform:uppercase;
+    margin-top:2px;
+  }
   .org-modal-foot{
     display:flex;align-items:center;justify-content:space-between;
     padding:14px 20px;border-top:1px solid var(--hair);background:rgba(11,11,10,.02);
@@ -610,6 +684,17 @@
   .rmm-row > .rmm-field:last-child{display:flex;flex-direction:row;align-items:center;gap:8px;flex-wrap:wrap}
   .rmm-row > .rmm-field:last-child > .rmm-label{align-self:center;margin-right:4px}
   .rmm-dash{color:var(--ink-mute);align-self:center}
+  .rmm-time-input{
+    width:76px !important;
+    padding-left:10px !important;
+    padding-right:10px !important;
+    text-align:center;
+    font-family:var(--mono);
+    letter-spacing:.04em;
+  }
+  .rmm-time-input:invalid{
+    border-color:#dc2626;
+  }
   .rmm-att-wrap{margin-top:14px;padding-top:14px;border-top:1px solid var(--hair)}
   .rmm-att-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;min-height:32px;align-items:center}
   .rmm-att-list:empty::before{content:"No attendees yet — use the + button to add members";font-family:var(--mono);font-size:10.5px;color:var(--ink-mute);font-style:italic;letter-spacing:.04em}
@@ -625,6 +710,8 @@
   .meeting-monitor[hidden]{display:none}
   .mm-empty{padding:80px 20px;text-align:center;font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink-mute)}
   .mm-board-head{display:grid;grid-template-columns:96px 1fr 1fr;background:#0B0B0A;color:var(--paper);font-family:var(--sans);font-size:13px;font-weight:500;letter-spacing:.04em;height:40px}
+  .mm-board-head.mm-board-head-2col,
+  .mm-row.mm-row-2col{grid-template-columns:96px 1fr}
   .mm-board-head .mm-h{display:flex;align-items:center;justify-content:center;border-right:1px solid rgba(245,242,236,.12)}
   .mm-board-head .mm-h:last-child{border-right:none}
   .mm-board-head .mm-h-clock{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:rgba(245,242,236,.78);justify-content:space-between;padding:0 14px;gap:6px;display:flex;align-items:center}
@@ -665,6 +752,8 @@
 
   @media (max-width:760px){
     .mm-board-head,.mm-row{grid-template-columns:72px 1fr 1fr}
+    .mm-board-head.mm-board-head-2col,
+    .mm-row.mm-row-2col{grid-template-columns:72px 1fr}
     .mm-day-letter{font-size:24px}
     .mm-day-cell{gap:4px;padding:10px 6px}
     .mm-meeting-title{font-size:15px}
@@ -3495,10 +3584,16 @@
             <input type="date" id="rmm-date" />
           </div>
           <div class="rmm-field">
-            <span class="rmm-label">Time</span>
-            <input type="time" id="rmm-start" />
+            <span class="rmm-label">Time (24h)</span>
+            <input type="text" id="rmm-start" inputmode="numeric"
+                   pattern="^([01][0-9]|2[0-4]):[0-5][0-9]$"
+                   placeholder="00:00" maxlength="5"
+                   class="rmm-time-input" />
             <span class="rmm-dash">—</span>
-            <input type="time" id="rmm-end" />
+            <input type="text" id="rmm-end" inputmode="numeric"
+                   pattern="^([01][0-9]|2[0-4]):[0-5][0-9]$"
+                   placeholder="00:00" maxlength="5"
+                   class="rmm-time-input" />
           </div>
         </div>
         <div class="rmm-att-wrap">
@@ -3735,6 +3830,15 @@
         <div class="tn-prop-label"></div>
         <div class="tn-prop-value"><button type="button" id="tn-step-add" class="tn-step-add-btn">+ Add step</button></div>
       </div>
+      <div class="tn-prop-row" id="tn-invite-row" hidden>
+        <div class="tn-prop-label"><span class="tn-prop-icon">✉</span><span>invite</span></div>
+        <div class="tn-prop-value">
+          <label style="display:inline-flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="tn-invite" style="width:16px;height:16px;cursor:pointer;accent-color:var(--ink)" />
+            <span style="font-family:var(--sans);font-size:13px;color:var(--ink-soft)" id="tn-invite-label">Send invitation to "with whom" members</span>
+          </label>
+        </div>
+      </div>
       <div class="tn-prop-row">
         <div class="tn-prop-label"><span class="tn-prop-icon">☑</span><span>complete</span></div>
         <div class="tn-prop-value">
@@ -3944,10 +4048,30 @@
     </div>
     <div class="org-modal-context" id="org-modal-context" hidden></div>
     <div class="org-modal-body">
+      <div class="org-field-photo">
+        <div class="org-photo-preview" id="org-f-photo-preview">
+          <span class="org-photo-placeholder" id="org-f-photo-placeholder">+</span>
+        </div>
+        <div class="org-photo-actions">
+          <button type="button" class="org-btn-ghost org-btn-sm" id="org-f-photo-pick">Upload photo</button>
+          <button type="button" class="org-btn-ghost org-btn-sm" id="org-f-photo-clear" hidden>Remove</button>
+          <input type="file" id="org-f-photo-input" accept="image/*" hidden />
+        </div>
+      </div>
       <label class="org-field"><span>Name *</span><input type="text" id="org-f-name" placeholder="e.g. Justin Park" /></label>
       <label class="org-field"><span>Role</span><input type="text" id="org-f-role" placeholder="e.g. Team Lead" /></label>
-      <label class="org-field"><span>Department</span><input type="text" id="org-f-dept" list="org-dept-list" placeholder="e.g. Sales" /><datalist id="org-dept-list"></datalist></label>
-      <label class="org-field"><span>Email</span><input type="email" id="org-f-email" placeholder="e.g. justin@ksmsports.com (auto-fetches photo)" /></label>
+      <div class="org-field">
+        <span>Department</span>
+        <div class="org-dept-row">
+          <input type="text" id="org-f-dept" list="org-dept-list" placeholder="e.g. Sales" />
+          <datalist id="org-dept-list"></datalist>
+          <button type="button" class="org-dept-color-btn" id="org-f-dept-color-btn" title="Department color">
+            <span class="org-dept-color-dot" id="org-f-dept-color-dot"></span>
+          </button>
+        </div>
+        <div class="org-dept-color-grid" id="org-f-dept-color-grid" hidden></div>
+      </div>
+      <label class="org-field"><span>Email</span><input type="email" id="org-f-email" placeholder="e.g. justin@ksmsports.com" /></label>
       <label class="org-field" id="org-f-parent-row"><span>Reports to</span><select id="org-f-parent"></select></label>
     </div>
     <div class="org-modal-foot">
@@ -4670,12 +4794,14 @@ async function notifyAll(notification, opts){
 
 function notifIcon(type){
   switch(type){
-    case 'post':     return { cls:'post',     glyph:'📋' };
-    case 'meeting':  return { cls:'meeting',  glyph:'🗓' };
-    case 'file':     return { cls:'file',     glyph:'📎' };
-    case 'event':    return { cls:'event',    glyph:'📍' };
-    case 'birthday': return { cls:'birthday', glyph:'🎂' };
-    default:         return { cls:'',         glyph:'•' };
+    case 'post':            return { cls:'post',     glyph:'📋' };
+    case 'meeting':         return { cls:'meeting',  glyph:'🗓' };
+    case 'file':            return { cls:'file',     glyph:'📎' };
+    case 'event':           return { cls:'event',    glyph:'📍' };
+    case 'birthday':        return { cls:'birthday', glyph:'🎂' };
+    case 'invite':          return { cls:'invite',   glyph:'✉' };
+    case 'invite_response': return { cls:'invite',   glyph:'↩' };
+    default:                return { cls:'',         glyph:'•' };
   }
 }
 
@@ -4697,18 +4823,61 @@ async function renderNotifications(){
   }
   $list.innerHTML = list.map(n => {
     const icon = notifIcon(n.type);
-    return `<div class="notif-item${n.read?'':' is-unread'}" data-nid="${esc(n.id)}" data-link='${esc(JSON.stringify(n.link||{}))}'>
+    const isInvite = n.type === 'invite';
+    let invitationId = '';
+    try { invitationId = (n.link && n.link.invitationId) || ''; } catch(_){}
+    const inviteActions = (isInvite && invitationId) ? `
+      <div class="notif-invite-actions">
+        <button type="button" class="notif-inv-btn notif-inv-accept" data-invite-action="accept" data-inv-id="${esc(invitationId)}">Accept</button>
+        <button type="button" class="notif-inv-btn notif-inv-decline" data-invite-action="decline" data-inv-id="${esc(invitationId)}">Decline</button>
+      </div>` : '';
+    return `<div class="notif-item${n.read?'':' is-unread'}${isInvite?' is-invite':''}" data-nid="${esc(n.id)}" data-link='${esc(JSON.stringify(n.link||{}))}'>
       <span class="notif-icon ${icon.cls}">${icon.glyph}</span>
       <div class="notif-body">
         <div class="notif-i-title">${esc(n.title)}</div>
         ${n.body ? `<div class="notif-i-text">${esc(n.body)}</div>` : ''}
         <div class="notif-i-time">${esc(fmtAgoShort(n.createdAt))}</div>
+        ${inviteActions}
       </div>
     </div>`;
   }).join('');
   // Wire item clicks → navigate + mark read
   $list.querySelectorAll('.notif-item').forEach(it => {
-    it.addEventListener('click', async () => {
+    it.addEventListener('click', async (e) => {
+      // Handle invitation accept/decline buttons inline (don't navigate)
+      const invBtn = e.target.closest('[data-invite-action]');
+      if (invBtn){
+        e.stopPropagation();
+        const action = invBtn.dataset.inviteAction;
+        const invId = invBtn.dataset.invId;
+        invBtn.disabled = true;
+        const originalText = invBtn.textContent;
+        invBtn.textContent = action === 'accept' ? 'Accepting…' : 'Declining…';
+        try {
+          let res;
+          if (action === 'accept'){
+            res = await acceptTodoInvitation(invId);
+          } else {
+            res = await declineTodoInvitation(invId);
+          }
+          if (res.ok){
+            toast(action === 'accept' ? 'Task added to your list.' : 'Invitation declined.');
+            // Mark this notification read so it doesn't count as unread
+            await markNotifRead(it.dataset.nid);
+            renderNotifications();
+          } else {
+            toast('Failed: ' + (res.error || 'unknown'));
+            invBtn.disabled = false;
+            invBtn.textContent = originalText;
+          }
+        } catch(err){
+          toast('Failed: ' + (err.message || err));
+          invBtn.disabled = false;
+          invBtn.textContent = originalText;
+        }
+        return;
+      }
+
       const nid = it.dataset.nid;
       let link = null;
       try { link = JSON.parse(it.dataset.link || '{}'); } catch {}
@@ -9569,6 +9738,40 @@ function openRichEditor(opts){
     $date.value  = data.meetingDate || todayISO;
     $start.value = data.startTime || '00:00';
     $end.value   = data.endTime || '00:00';
+    // Bind 24h time auto-formatting once
+    [$start, $end].forEach(inp => {
+      if (inp.dataset.timeFmtBound) return;
+      inp.dataset.timeFmtBound = '1';
+      // Insert ":" automatically as user types digits
+      inp.addEventListener('input', () => {
+        let v = inp.value.replace(/[^\d:]/g, '');
+        // Strip extra colons
+        const parts = v.split(':');
+        if (parts.length > 2) v = parts[0] + ':' + parts.slice(1).join('');
+        // Auto-insert colon after 2 digits when user hasn't typed one
+        if (v.length === 2 && !v.includes(':') && inp.value.length > inp.dataset.prev?.length){
+          v = v + ':';
+        }
+        inp.value = v.slice(0, 5);
+        inp.dataset.prev = inp.value;
+      });
+      // On blur, normalize: pad single digits, clamp 00-24:00-59
+      inp.addEventListener('blur', () => {
+        const raw = inp.value.trim();
+        if (!raw) return;
+        let m = raw.match(/^(\d{1,2}):?(\d{0,2})$/);
+        if (!m){ inp.value = '00:00'; return; }
+        let h = parseInt(m[1] || '0', 10);
+        let mn = parseInt(m[2] || '0', 10);
+        if (isNaN(h)) h = 0;
+        if (isNaN(mn)) mn = 0;
+        // Allow 24:00 specifically; otherwise clamp 0-23
+        if (h > 24) h = 24;
+        if (h === 24){ mn = 0; }
+        else if (mn > 59) mn = 59;
+        inp.value = `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+      });
+    });
     // attendees state in closure, accessed by the submit handler via DOM
     _meetingAttendees = (data.attendees || []).slice();
     renderMeetingAttendees();
@@ -11408,8 +11611,8 @@ function renderMeetingMonitor(){
   monday.setDate(now.getDate() - (dow - 1));
   monday.setHours(0,0,0,0);
   const days = [];
-  const KR_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat'];
-  for (let i = 0; i < 6; i++){
+  const KR_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  for (let i = 0; i < 7; i++){
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     const iso = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -11419,7 +11622,7 @@ function renderMeetingMonitor(){
   // Filter meetings: must have date+time, end timestamp >= now (auto-remove past), within current week
   const nowMs = now.getTime();
   const wkStart = monday.getTime();
-  const wkEnd = wkStart + 6*86400000;
+  const wkEnd = wkStart + 7*86400000;
   const meetings = content.threads.filter(t => {
     if (!t.meetingDate || !t.startTime || !t.endTime) return false;
     const start = meetingTimestamp(t);
@@ -11441,20 +11644,18 @@ function renderMeetingMonitor(){
 
   if (!meetings.length){
     $el.innerHTML = `
-      <div class="mm-board-head">
+      <div class="mm-board-head mm-board-head-2col">
         <div class="mm-h">DAY</div>
-        <div class="mm-h">AM</div>
-        <div class="mm-h mm-h-clock"><span class="mm-h-pm">PM</span>${liveIndicator}</div>
+        <div class="mm-h mm-h-clock"><span>SCHEDULE</span>${liveIndicator}</div>
       </div>
       <div class="mm-empty">No meetings this week — use "+ New Meeting" to add one</div>`;
     return;
   }
 
-  function meetingsForDay(iso, period){
+  function meetingsForDay(iso){
     return meetings
       .filter(m => m.meetingDate === iso)
-      .filter(m => period === 'AM' ? m.startTime < '12:00' : m.startTime >= '12:00')
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+      .sort((a, b) => (a.startTime||'').localeCompare(b.startTime||''));
   }
   function meetingItem(m){
     const isNow = (() => {
@@ -11482,17 +11683,15 @@ function renderMeetingMonitor(){
   }
 
   $el.innerHTML = `
-    <div class="mm-board-head">
+    <div class="mm-board-head mm-board-head-2col">
       <div class="mm-h">DAY</div>
-      <div class="mm-h">AM</div>
-      <div class="mm-h mm-h-clock"><span class="mm-h-pm">PM</span>${liveIndicator}</div>
+      <div class="mm-h mm-h-clock"><span>SCHEDULE</span>${liveIndicator}</div>
     </div>
     ${days.map(d => {
-      const am = meetingsForDay(d.iso, 'AM');
-      const pm = meetingsForDay(d.iso, 'PM');
+      const list = meetingsForDay(d.iso);
       const isToday = d.iso === todayISO;
       const dateStr = `${String(d.date.getMonth()+1).padStart(2,'0')}-${String(d.date.getDate()).padStart(2,'0')}`;
-      return `<div class="mm-row${isToday?' is-today':''}">
+      return `<div class="mm-row mm-row-2col${isToday?' is-today':''}">
         <div class="mm-day-cell">
           <span class="mm-day-letter">${d.letter}</span>
           <div class="mm-day-info">
@@ -11500,8 +11699,7 @@ function renderMeetingMonitor(){
             ${isToday?'<span class="mm-day-tag">TODAY</span>':''}
           </div>
         </div>
-        <div class="mm-cell">${am.length ? am.map(meetingItem).join('') : '<span class="mm-cell-empty">— No schedule</span>'}</div>
-        <div class="mm-cell">${pm.length ? pm.map(meetingItem).join('') : '<span class="mm-cell-empty">— No schedule</span>'}</div>
+        <div class="mm-cell">${list.length ? list.map(meetingItem).join('') : '<span class="mm-cell-empty">— No schedule</span>'}</div>
       </div>`;
     }).join('')}
   `;
@@ -12016,7 +12214,194 @@ async function syncRemindersForTask(todo){
   }
 }
 
-/* ----- Audio: short beep using Web Audio API ----- */
+/* ============ TODO INVITATIONS ============
+   Send a task invitation to other team members. They can accept (which copies
+   the task into their own to-do list) or decline. Falls back to localStorage
+   if the `todo_invitations` table doesn't exist in Supabase.
+
+   Required Supabase table (run once):
+     create table if not exists todo_invitations (
+       id uuid primary key default gen_random_uuid(),
+       sender_email text not null,
+       sender_name text default '',
+       recipient_email text not null,
+       todo_snapshot jsonb not null,
+       status text not null default 'pending',  -- pending | accepted | declined
+       created_at timestamptz default now(),
+       responded_at timestamptz
+     );
+     alter table todo_invitations enable row level security;
+     create policy "todo_inv_read" on todo_invitations
+       for select using (
+         lower(recipient_email) = lower(auth.jwt()->>'email')
+         or lower(sender_email)  = lower(auth.jwt()->>'email')
+       );
+     create policy "todo_inv_insert" on todo_invitations
+       for insert with check (lower(sender_email) = lower(auth.jwt()->>'email'));
+     create policy "todo_inv_update" on todo_invitations
+       for update using (lower(recipient_email) = lower(auth.jwt()->>'email'));
+============================================ */
+
+async function sendTodoInvitations(todo, recipientEmails){
+  if (!Sb || !state.session) return { sent: 0, errors: [] };
+  const senderEmail = (state.session.email || '').toLowerCase();
+  const senderName = state.session.name || senderEmail.split('@')[0];
+  const recipients = (recipientEmails || [])
+    .map(e => (e || '').toLowerCase().trim())
+    .filter(e => e && e !== senderEmail);
+  if (!recipients.length) return { sent: 0, errors: [] };
+
+  // Snapshot only fields a recipient would need to recreate the task on accept
+  const snapshot = {
+    title: todo.title || '',
+    category: todo.category || '',
+    dueDate: todo.dueDate || null,
+    steps: Array.isArray(todo.steps) ? todo.steps.filter(Boolean) : [],
+    notes: todo.notes || '',
+    priority: todo.priority || null,
+    icon: todo.icon || null,
+    whoWithEmails: todo.whoWithEmails || [],
+    sourceTodoId: todo.id || null,
+  };
+
+  const rows = recipients.map(em => ({
+    sender_email: senderEmail,
+    sender_name: senderName,
+    recipient_email: em,
+    todo_snapshot: snapshot,
+    status: 'pending',
+  }));
+
+  const errors = [];
+  let inserted = [];
+  const { data, error } = await Sb.from('todo_invitations').insert(rows).select();
+  if (error){
+    if (/(does not exist|relation)/.test(error.message || '')){
+      console.warn('[invitations] table not present — run the migration SQL.');
+      toast('Invitation table missing — see console.');
+      return { sent: 0, errors: ['table missing'] };
+    }
+    errors.push(error.message);
+  } else {
+    inserted = data || [];
+  }
+
+  // Also create an in-app notification per recipient so they see it in the bell panel
+  // (we use type 'invite' so renderNotifications can render the accept/decline UI)
+  if (inserted.length){
+    const notifs = inserted.map(inv => ({
+      user_email: inv.recipient_email,
+      type: 'invite',
+      title: `Task invitation from ${senderName}`,
+      body: `"${snapshot.title}"${snapshot.dueDate ? ' · due ' + snapshot.dueDate : ''}`,
+      link: { invitationId: inv.id },
+      read: false,
+    }));
+    const { error: nErr } = await Sb.from('notifications').insert(notifs);
+    if (nErr) console.warn('[invitations] notif insert failed:', nErr);
+  }
+
+  return { sent: inserted.length, errors };
+}
+
+async function fetchPendingInvitations(){
+  if (!Sb || !state.session) return [];
+  const me = (state.session.email || '').toLowerCase();
+  const { data, error } = await Sb.from('todo_invitations')
+    .select('*')
+    .eq('recipient_email', me)
+    .eq('status', 'pending')
+    .order('created_at', { ascending: false });
+  if (error){
+    if (!/(does not exist|relation)/.test(error.message || '')){
+      console.warn('[fetchPendingInvitations]', error);
+    }
+    return [];
+  }
+  return data || [];
+}
+
+async function acceptTodoInvitation(invitationId){
+  if (!Sb) return { ok: false, error: 'No connection' };
+  // 1) Fetch invitation
+  const { data: inv, error: fErr } = await Sb.from('todo_invitations')
+    .select('*').eq('id', invitationId).single();
+  if (fErr || !inv) return { ok: false, error: fErr?.message || 'Invitation not found' };
+  if (inv.status !== 'pending') return { ok: false, error: 'Already responded' };
+
+  // 2) Build new todo for me from snapshot
+  const snap = inv.todo_snapshot || {};
+  const myTodo = {
+    title: snap.title || '(untitled)',
+    category: snap.category || '',
+    dueDate: snap.dueDate || null,
+    steps: Array.isArray(snap.steps) ? snap.steps : [],
+    notes: snap.notes || '',
+    priority: snap.priority || null,
+    icon: snap.icon || null,
+    whoWithEmails: Array.isArray(snap.whoWithEmails) ? snap.whoWithEmails : [],
+    completed: false,
+  };
+
+  // 3) Insert into my todos
+  const res = await insertTodoDb(myTodo);
+  if (res.error) return { ok: false, error: res.error };
+  _todoState.items.push(res.todo);
+  // Schedule reminders if applicable
+  syncRemindersForTask(res.todo).catch(()=>{});
+
+  // 4) Mark invitation accepted
+  await Sb.from('todo_invitations')
+    .update({ status: 'accepted', responded_at: new Date().toISOString() })
+    .eq('id', invitationId);
+
+  // 5) Notify the original sender that I accepted
+  const me = (state.session.email || '').toLowerCase();
+  const myName = state.session.name || me.split('@')[0];
+  await Sb.from('notifications').insert({
+    user_email: inv.sender_email,
+    type: 'invite_response',
+    title: `${myName} accepted your task invitation`,
+    body: `"${snap.title}"`,
+    link: { view: 'todo' },
+    read: false,
+  });
+
+  // 6) Refresh UI
+  if (typeof renderTodo === 'function') renderTodo();
+  if (typeof renderNotifications === 'function') renderNotifications();
+  return { ok: true };
+}
+
+async function declineTodoInvitation(invitationId){
+  if (!Sb) return { ok: false, error: 'No connection' };
+  const { data: inv } = await Sb.from('todo_invitations')
+    .select('sender_email, todo_snapshot').eq('id', invitationId).maybeSingle();
+  const { error } = await Sb.from('todo_invitations')
+    .update({ status: 'declined', responded_at: new Date().toISOString() })
+    .eq('id', invitationId);
+  if (error) return { ok: false, error: error.message };
+
+  // Notify sender
+  if (inv){
+    const me = (state.session.email || '').toLowerCase();
+    const myName = state.session.name || me.split('@')[0];
+    const title = inv.todo_snapshot?.title || 'task';
+    await Sb.from('notifications').insert({
+      user_email: inv.sender_email,
+      type: 'invite_response',
+      title: `${myName} declined your task invitation`,
+      body: `"${title}"`,
+      link: null,
+      read: false,
+    });
+  }
+
+  if (typeof renderNotifications === 'function') renderNotifications();
+  return { ok: true };
+}
+
+
 function getAudioCtx(){
   if (_todoRemState.audioCtx) return _todoRemState.audioCtx;
   const Ctx = window.AudioContext || window.webkitAudioContext;
@@ -12169,7 +12554,8 @@ function startReminderLoop(){
 /* ============ ORG CHART ============ */
 const ORG_BRANCH_COLORS = ['#ef4444','#10b981','#f59e0b','#3b82f6','#a855f7','#ec4899','#06b6d4','#84cc16'];
 const _orgState = {
-  nodes: [],          // [{id, name, role, email, parent_id, sort_order}]
+  nodes: [],          // [{id, name, role, email, department, photo, parent_id, sort_order}]
+  deptColors: {},     // { 'Sales': '#ef4444', ... }  user-customized; falls back to hash if missing
   loaded: false,
   bound: false,
   editingId: null,
@@ -12183,6 +12569,7 @@ const _orgState = {
 };
 
 const ORG_LS_KEY = 'leads.org_chart.v1';
+const ORG_DEPT_COLORS_LS_KEY = 'leads.org_dept_colors.v1';
 
 async function orgFetchAll(){
   if (Sb){
@@ -12193,6 +12580,7 @@ async function orgFetchAll(){
       return (data || []).map(r => ({
         id: r.id, name: r.name || '', role: r.role || '',
         email: r.email || '', department: r.department || '',
+        photo: r.photo || '',
         parent_id: r.parent_id || null,
         sort_order: r.sort_order || 0,
       }));
@@ -12205,8 +12593,8 @@ async function orgFetchAll(){
   try {
     const raw = localStorage.getItem(ORG_LS_KEY);
     const arr = raw ? JSON.parse(raw) : [];
-    // Migrate older local data that lacks department
-    return arr.map(n => ({ department: '', ...n }));
+    // Migrate older local data that lacks department/photo
+    return arr.map(n => ({ department: '', photo: '', ...n }));
   } catch(_){ return []; }
 }
 
@@ -12214,11 +12602,23 @@ function orgSaveLocal(){
   try { localStorage.setItem(ORG_LS_KEY, JSON.stringify(_orgState.nodes)); } catch(_){}
 }
 
+// Department-color map persistence (always client-side; small, simple)
+function orgLoadDeptColors(){
+  try {
+    const raw = localStorage.getItem(ORG_DEPT_COLORS_LS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch(_){ return {}; }
+}
+function orgSaveDeptColors(){
+  try { localStorage.setItem(ORG_DEPT_COLORS_LS_KEY, JSON.stringify(_orgState.deptColors || {})); } catch(_){}
+}
+
 async function orgUpsertNode(node){
   if (_orgState.backend === 'supabase' && Sb){
     const row = {
       id: node.id, name: node.name, role: node.role || '',
       email: node.email || '', department: node.department || '',
+      photo: node.photo || '',
       parent_id: node.parent_id || null,
       sort_order: node.sort_order || 0,
     };
@@ -12259,6 +12659,39 @@ function orgUid(){
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
     const r = Math.random()*16|0;
     return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+// Read uploaded file as data URL
+function orgFileToDataUrl(file){
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(fr.result);
+    fr.onerror = reject;
+    fr.readAsDataURL(file);
+  });
+}
+
+// Resize a data URL image to a max dimension, returning JPEG data URL.
+// Keeps file small for both localStorage and Supabase rows.
+function orgResizeImage(dataUrl, maxSize){
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      const scale = Math.min(1, maxSize / Math.max(width, height));
+      width = Math.round(width * scale);
+      height = Math.round(height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      // 0.85 quality JPEG keeps photos under ~30KB at 240px
+      resolve(canvas.toDataURL('image/jpeg', 0.85));
+    };
+    img.onerror = () => resolve(dataUrl); // fall back to original on error
+    img.src = dataUrl;
   });
 }
 
@@ -12358,6 +12791,9 @@ function orgColorForNode(nodeId){
     // No department anywhere up the chain — fall back to neutral gray
     return '#9ca3af';
   }
+  // User-customized color takes priority
+  const custom = (_orgState.deptColors || {})[dept];
+  if (custom) return custom;
   return ORG_BRANCH_COLORS[orgHashIndex(dept, ORG_BRANCH_COLORS.length)];
 }
 
@@ -12407,7 +12843,8 @@ function renderOrgChart(){
     const p = positions[n.id];
     if (!p) return '';
     const isRoot = rootIds.has(n.id);
-    const avatarSrc = orgAvatarFor(n.email);
+    // Photo priority: direct uploaded photo > avatar from matching profile by email
+    const avatarSrc = (n.photo && n.photo.trim()) || orgAvatarFor(n.email);
     const initials = orgInitials(n.name);
     const accent = orgColorForNode(n.id);
     const photoHtml = avatarSrc
@@ -12511,6 +12948,110 @@ function openOrgModal(opts){
   const $parentRow = document.getElementById('org-f-parent-row');
   const $deptList = document.getElementById('org-dept-list');
   const $del = document.getElementById('org-f-delete');
+  const $photoPrev = document.getElementById('org-f-photo-preview');
+  const $photoPh = document.getElementById('org-f-photo-placeholder');
+  const $photoPick = document.getElementById('org-f-photo-pick');
+  const $photoClear = document.getElementById('org-f-photo-clear');
+  const $photoInput = document.getElementById('org-f-photo-input');
+  const $deptColorBtn = document.getElementById('org-f-dept-color-btn');
+  const $deptColorDot = document.getElementById('org-f-dept-color-dot');
+  const $deptColorGrid = document.getElementById('org-f-dept-color-grid');
+
+  // ----- Photo state (data URL stored on the editing scope) -----
+  // Modal-local: hold pending photo until save
+  _orgState._pendingPhoto = null; // null = no change, '' = clear, 'data:...' = new
+  const setPhotoPreview = (dataUrl) => {
+    if (dataUrl){
+      $photoPrev.classList.add('has-photo');
+      $photoPrev.innerHTML = `<img src="${esc(dataUrl)}" alt=""/>`;
+      $photoClear.hidden = false;
+    } else {
+      $photoPrev.classList.remove('has-photo');
+      $photoPrev.innerHTML = `<span class="org-photo-placeholder">+</span>`;
+      $photoClear.hidden = true;
+    }
+  };
+  // Bind once (idempotent — multiple opens are fine because we replaceWith preserves)
+  if (!$photoPick.dataset.bound){
+    $photoPick.dataset.bound = '1';
+    $photoPick.addEventListener('click', () => $photoInput.click());
+    $photoPrev.addEventListener('click', () => $photoInput.click());
+    $photoInput.addEventListener('change', async (e) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024){
+        toast('Image too large (max 2 MB).');
+        $photoInput.value = '';
+        return;
+      }
+      const dataUrl = await orgFileToDataUrl(file);
+      const resized = await orgResizeImage(dataUrl, 240); // 240×240 max
+      _orgState._pendingPhoto = resized;
+      setPhotoPreview(resized);
+      $photoInput.value = '';
+    });
+    $photoClear.addEventListener('click', () => {
+      _orgState._pendingPhoto = '';
+      setPhotoPreview('');
+    });
+  }
+
+  // ----- Department color picker (per-department, shared across nodes) -----
+  // NOTE: We deliberately do NOT capture the current dept name in a closure
+  // because the listeners are bound only once (on first modal open) but the
+  // closure variables would only reflect the FIRST open's state. Instead,
+  // every read/write goes through $dept.value at click time.
+  const renderDeptColorState = () => {
+    const dept = ($dept.value || '').trim();
+    if (!dept){
+      $deptColorBtn.disabled = true;
+      $deptColorBtn.style.opacity = '.4';
+      $deptColorDot.style.background = '#9ca3af';
+      $deptColorGrid.hidden = true;
+      $deptColorGrid.innerHTML = '';
+      return;
+    }
+    $deptColorBtn.disabled = false;
+    $deptColorBtn.style.opacity = '1';
+    const cur = (_orgState.deptColors || {})[dept] ||
+      ORG_BRANCH_COLORS[orgHashIndex(dept, ORG_BRANCH_COLORS.length)];
+    $deptColorDot.style.background = cur;
+    // Build the swatch grid (always re-built so it's fresh for the current dept)
+    $deptColorGrid.innerHTML = ORG_BRANCH_COLORS.map(c =>
+      `<div class="org-dept-swatch${c===cur?' is-on':''}" style="background:${c}" data-color="${c}"></div>`
+    ).join('') + `<div class="org-dept-color-hint">Color applies to all "${esc(dept)}" members</div>`;
+  };
+  if (!$deptColorBtn.dataset.bound){
+    $deptColorBtn.dataset.bound = '1';
+    $deptColorBtn.addEventListener('click', () => {
+      // Always re-render before showing — picks up any dept name changes
+      const wasHidden = $deptColorGrid.hidden;
+      if (wasHidden) renderDeptColorState();
+      $deptColorGrid.hidden = !wasHidden;
+    });
+    $deptColorGrid.addEventListener('click', (e) => {
+      const sw = e.target.closest('.org-dept-swatch');
+      if (!sw) return;
+      // Read CURRENT dept value from DOM at click time (not from closure)
+      const dept = (document.getElementById('org-f-dept').value || '').trim();
+      if (!dept){
+        toast('Type a department name first.');
+        return;
+      }
+      const color = sw.dataset.color;
+      _orgState.deptColors = _orgState.deptColors || {};
+      _orgState.deptColors[dept] = color;
+      orgSaveDeptColors();
+      $deptColorDot.style.background = color;
+      $deptColorGrid.querySelectorAll('.org-dept-swatch').forEach(x => x.classList.remove('is-on'));
+      sw.classList.add('is-on');
+      console.log('[org] dept color:', dept, '→', color);
+      // Re-render chart immediately so the change is visible behind the modal
+      if (typeof renderOrgChart === 'function') renderOrgChart();
+    });
+    $dept.addEventListener('input', renderDeptColorState);
+    $dept.addEventListener('change', renderDeptColorState);
+  }
 
   // Department datalist
   const allDepts = [...new Set(_orgState.nodes.map(n => (n.department||'').trim()).filter(Boolean))].sort();
@@ -12552,10 +13093,13 @@ function openOrgModal(opts){
     $email.value = n.email || '';
     $parent.value = n.parent_id || '';
     $del.hidden = false;
+    // Photo: prefer node.photo, fall back to email-matched profile avatar (read-only, won't save unless changed)
+    setPhotoPreview((n.photo && n.photo.trim()) || orgAvatarFor(n.email) || '');
   } else {
     _orgState.editingId = null;
     $name.value = ''; $role.value = ''; $dept.value = ''; $email.value = '';
     $del.hidden = true;
+    setPhotoPreview('');
 
     // Determine context
     const sib = _orgState._siblingInsert;
@@ -12591,6 +13135,9 @@ function openOrgModal(opts){
 
   $m.classList.add('show');
   $m.setAttribute('aria-hidden', 'false');
+  // Initialize dept color state based on the currently filled department
+  $deptColorGrid.hidden = true;
+  renderDeptColorState();
   setTimeout(() => $name.focus(), 50);
 }
 function closeOrgModal(){
@@ -12609,6 +13156,9 @@ async function orgSubmit(){
   if (!name){ toast('Name is required.'); return; }
 
   try {
+    // Resolve photo: null = unchanged, '' = clear, 'data:...' = new
+    const pendingPhoto = _orgState._pendingPhoto;
+
     if (_orgState.editingId){
       // ===== EDIT =====
       const idx = _orgState.nodes.findIndex(n => n.id === _orgState.editingId);
@@ -12624,7 +13174,8 @@ async function orgSubmit(){
           ? Math.max(...newSiblings.map(s => s.sort_order || 0)) + 1
           : 0;
       }
-      const updated = { ...prev, name, role, department, email, parent_id: newParentId, sort_order };
+      const photo = pendingPhoto === null ? (prev.photo || '') : pendingPhoto;
+      const updated = { ...prev, name, role, department, email, photo, parent_id: newParentId, sort_order };
       await orgUpsertNode(updated);
       if (_orgState.backend === 'supabase') _orgState.nodes[idx] = updated;
       toast('Updated.');
@@ -12669,7 +13220,8 @@ async function orgSubmit(){
           : 0;
       }
 
-      const newNode = { id: orgUid(), name, role, department, email, parent_id, sort_order };
+      const photo = pendingPhoto || '';
+      const newNode = { id: orgUid(), name, role, department, email, photo, parent_id, sort_order };
       await orgUpsertNode(newNode);
       if (_orgState.backend === 'supabase') _orgState.nodes.push(newNode);
       toast('Added.');
@@ -12819,9 +13371,10 @@ function bindOrgChart(){
 async function initOrgChart(){
   if (_orgState.loaded) return;
   bindOrgChart();
+  _orgState.deptColors = orgLoadDeptColors();
   _orgState.nodes = await orgFetchAll();
   _orgState.loaded = true;
-  console.log('[org] backend:', _orgState.backend, '| nodes:', _orgState.nodes.length);
+  console.log('[org] backend:', _orgState.backend, '| nodes:', _orgState.nodes.length, '| dept colors:', Object.keys(_orgState.deptColors).length);
   renderOrgChart();
 }
 
@@ -14241,6 +14794,25 @@ function renderTnFromState(){
   document.getElementById('tn-completed').checked = !!t.completed;
   document.getElementById('tn-completed-label').textContent = t.completed ? 'Completed' : '';
 
+  // Invitation row: visible only when there are "with whom" members.
+  // Default checked when there's at least one member; user can toggle off.
+  const inviteRow = document.getElementById('tn-invite-row');
+  const inviteCb = document.getElementById('tn-invite');
+  const inviteLabel = document.getElementById('tn-invite-label');
+  const memberCount = (t.whoWithEmails || []).filter(Boolean).length;
+  if (memberCount > 0){
+    inviteRow.hidden = false;
+    // Restore previously chosen state if any, else default to true on new tasks
+    if (typeof t._sendInvitation === 'undefined'){
+      t._sendInvitation = !_tnEditId; // default ON for new tasks
+    }
+    inviteCb.checked = !!t._sendInvitation;
+    inviteLabel.textContent = `Send invitation to ${memberCount} member${memberCount>1?'s':''}`;
+  } else {
+    inviteRow.hidden = true;
+    t._sendInvitation = false;
+  }
+
   // Priority
   // Priority is set in the dynamic populate block above
 
@@ -14383,6 +14955,15 @@ function bindTodoNotionModal(){
   });
 
   // Completed
+  // Invitation checkbox
+  const inviteCbBind = document.getElementById('tn-invite');
+  if (inviteCbBind){
+    inviteCbBind.addEventListener('change', (e) => {
+      if (!_tnState) return;
+      _tnState._sendInvitation = !!e.target.checked;
+    });
+  }
+
   document.getElementById('tn-completed').addEventListener('change', (e) => {
     if (!_tnState) return;
     _tnState.completed = e.target.checked;
@@ -14465,6 +15046,19 @@ function bindTodoNotionModal(){
       // Schedule meeting reminders (1 day / 1 hour / 10 min before due_date)
       // for each whoWith member. Fire and forget — doesn't block save.
       if (savedTodo) syncRemindersForTask(savedTodo).catch(e => console.warn('[reminders] sync failed:', e));
+
+      // Send task invitations to "with whom" members if user opted in.
+      // Excludes the owner themselves; fires only after a successful save.
+      if (savedTodo && _tnState._sendInvitation){
+        const meEmail = (state.session.email || '').toLowerCase();
+        const recipients = (savedTodo.whoWithEmails || [])
+          .filter(em => em && em.toLowerCase() !== meEmail);
+        if (recipients.length){
+          sendTodoInvitations(savedTodo, recipients).then(r => {
+            if (r.sent > 0) toast(`${r.sent} invitation${r.sent>1?'s':''} sent.`);
+          }).catch(e => console.warn('[invitations] send failed:', e));
+        }
+      }
 
       renderTodo();
       closeTodoNotionModal();
