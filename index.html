@@ -15174,8 +15174,13 @@ function openTodoNotionModal(opts){
         checklist: [],
         status: 'pending',
         whoWith: '',
+        whoWithEmails: [],   // ← always fresh empty array for new tasks
         steps: [''],
       };
+  // Make sure whoWithEmails is always a clean array — never undefined or stale
+  if (!Array.isArray(_tnState.whoWithEmails)) _tnState.whoWithEmails = [];
+  // Clear any leftover invitation flag from a previous modal session
+  delete _tnState._sendInvitation;
 
   // Ensure steps array has at least 1 slot so there's always a row to type in
   if (!Array.isArray(_tnState.steps)) _tnState.steps = [];
@@ -15273,10 +15278,11 @@ function renderTnFromState(){
   const memberCount = (t.whoWithEmails || []).filter(Boolean).length;
   if (memberCount > 0){
     inviteRow.hidden = false;
-    // Restore previously chosen state if any, else default to true on new tasks
-    if (typeof t._sendInvitation === 'undefined'){
-      t._sendInvitation = !_tnEditId; // default ON for new tasks
-    }
+    // For NEW tasks: always default ON (regardless of any leftover state).
+    // For EDITS: default OFF — user must explicitly opt in to re-send invitations.
+    // The user's checkbox toggle within this modal session is tracked via the
+    // change handler below, so they can override before saving.
+    t._sendInvitation = !_tnEditId;
     inviteCb.checked = !!t._sendInvitation;
     inviteLabel.textContent = `Send invitation to ${memberCount} member${memberCount>1?'s':''}`;
   } else {
