@@ -5051,8 +5051,8 @@ async function renderNotifications(){
           }
           if (res.ok){
             toast(action === 'accept' ? 'Task added to your list.' : 'Invitation declined.');
-            // Mark this notification read so it doesn't count as unread
-            await markNotifRead(it.dataset.nid);
+            // Delete the notification entirely after responding (not just read)
+            await deleteNotif(it.dataset.nid);
             renderNotifications();
           } else {
             toast('Failed: ' + (res.error || 'unknown'));
