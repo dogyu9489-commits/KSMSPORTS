@@ -3220,6 +3220,72 @@
     .td2-title{font-size:22px}
   }
 
+  /* ===== Reminder popup modal (centered, with confirm + sound) ===== */
+  .reminder-pop-overlay{
+    position:fixed; inset:0; z-index:10000;
+    display:flex; align-items:center; justify-content:center;
+    background:rgba(11,11,10,.45);
+    backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px);
+    opacity:0; transition:opacity .25s ease;
+    pointer-events:none;
+  }
+  .reminder-pop-overlay.show{ opacity:1; pointer-events:auto; }
+  .reminder-pop{
+    background:var(--paper);
+    border:1px solid var(--ink);
+    padding:34px 32px 26px;
+    width:min(360px, calc(100vw - 40px));
+    text-align:center;
+    box-shadow:0 30px 80px rgba(11,11,10,.28);
+    transform:scale(.92);
+    transition:transform .28s cubic-bezier(.2,.8,.2,1);
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    position:relative;
+  }
+  .reminder-pop-overlay.show .reminder-pop{ transform:scale(1); }
+  .reminder-pop .rp-bell{
+    font-size:38px; line-height:1;
+    animation:rpShake 1s ease 1;
+    transform-origin:50% 0%;
+  }
+  .reminder-pop .rp-eyebrow{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.22em;
+    text-transform:uppercase; color:var(--warn); font-weight:600;
+    margin-top:2px;
+  }
+  .reminder-pop .rp-title{
+    font-family:var(--serif-kr); font-weight:600; font-size:20px;
+    color:var(--ink); line-height:1.35; word-break:keep-all; margin:2px 0;
+    max-width:100%;
+  }
+  .reminder-pop .rp-time{
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.06em;
+    color:var(--ink-soft);
+  }
+  .reminder-pop .rp-confirm{
+    margin-top:14px; padding:11px 30px;
+    background:var(--ink); color:var(--paper); border:none;
+    border-radius:999px; font-size:12px; letter-spacing:.16em;
+    text-transform:uppercase; font-family:var(--mono); font-weight:500;
+    cursor:pointer;
+    transition:transform .2s cubic-bezier(.2,.8,.2,1), background .2s;
+  }
+  .reminder-pop .rp-confirm:hover{ transform:translateY(-1px); }
+  .reminder-pop .rp-confirm:active{ transform:translateY(0); }
+  .reminder-pop .rp-queue-hint{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.1em;
+    color:var(--ink-mute); margin-top:6px;
+  }
+  @keyframes rpShake{
+    0%,100%{ transform:rotate(0) }
+    15%{ transform:rotate(-18deg) }
+    30%{ transform:rotate(16deg) }
+    45%{ transform:rotate(-12deg) }
+    60%{ transform:rotate(10deg) }
+    75%{ transform:rotate(-6deg) }
+    90%{ transform:rotate(4deg) }
+  }
+
 </style>
 
 <!-- ============== SUPABASE CLOUD STORAGE ============== -->
@@ -4052,7 +4118,7 @@
           <button type="button" id="tn-who-add" class="tn-who-add-btn" title="Add member">+ Add member</button>
           <div id="tn-reminder-hint" style="display:none;margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:.04em;color:var(--ink-mute);line-height:1.5">
             🔔 Reminders will be sent to selected members at:<br>
-            &nbsp;&nbsp;• 1 day before · 1 hour before · 10 minutes before
+            &nbsp;&nbsp;• 1 day · 1 hour · 30 minutes · 10 minutes before · at start
           </div>
         </div>
       </div>
@@ -6960,12 +7026,23 @@ function confirmDelete(label, onYes){ if (window.confirm(`'${label}'\n\nReally d
 /* ============ DASHBOARD ============ */
 function renderDashStats(){
   const newPosts = content.posts.filter(p => (Date.now()-p.createdAt) < 86400000*7).length;
-  // Count active tasks (not in 'completed' groups + status not 'done')
+  // Count active tasks across BOTH root groups and their subgroups.
+  // A task is "active" when its group's name is not completion-flavored
+  // AND its own status is not 'done'.
   let activeTaskCount = 0;
+  const completionRe = /completed|Done|done|finished/i;
   (content.projectBoard||[]).forEach(g => {
-    const isCompletedGroup = /completed|Done|done|finished/i.test(g.name || '');
-    if (isCompletedGroup) return;
-    (g.tasks||[]).forEach(t => { if ((t.status||'') !== 'done') activeTaskCount++; });
+    const parentCompleted = completionRe.test(g.name || '');
+    if (!parentCompleted){
+      (g.tasks||[]).forEach(t => { if ((t.status||'') !== 'done') activeTaskCount++; });
+    }
+    (g.subgroups||[]).forEach(sg => {
+      // A subgroup is treated as completed if its OWN name signals completion,
+      // OR its parent is a completed group.
+      const subCompleted = parentCompleted || completionRe.test(sg.name || '');
+      if (subCompleted) return;
+      (sg.tasks||[]).forEach(t => { if ((t.status||'') !== 'done') activeTaskCount++; });
+    });
   });
   // Upcoming company events (today + future)
   const todayIso2 = (function(){ const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
@@ -6979,17 +7056,29 @@ function renderDashStats(){
 function renderProjects(){
   const $el = document.getElementById('projects-list');
   if (!$el) return;
-  // Pull active tasks from the Project board (content.projectBoard)
-  // Active = not in groups whose name implies completion AND status is not 'done'
-  const groups = content.projectBoard || [];
+  // Pull active tasks from the Project board (content.projectBoard).
+  // Active = not in groups whose name implies completion AND status is not 'done'.
+  // Walks root groups AND their subgroups so subgroup tasks are also surfaced here.
+  const rootGroups = content.projectBoard || [];
+  const completionRe = /completed|Done|done|finished/i;
   const allTasks = [];
-  groups.forEach(g => {
-    const groupName = (g.name || '').trim();
-    const isCompletedGroup = /completed|Done|done|finished/i.test(groupName);
-    (g.tasks || []).forEach(t => {
-      if (isCompletedGroup) return;        // skip tasks in a "Completed" group
-      if ((t.status || '') === 'done') return; // skip individually completed tasks
-      allTasks.push({ task: t, group: g });
+  rootGroups.forEach(g => {
+    const parentCompleted = completionRe.test((g.name || '').trim());
+    // Tasks directly under the root group
+    if (!parentCompleted){
+      (g.tasks || []).forEach(t => {
+        if ((t.status || '') === 'done') return;
+        allTasks.push({ task: t, group: g });
+      });
+    }
+    // Tasks inside subgroups — show them with the subgroup as their group label
+    (g.subgroups || []).forEach(sg => {
+      const subCompleted = parentCompleted || completionRe.test((sg.name || '').trim());
+      if (subCompleted) return;
+      (sg.tasks || []).forEach(t => {
+        if ((t.status || '') === 'done') return;
+        allTasks.push({ task: t, group: sg });
+      });
     });
   });
   // Sort by due date (soonest first), tasks without due date go last
@@ -7041,9 +7130,15 @@ function renderProjects(){
       const gid = row.dataset.gid;
       const navBtn = document.querySelector('#nav button[data-view="project"]');
       if (navBtn) navBtn.click();
-      // After view switch, find the task and open detail
+      // After view switch, find the task and open detail.
+      // gid may belong to a root group OR a subgroup, so walk both levels.
       setTimeout(() => {
-        const grp = (content.projectBoard||[]).find(g => g.id === gid);
+        let grp = null;
+        for (const g of (content.projectBoard||[])){
+          if (g.id === gid){ grp = g; break; }
+          const sg = (g.subgroups||[]).find(x => x.id === gid);
+          if (sg){ grp = sg; break; }
+        }
         const tk = grp && (grp.tasks||[]).find(x => x.id === tid);
         if (tk && typeof openTaskDetail === 'function') openTaskDetail(tk, gid);
       }, 80);
@@ -8030,7 +8125,14 @@ function renderProjectDashboard(){
   const $status = document.getElementById('prj-chart-status');
   const $owner  = document.getElementById('prj-chart-owner');
   if (!$stats || !$status || !$owner) return;
-  const groups = content.projectBoard || [];
+  // Flatten root groups + their subgroups so dashboard stats reflect ALL tasks,
+  // not just tasks under top-level groups.
+  const rootGroups = content.projectBoard || [];
+  const groups = [];
+  rootGroups.forEach(g => {
+    groups.push(g);
+    (g.subgroups || []).forEach(sg => groups.push(sg));
+  });
   const allTasks = groups.reduce((acc, g) => acc.concat(g.tasks || []), []);
   const counts = { notstarted:0, working:0, stuck:0, done:0 };
   allTasks.forEach(t => {
@@ -8285,6 +8387,13 @@ function renderProject(){
       });
       groupEl.addEventListener('dragover', (e) => {
         if (!_draggedGroupId || _draggedGroupId === gid) return;
+        // Only allow reorder among siblings: both must share the same parent
+        // (both root-level groups, OR both subgroups of the same parent).
+        const draggedG = groups.find(x => x.id === _draggedGroupId);
+        if (!draggedG) return;
+        const draggedParentId = draggedG.parentId || null;
+        const targetParentId  = group.parentId || null;
+        if (draggedParentId !== targetParentId) return; // cross-parent drops are not allowed
         // Only react if the drag is a group drag (ignore task-row drags)
         const types = e.dataTransfer.types || [];
         // We can't read data during dragover, so use _draggedGroupId as the marker
@@ -8307,7 +8416,26 @@ function renderProject(){
         const isAbove = groupEl.classList.contains('is-drop-above');
         groupEl.classList.remove('is-drop-above', 'is-drop-below');
         const draggedId = _draggedGroupId;
-        const arr = content.projectBoard;
+        // Look up dragged + target groups in the flattened list to determine their level
+        const draggedG = groups.find(x => x.id === draggedId);
+        const targetG  = group;
+        if (!draggedG || !targetG) return;
+        const draggedParentId = draggedG.parentId || null;
+        const targetParentId  = targetG.parentId  || null;
+        // Reordering is only allowed among siblings (same parent).
+        if (draggedParentId !== targetParentId) return;
+        // Pick the array we are reordering inside:
+        //   - root groups  → content.projectBoard
+        //   - subgroups    → parent.subgroups
+        let arr;
+        if (draggedParentId === null){
+          arr = content.projectBoard;
+        } else {
+          const parent = content.projectBoard.find(x => x.id === draggedParentId);
+          if (!parent) return;
+          parent.subgroups = parent.subgroups || [];
+          arr = parent.subgroups;
+        }
         const fromIdx = arr.findIndex(x => x.id === draggedId);
         if (fromIdx < 0) return;
         const [moved] = arr.splice(fromIdx, 1);
@@ -8320,7 +8448,7 @@ function renderProject(){
         }
         renderProject();
         saveProjectBoardToCloud().catch(() => {});
-        toast('Group order updated.');
+        toast(draggedParentId ? 'Subgroup order updated.' : 'Group order updated.');
       });
     }
 
@@ -13395,9 +13523,11 @@ async function deleteTodoDb(id){
      scheduled_for time, then marks delivered=true.
    ============================================================ */
 const REMINDER_KINDS = [
-  { id: 'day',   offsetMs: -24*60*60*1000, label: '1 day before',     soundPattern: [880, 660] },
-  { id: 'hour',  offsetMs: -60*60*1000,    label: '1 hour before',    soundPattern: [880, 660, 880] },
+  { id: 'day',   offsetMs: -24*60*60*1000, label: '1 day before',      soundPattern: [880, 660] },
+  { id: 'hour',  offsetMs: -60*60*1000,    label: '1 hour before',     soundPattern: [880, 660, 880] },
+  { id: 'min30', offsetMs: -30*60*1000,    label: '30 minutes before', soundPattern: [950, 700, 950, 700] },
   { id: 'min10', offsetMs: -10*60*1000,    label: '10 minutes before', soundPattern: [1000, 800, 1000, 800, 1000] },
+  { id: 'start', offsetMs: 0,              label: 'Starting now',      soundPattern: [392, 523, 659, 784, 1047] },
 ];
 const _todoRemState = {
   loaded: false,
@@ -13489,6 +13619,24 @@ async function createRemindersForTask(todo){
   if (error){
     if (/(does not exist|relation)/.test(error.message||'')){
       console.warn('[reminders] table not found — run the migration SQL.');
+      return;
+    }
+    // The DB may have a CHECK constraint on remind_kind that only allows
+    // legacy values (day/hour/min10). New kinds added later (min30, start)
+    // can cause the bulk insert to fail. Fall back to inserting only the
+    // legacy kinds so at least those reminders still work.
+    const LEGACY_KINDS = new Set(['day', 'hour', 'min10']);
+    const isCheckErr = /(check constraint|invalid input value|violates|enum)/i.test(error.message || '');
+    if (isCheckErr){
+      const legacyRows = rows.filter(r => LEGACY_KINDS.has(r.remind_kind));
+      if (legacyRows.length){
+        const { error: e2 } = await Sb.from('todo_reminders').insert(legacyRows);
+        if (e2){
+          console.error('[createRemindersForTask] legacy fallback also failed:', e2);
+        } else {
+          console.warn('[reminders] DB rejected new kinds (min30/start) — inserted legacy kinds only. Update the CHECK constraint to allow them.');
+        }
+      }
     } else {
       console.error('[createRemindersForTask]', error);
     }
@@ -13771,28 +13919,217 @@ function showBrowserNotification(title, body){
   } catch(_){}
 }
 
-/* ----- Fire a single reminder (toast + sound + push + mark delivered) ----- */
+/* ============================================================
+   Centered reminder pop-up (modal) — shown when a reminder fires.
+   Has a confirm button; plays sound on appear; queues if multiple
+   reminders fire close together so the user sees them one-by-one.
+   ============================================================ */
+let _reminderPopQueue = [];
+let _reminderPopShowing = false;
+
+function presentReminderPop(opts){
+  // opts: { title, eyebrow (Korean label), timeText, soundPattern }
+  _reminderPopQueue.push(opts);
+  if (!_reminderPopShowing) _renderNextReminderPop();
+}
+
+function _renderNextReminderPop(){
+  if (!_reminderPopQueue.length){ _reminderPopShowing = false; return; }
+  _reminderPopShowing = true;
+  const opts = _reminderPopQueue.shift();
+  const remaining = _reminderPopQueue.length;
+  const safeTitle = (typeof esc === 'function') ? esc(opts.title || '') : (opts.title || '');
+  const safeEyebrow = (typeof esc === 'function') ? esc(opts.eyebrow || '') : (opts.eyebrow || '');
+  const safeTime = (typeof esc === 'function') ? esc(opts.timeText || '') : (opts.timeText || '');
+
+  const $overlay = document.createElement('div');
+  $overlay.className = 'reminder-pop-overlay';
+  $overlay.innerHTML = `
+    <div class="reminder-pop" role="dialog" aria-modal="true" aria-labelledby="rpTitle">
+      <div class="rp-bell" aria-hidden="true">🔔</div>
+      <div class="rp-eyebrow">${safeEyebrow}</div>
+      <h2 id="rpTitle" class="rp-title">${safeTitle}</h2>
+      ${safeTime ? `<div class="rp-time">${safeTime}</div>` : ''}
+      <button class="rp-confirm" type="button">OK</button>
+      ${remaining > 0 ? `<div class="rp-queue-hint">+${remaining} more</div>` : ''}
+    </div>
+  `;
+  document.body.appendChild($overlay);
+  // Trigger entry animation on next frame
+  requestAnimationFrame(() => $overlay.classList.add('show'));
+
+  // Play sound at the same time the popup appears
+  if (opts.soundPattern && typeof playReminderSound === 'function'){
+    try { playReminderSound(opts.soundPattern); } catch(_){}
+  }
+
+  const close = () => {
+    $overlay.classList.remove('show');
+    document.removeEventListener('keydown', onKey);
+    setTimeout(() => {
+      $overlay.remove();
+      _renderNextReminderPop();
+    }, 250);
+  };
+  const onKey = (e) => {
+    if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' '){
+      e.preventDefault();
+      close();
+    }
+  };
+  $overlay.querySelector('.rp-confirm').addEventListener('click', close);
+  // Click on the dim background does NOT close — user must press OK
+  // (keeps the alert from being dismissed accidentally)
+  document.addEventListener('keydown', onKey);
+  // Auto-focus the confirm button so Enter dismisses it
+  setTimeout(() => {
+    try { $overlay.querySelector('.rp-confirm').focus(); } catch(_){}
+  }, 30);
+}
+
+/* ============================================================
+   Forum meeting reminders — scan content.threads, fire reminders
+   for the current user when a meeting time crosses 1d / 1h / 30m / 10m.
+   Dedupe is stored in localStorage so refreshing the page doesn't
+   re-fire reminders that already played.
+   ============================================================ */
+const FIRED_MEETING_REMINDERS_KEY = 'leads.fired_meeting_reminders.v1';
+
+function _loadFiredMeetingReminders(){
+  try { return JSON.parse(localStorage.getItem(FIRED_MEETING_REMINDERS_KEY) || '{}'); }
+  catch(_){ return {}; }
+}
+function _saveFiredMeetingReminders(map){
+  try { localStorage.setItem(FIRED_MEETING_REMINDERS_KEY, JSON.stringify(map)); }
+  catch(_){}
+}
+function _markMeetingReminderFired(key){
+  const map = _loadFiredMeetingReminders();
+  map[key] = Date.now();
+  // Cleanup entries older than 14 days so the map doesn't grow forever
+  const cutoff = Date.now() - 14 * 86400000;
+  Object.keys(map).forEach(k => { if (map[k] < cutoff) delete map[k]; });
+  _saveFiredMeetingReminders(map);
+}
+
+function fireMeetingReminder(thread, kind){
+  // Build user-facing strings (English).
+  const eyebrow = `Meeting · ${kind.label}`;
+  const title = thread.title || 'Meeting';
+  const timeText = (thread.meetingDate && thread.startTime)
+    ? (typeof fmtMDDate === 'function'
+         ? `${fmtMDDate(thread.meetingDate)} · ${thread.startTime}${thread.endTime ? '–' + thread.endTime : ''}`
+         : `${thread.meetingDate} · ${thread.startTime}${thread.endTime ? '–' + thread.endTime : ''}`)
+    : '';
+
+  // Centered modal + sound
+  presentReminderPop({ title, eyebrow, timeText, soundPattern: kind.soundPattern });
+
+  // Bell flash + toast as a soft fallback
+  try { toast(`🔔 ${kind.label}: ${title}`); } catch(_){}
+  try {
+    const $bell = document.getElementById('bellWrap');
+    if ($bell){ $bell.classList.add('flash'); setTimeout(() => $bell.classList.remove('flash'), 1500); }
+  } catch(_){}
+
+  // Native browser notification (best-effort)
+  showBrowserNotification(`Meeting · ${kind.label}`, title);
+}
+
+function checkMeetingReminders(){
+  if (!state.session) return;
+  if (!Array.isArray(content.threads)) return;
+  const me = (state.session.email || '').toLowerCase();
+  const now = Date.now();
+  // Only fire reminders that crossed within the last hour, to avoid flooding
+  // the user with stale reminders for past meetings on first load.
+  const STALE_GRACE_MS = 60 * 60 * 1000;
+
+  const fired = _loadFiredMeetingReminders();
+  let dirty = false;
+
+  for (const t of content.threads){
+    if (!t || !t.meetingDate || !t.startTime) continue;
+    // Construct the meeting datetime in local time
+    const dt = new Date(`${t.meetingDate}T${t.startTime}:00`);
+    const meetingMs = dt.getTime();
+    if (isNaN(meetingMs)) continue;
+
+    // Only notify users involved in the meeting (author or attendee)
+    const attendees = Array.isArray(t.attendees)
+      ? t.attendees.map(a => String(a && a.email || '').toLowerCase()).filter(Boolean)
+      : [];
+    const isAuthor = String(t.authorEmail || '').toLowerCase() === me;
+    if (!isAuthor && !attendees.includes(me)) continue;
+
+    // The thread's own createdAt — reminder times that fall BEFORE this
+    // moment are moot (the meeting didn't exist yet, so we shouldn't
+    // retroactively fire those reminders). Example: a meeting created
+    // 11 minutes before its start time should only fire the 10-min
+    // reminder — the 1-hour and 30-min reminder times are in the past
+    // relative to when the meeting was created.
+    const threadCreatedAt = Number(t.createdAt) || 0;
+
+    for (const k of REMINDER_KINDS){
+      const fireAt = meetingMs + k.offsetMs;
+      // Include the meeting datetime in the dedupe key so that if the
+      // meeting is rescheduled, new reminders will fire for the new time.
+      const key = `${t.id}:${t.meetingDate}T${t.startTime}:${k.id}`;
+      if (fired[key]) continue;
+      // Skip reminder times that are before the meeting was even created.
+      // We mark them as "fired" silently so we don't re-evaluate them
+      // every poll cycle.
+      if (threadCreatedAt && fireAt < threadCreatedAt){
+        fired[key] = now;
+        dirty = true;
+        continue;
+      }
+      if (fireAt > now) continue;                // not yet reached
+      if (now - fireAt > STALE_GRACE_MS){
+        // Too old — silently mark as fired to avoid re-checking forever
+        fired[key] = now;
+        dirty = true;
+        continue;
+      }
+      // Fire the reminder
+      try { fireMeetingReminder(t, k); } catch(e){ console.warn('[meeting-reminders] fire failed:', e); }
+      fired[key] = now;
+      dirty = true;
+    }
+  }
+
+  if (dirty) _saveFiredMeetingReminders(fired);
+}
+
+/* ----- Fire a single reminder (modal + toast + sound + push + mark delivered) ----- */
 async function fireReminder(rem){
   if (_todoRemState.playedIds.has(rem.id)) return;
   _todoRemState.playedIds.add(rem.id);
 
   const kind = REMINDER_KINDS.find(k => k.id === rem.remind_kind) || REMINDER_KINDS[0];
   const taskTitle = (rem.todos && rem.todos.title) || 'Meeting';
-  const msg = `${kind.label}: ${taskTitle}`;
+  const dueDate = (rem.todos && rem.todos.due_date) || '';
+  const timeText = dueDate
+    ? (typeof fmtMDDate === 'function' ? fmtMDDate(dueDate) : dueDate)
+    : '';
 
-  // Toast with bell flash
-  toast(`🔔 ${msg}`);
-  // Trigger bell flash if available
+  // Centered modal popup (also plays the sound at the same time)
+  presentReminderPop({
+    title: taskTitle,
+    eyebrow: `Meeting · ${kind.label}`,
+    timeText,
+    soundPattern: kind.soundPattern,
+  });
+
+  // Bell flash + toast (soft fallback in case modal is dismissed quickly)
+  toast(`🔔 ${kind.label}: ${taskTitle}`);
   try {
     const $bell = document.getElementById('bellWrap');
     if ($bell){ $bell.classList.add('flash'); setTimeout(() => $bell.classList.remove('flash'), 1500); }
   } catch(_){}
 
-  // Sound
-  playReminderSound(kind.soundPattern);
-
   // Browser notification
-  showBrowserNotification('Meeting reminder', msg);
+  showBrowserNotification(`Meeting · ${kind.label}`, taskTitle);
 
   // Mark delivered
   try {
@@ -13802,6 +14139,10 @@ async function fireReminder(rem){
 
 /* ----- Polling loop: every 30s scan pending reminders ----- */
 async function tickReminders(){
+  // Forum/meeting reminders are computed locally from content.threads —
+  // they don't require Supabase, so check them first.
+  try { checkMeetingReminders(); } catch(e){ console.warn('[meeting-reminders] check failed:', e); }
+
   if (!Sb || !state.session) return;
   // Refresh list periodically so reminders inserted by other devices show up
   _todoRemState.pending = await fetchPendingReminders();
