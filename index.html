@@ -1135,7 +1135,7 @@
   /* Type colors */
   .sch-entry.shift{background:#5b6dd9;color:#fff}
   .sch-entry.ooo{background:#f59e0b;color:#fff}
-  .sch-entry.holiday{background:#22c55e;color:#fff}
+  .sch-entry.holiday{background:#dc2626;color:#fff}
   .sch-entry.custom{background:#6b7280;color:#fff}
   .sch-entry.ooo.soft{background:#fef3c7;color:#92400e}
   .sch-entry.ooo.soft .sch-entry-time{color:#92400e}
@@ -1212,20 +1212,40 @@
   /* Add-schedule modal extras (shared) */
   .sch-form{display:flex;flex-direction:column;gap:14px}
   .sch-form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  /* In Holiday mode, stack Member / Start Date / End Date as full-width rows */
+  .sch-form.is-holiday .sch-form-row{grid-template-columns:1fr}
   .sch-form .field{margin:0}
   .sch-time-row{display:flex;align-items:center;gap:8px}
   .sch-time-row input[type=time]{flex:1}
   .sch-time-sep{color:var(--ink-mute);font-family:var(--mono);font-size:11px}
+  /* Clock In / Clock Out buttons (Personal schedule) */
+  .sch-clock-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .sch-clock-btn{padding:14px 16px;border:1px solid var(--hair-strong);background:var(--paper);border-radius:10px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;transition:all .15s;text-align:center}
+  .sch-clock-btn:hover{border-color:var(--ink);background:rgba(11,11,10,.03)}
+  .sch-clock-btn.is-set{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+  .sch-clock-btn .sch-clock-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+  .sch-clock-btn .sch-clock-time{font-family:var(--serif-en);font-size:22px;line-height:1;letter-spacing:-.01em}
+  .sch-clock-btn .sch-clock-time.is-empty{color:var(--ink-mute);font-style:italic}
+  .sch-clock-btn.is-set .sch-clock-time.is-empty{color:rgba(245,242,236,.6)}
+  .sch-clock-reset{display:inline-flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-mute);background:none;border:none;padding:4px 6px;cursor:pointer;border-radius:4px}
+  .sch-clock-reset:hover{color:var(--ink);background:rgba(11,11,10,.05)}
+  @media (max-width: 600px){
+    .sch-clock-row{grid-template-columns:1fr}
+  }
   .sch-allday{display:flex;align-items:center;gap:8px;font-family:var(--serif-kr);font-size:13px;color:var(--ink);cursor:pointer;user-select:none}
   .sch-allday input{accent-color:var(--ink);width:14px;height:14px;cursor:pointer}
-  .sch-type-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .sch-type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
   .sch-type-opt{padding:10px 8px;border:1px solid var(--hair-strong);background:var(--paper);cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink);text-align:center;transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:6px}
   .sch-type-opt:hover{border-color:var(--ink)}
   .sch-type-opt.is-selected{border-color:var(--ink);background:var(--ink);color:var(--paper)}
+  /* Locked type buttons (Shift, Out) — auto-selected by Clock In/Out, not manually clickable */
+  .sch-type-opt.is-locked{cursor:default;pointer-events:none}
   .sch-type-swatch{width:18px;height:18px;border-radius:3px}
   .sch-type-swatch.shift{background:#5b6dd9}
   .sch-type-swatch.ooo{background:#f59e0b}
   .sch-type-swatch.holiday{background:#22c55e}
+  /* Personal schedule: Vacation is red (override the shared green-holiday swatch) */
+  #sch-type-grid .sch-type-swatch.holiday{background:#dc2626}
   .sch-type-swatch.custom{background:#6b7280}
   .sch-type-swatch.meeting{background:#1f7ae0}
   .sch-type-swatch.event{background:#8b5cf6}
@@ -1246,6 +1266,7 @@
     .sch-select{min-width:0;width:100%}
     .sch-form-row{grid-template-columns:1fr}
     .sch-type-grid{grid-template-columns:repeat(2,1fr)}
+    .sch-type-grid .sch-type-opt:nth-child(3):last-child{grid-column:1 / -1}
     .sch-status-grid{grid-template-columns:repeat(2,1fr)}
     .cal-grid{grid-auto-rows:minmax(80px, auto)}
     .cal-cell{min-height:80px;padding:6px 8px}
@@ -2567,6 +2588,9 @@
   .todo-ov-dnum{
     font-family:var(--serif); font-size:18px; font-weight:400; line-height:1;
     color:var(--ink);
+    /* Reserve the same height as the today circle so all cells' underbars align */
+    height:24px;
+    display:inline-flex; align-items:center;
   }
   .todo-ov-day.is-today .todo-ov-dnum{
     background:#dc2626; color:#fff;
@@ -2589,6 +2613,54 @@
   }
   .todo-ov-day-item:hover{color:var(--ink)}
   .todo-ov-day-item.completed{text-decoration:line-through; opacity:.55}
+  /* Compact regular item for weekly view (mirrors monthly look) */
+  .todo-ov-day-item-rich{
+    display:flex; align-items:center; gap:5px;
+    font-family:var(--serif-kr); font-size:11px;
+    color:var(--ink-soft);
+    padding:1px 0;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis;
+    cursor:pointer;
+  }
+  .todo-ov-day-item-rich:hover{color:var(--ink)}
+  .todo-ov-day-item-rich .todo-ov-pill{
+    background:#dc2626; color:#fff;
+    font-family:var(--mono); font-size:8.5px; letter-spacing:.04em;
+    padding:1px 5px; border-radius:2px;
+    flex:none;
+  }
+  .todo-ov-day-item-rich.completed .todo-ov-pill{background:#22c55e}
+  .todo-ov-day-item-rich .todo-ov-icon{flex:none; width:12px; text-align:center}
+  .todo-ov-day-item-rich .todo-ov-text{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis}
+  .todo-ov-day-item-rich.completed .todo-ov-text{text-decoration:line-through; opacity:.6}
+
+  /* Vacation bar — multi-day continuous strip across cells.
+     The .todo-vac-row wrapper cancels the cell's 10px horizontal padding so the
+     bar can reach the cell-box edges; the bar itself uses positive margins on
+     "is-start"/"is-end" segments to inset the rounded ends back to the content
+     edge. Middle segments fill the wrapper edge-to-edge so adjacent cells'
+     bars meet visually. */
+  .todo-vac-row{
+    margin-left:-10px; margin-right:-10px;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .todo-vac-bar{
+    background:#dc2626; color:#fff;
+    font-family:var(--serif-kr); font-size:11.5px; font-weight:500;
+    height:22px;
+    display:flex; align-items:center; gap:5px;
+    padding:0 6px;
+    cursor:pointer;
+    white-space:nowrap; overflow:hidden;
+    transition:background .15s;
+  }
+  .todo-vac-bar:hover{background:#b91c1c}
+  .todo-vac-bar.is-start{margin-left:10px; border-radius:4px 0 0 4px; padding-left:8px}
+  .todo-vac-bar.is-end{margin-right:10px; border-radius:0 4px 4px 0; padding-right:8px}
+  .todo-vac-bar.is-only{margin-left:10px; margin-right:10px; border-radius:4px}
+  .todo-vac-bar.completed{opacity:.6; text-decoration:line-through}
+  .todo-vac-bar .todo-vac-icon{flex:none}
+  .todo-vac-bar .todo-vac-text{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis}
 
   /* UNFINISHED panel — categorized cards */
   .todo-ov-unfin-body{
@@ -2789,7 +2861,11 @@
   }
   .todo-cal-num{
     font-family:var(--serif); font-size:14px; line-height:1;
-    color:var(--ink); padding:2px 0 4px; align-self:flex-start;
+    color:var(--ink); align-self:flex-start;
+    /* Reserve the same height as the today circle so cells stay aligned */
+    height:22px;
+    display:inline-flex; align-items:center; justify-content:center;
+    min-width:22px;
   }
   .todo-cal-cell.is-other-month .todo-cal-num{ color:var(--ink-mute); opacity:.5 }
   .todo-cal-num.is-sun{color:#c33}
@@ -3268,7 +3344,7 @@
     <div class="auth-bottom">
       <div class="col">
         <div class="corner-line"></div>
-        <div class="label" style="margin-top:10px">© 2026 [Company] · Internal Use Only</div>
+        <div class="label" style="margin-top:10px">© 2026 KSM SPORTS / Dogyu Jang</div>
       </div>
       <div class="col right">
         <div class="corner-line"></div>
@@ -3668,7 +3744,7 @@
   </main>
 
   <footer class="app-foot">
-    <div>© 2026 [Company] · Internal · Vol. 01</div>
+    <div>© 2026 KSM SPORTS / Dogyu Jang</div>
     <div>For team principals only · Leads only</div>
     <div id="now-foot">—</div>
   </footer>
@@ -3958,9 +4034,15 @@
         </div>
       </div>
       <div class="tn-prop-row">
-        <div class="tn-prop-label"><span class="tn-prop-icon">📅</span><span>due date</span></div>
+        <div class="tn-prop-label"><span class="tn-prop-icon">📅</span><span id="tn-date-label">due date</span></div>
         <div class="tn-prop-value">
           <input type="date" id="tn-date" class="tn-prop-input" />
+        </div>
+      </div>
+      <div class="tn-prop-row" id="tn-end-date-row" hidden>
+        <div class="tn-prop-label"><span class="tn-prop-icon">📅</span><span>end date</span></div>
+        <div class="tn-prop-value">
+          <input type="date" id="tn-end-date" class="tn-prop-input" />
         </div>
       </div>
       <div class="tn-prop-row">
@@ -4391,9 +4473,29 @@ const Sb = (() => {
     console.warn('[Supabase] not configured — running in offline mode');
     return null;
   }
+  // Auth tokens are stored in sessionStorage (not localStorage) so the user
+  // is automatically logged out when the browser tab/window is closed,
+  // but stays logged in across page refreshes within the same tab.
+  // We also proactively migrate any existing localStorage token from a
+  // previous version of the app, then wipe localStorage so the change takes
+  // effect on the very next refresh.
+  try {
+    const lsKey = 'sb-' + (cfg.url.split('//')[1] || '').split('.')[0] + '-auth-token';
+    const lsVal = window.localStorage.getItem(lsKey);
+    if (lsVal && !window.sessionStorage.getItem(lsKey)){
+      window.sessionStorage.setItem(lsKey, lsVal);
+    }
+    if (lsVal) window.localStorage.removeItem(lsKey);
+  } catch(_){ /* private mode etc. — ignore */ }
+
   try {
     return window.supabase.createClient(cfg.url, cfg.anonKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false,
+        storage: window.sessionStorage
+      }
     });
   } catch(e){
     console.error('[Supabase] init failed:', e);
@@ -11321,7 +11423,7 @@ function renderForum(){
 const SCHEDULE_TYPES = [
   { id:'shift',   label:'Shift',    color:'#5b6dd9', desc:'Shift' },
   { id:'ooo',     label:'Out',      color:'#f59e0b', desc:'Out of office' },
-  { id:'holiday', label:'Holiday',  color:'#22c55e', desc:'Holiday/Vacation' },
+  { id:'holiday', label:'Vacation', color:'#dc2626', desc:'Vacation' },
   { id:'custom',  label:'Custom',   color:'#6b7280', desc:'Other' },
 ];
 const SCHEDULE_STATUSES = [
@@ -11850,19 +11952,33 @@ function renderScheduleEntry(e){
   const type = SCHEDULE_TYPES.find(t => t.id === e.type) || SCHEDULE_TYPES[0];
   const useSoft = e.type === 'ooo' && e.label && e.label !== 'Out';
   const cls = `sch-entry ${e.type}${useSoft ? ' soft' : ''}`;
-  let title = esc(e.label || type.label);
+  const title = esc(e.label || type.label);
+
+  // Time string: handle missing start or end gracefully (no leading/trailing dash)
   let timeStr = '';
   if (e.allDay){
     timeStr = 'All day';
-  } else if (e.startTime || e.endTime){
-    timeStr = `${fmtTime12(e.startTime)}${e.endTime?' - '+fmtTime12(e.endTime):''}`;
+  } else if (e.startTime && e.endTime){
+    timeStr = `${fmtTime12(e.startTime)} - ${fmtTime12(e.endTime)}`;
+  } else if (e.startTime){
+    timeStr = fmtTime12(e.startTime);
+  } else if (e.endTime){
+    timeStr = fmtTime12(e.endTime);
   }
-  const dot = (e.type === 'shift' && e.status) ? `<span class="sch-status-dot ${esc(e.status)}"></span>` : '';
-  const titleSuffix = (e.type === 'shift' && e.status)
-    ? ` ${dot}${esc((SCHEDULE_STATUSES.find(s=>s.id===e.status)||{}).label||'')}`
-    : '';
+
+  // Status dot beside title:
+  // - Shift: color reflects status (on_time=green, late=red, early=blue)
+  // - Out:   always red dot
+  // - Holiday/Custom: no dot
+  let dotHtml = '';
+  if (e.type === 'shift' && e.status){
+    dotHtml = `<span class="sch-status-dot ${esc(e.status)}"></span>`;
+  } else if (e.type === 'ooo'){
+    dotHtml = `<span class="sch-status-dot late"></span>`;
+  }
+
   return `<div class="${cls}" data-act="sch-edit" data-sid="${esc(e.id)}" title="${esc(e.notes||'')}">
-    <span class="sch-entry-title">${title}${titleSuffix}</span>
+    <span class="sch-entry-title">${title}${dotHtml ? ' '+dotHtml : ''}</span>
     ${timeStr ? `<span class="sch-entry-time">${esc(timeStr)}</span>` : ''}
   </div>`;
 }
@@ -11923,33 +12039,81 @@ function openScheduleModal(opts){
     return;
   }
 
+  // If editing a vacation entry, find the contiguous block (same user, consecutive days)
+  // so we can offer "delete this day only" vs "delete entire vacation".
+  let vacationBlock = [];
+  if (editing && editing.type === 'holiday' && editing.memberEmail){
+    const all = (content.schedules || [])
+      .filter(s => s.type === 'holiday' && (s.memberEmail||'').toLowerCase() === (editing.memberEmail||'').toLowerCase())
+      .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const targetIdx = all.findIndex(s => s.id === editing.id);
+    if (targetIdx !== -1){
+      vacationBlock.push(all[targetIdx]);
+      // Walk backwards: previous day must be exactly 1 day before
+      for (let i = targetIdx - 1; i >= 0; i--){
+        const cur  = new Date(all[i].date + 'T00:00:00');
+        const next = new Date(vacationBlock[0].date + 'T00:00:00');
+        const diffDays = Math.round((next - cur) / 86400000);
+        if (diffDays === 1) vacationBlock.unshift(all[i]); else break;
+      }
+      // Walk forwards
+      for (let i = targetIdx + 1; i < all.length; i++){
+        const cur  = new Date(all[i].date + 'T00:00:00');
+        const prev = new Date(vacationBlock[vacationBlock.length - 1].date + 'T00:00:00');
+        const diffDays = Math.round((cur - prev) / 86400000);
+        if (diffDays === 1) vacationBlock.push(all[i]); else break;
+      }
+    }
+  }
+  const isMultiDayVacation = vacationBlock.length > 1;
+  const vacationStart = isMultiDayVacation ? vacationBlock[0].date : '';
+  const vacationEnd   = isMultiDayVacation ? vacationBlock[vacationBlock.length - 1].date : '';
+
   const todayIso = isoDate(new Date());
   const initial = editing || {
     memberEmail: opts.presetEmail || (members[0] && members[0].email) || '',
     date: opts.presetDate || todayIso,
     allDay: false,
-    startTime: '09:00',
-    endTime: '17:00',
+    startTime: '',
+    endTime: '',
     type: 'shift',
     label: '',
-    status: 'on_time',
+    status: '',
     notes: '',
   };
   // For non-admin users, lock the member field to themselves.
   // (They shouldn't be able to assign a schedule to someone else.)
   const lockMember = !isAdmin;
   const memberOptions = members.map(m => `<option value="${esc(m.email)}"${m.email===initial.memberEmail?' selected':''}>${esc(m.name||m.email)}${m.department?' · '+esc(m.department):''}</option>`).join('');
-  const typeOpts = SCHEDULE_TYPES.map(t => `
-    <button type="button" class="sch-type-opt${t.id===initial.type?' is-selected':''}" data-type="${t.id}">
+  // Custom type is hidden from the picker — only Shift, Out, Holiday are selectable.
+  // (Existing 'custom' entries still render correctly elsewhere.)
+  // Shift and Out are LOCKED — they reflect what Clock In/Out auto-pick. Only Holiday is clickable.
+  const typeOpts = SCHEDULE_TYPES.filter(t => t.id !== 'custom').map(t => {
+    const locked = (t.id === 'shift' || t.id === 'ooo');
+    return `
+    <button type="button" class="sch-type-opt${t.id===initial.type?' is-selected':''}${locked ? ' is-locked' : ''}" data-type="${t.id}"${locked ? ' tabindex="-1" aria-disabled="true"' : ''}>
       <span class="sch-type-swatch ${t.id}"></span>
       <span>${esc(t.label)}</span>
-    </button>`).join('');
+    </button>`;
+  }).join('');
   const statusOpts = SCHEDULE_STATUSES.map(s => `
     <button type="button" class="sch-status-opt${s.id===initial.status?' is-selected':''}" data-status="${esc(s.id)}">
       ${s.dot ? `<span class="sch-status-dot ${s.dot}"></span>` : ''}
       <span>${esc(s.label)}</span>
     </button>`).join('');
 
+  const isHolidayInit = initial.type === 'holiday';
+  const initStart = initial.startTime || '';
+  const initEnd   = initial.endTime || '';
+  // Clock display: ALWAYS show hours AND minutes (e.g., "8:25 am", not "9 am")
+  const fmtClockHM = (t) => {
+    if (!t) return '';
+    const [hh, mm] = t.split(':').map(Number);
+    if (isNaN(hh)) return '';
+    const ap = hh >= 12 ? 'pm' : 'am';
+    const h12 = hh === 0 ? 12 : (hh > 12 ? hh - 12 : hh);
+    return `${h12}:${String(mm).padStart(2,'0')} ${ap}`;
+  };
   const formHtml = `
     <div class="sch-form">
       <div class="sch-form-row">
@@ -11957,36 +12121,55 @@ function openScheduleModal(opts){
           <select id="sch-f-member" required${lockMember ? ' disabled' : ''}>${memberOptions}</select>
           ${lockMember ? `<span class="help">You can only add schedules for yourself.</span>` : ''}
         </div>
-        <div class="mf"><label for="sch-f-date">Date</label>
+        <div class="mf"><label for="sch-f-date" id="sch-date-label">${isHolidayInit ? 'Start date' : 'Date'}</label>
           <input id="sch-f-date" type="date" value="${esc(initial.date)}" required />
         </div>
+      </div>
+      <div class="mf" id="sch-end-date-field"${(isHolidayInit && !editing) ? '' : ' style="display:none"'}>
+        <label for="sch-f-end-date">End date</label>
+        <input id="sch-f-end-date" type="date" value="${esc(initial.date||'')}" />
+        <span class="help">Vacation is recorded for every day from start to end (inclusive).</span>
       </div>
       <div class="mf"><label>Schedule Type</label>
         <div class="sch-type-grid" id="sch-type-grid">${typeOpts}</div>
       </div>
-      <div class="mf"><label class="sch-allday">
-        <input id="sch-f-allday" type="checkbox"${initial.allDay?' checked':''} />
-        <span>All day</span>
-      </label></div>
-      <div class="mf" id="sch-time-field"${initial.allDay?' style="display:none"':''}>
-        <label>Time</label>
-        <div class="sch-time-row">
-          <input id="sch-f-start" type="time" value="${esc(initial.startTime||'09:00')}" />
-          <span class="sch-time-sep">→</span>
-          <input id="sch-f-end" type="time" value="${esc(initial.endTime||'17:00')}" />
+
+      <!-- Clock In / Clock Out (shift, ooo, custom) -->
+      <div class="mf" id="sch-time-field"${isHolidayInit ? ' style="display:none"' : ''}>
+        <label>Hours <button type="button" class="sch-clock-reset" id="sch-clock-reset" title="Clear both times">Reset</button></label>
+        <div class="sch-clock-row">
+          <button type="button" class="sch-clock-btn${initStart ? ' is-set' : ''}" id="sch-clock-in-btn">
+            <span class="sch-clock-label">출근 · Clock In</span>
+            <span class="sch-clock-time${initStart ? '' : ' is-empty'}" id="sch-clock-in-time">${initStart ? esc(fmtClockHM(initStart)) : '— : —'}</span>
+          </button>
+          <button type="button" class="sch-clock-btn${initEnd ? ' is-set' : ''}" id="sch-clock-out-btn">
+            <span class="sch-clock-label">퇴근 · Clock Out</span>
+            <span class="sch-clock-time${initEnd ? '' : ' is-empty'}" id="sch-clock-out-time">${initEnd ? esc(fmtClockHM(initEnd)) : '— : —'}</span>
+          </button>
         </div>
+        <input id="sch-f-start" type="hidden" value="${esc(initStart)}" />
+        <input id="sch-f-end" type="hidden" value="${esc(initEnd)}" />
+        <span class="help">출근 → Shift · On time   ·   퇴근 → Out   ·   출근 안 누르면 → Late   ·   다시 누르면 리셋</span>
       </div>
-      <div class="mf" id="sch-status-field"${initial.type==='shift'?'':' style="display:none"'}>
+
+      <div class="mf" id="sch-status-field" style="display:none">
         <label>Status</label>
         <div class="sch-status-grid" id="sch-status-grid">${statusOpts}</div>
       </div>
       <div class="mf"><label for="sch-f-label">Display label (optional)</label>
-        <input id="sch-f-label" type="text" value="${esc(initial.label||'')}" placeholder="e.g., Mark Out, Seasoned Holiday — leave blank to use type name" maxlength="60" />
+        <input id="sch-f-label" type="text" value="${esc(initial.label||'')}" placeholder="e.g., Mark Out, Family Vacation — leave blank to use type name" maxlength="60" />
       </div>
       <div class="mf"><label for="sch-f-notes">Notes</label>
         <input id="sch-f-notes" type="text" value="${esc(initial.notes||'')}" placeholder="Optional" maxlength="200" />
       </div>
-      ${editing ? `<div class="mf"><button type="button" class="btn-pill reject" id="sch-delete-btn" style="width:100%;padding:10px">Delete This Schedule</button></div>` : ''}
+      ${editing
+        ? (isMultiDayVacation
+          ? `<div class="mf" style="display:flex;flex-direction:column;gap:8px">
+              <button type="button" class="btn-pill reject" id="sch-delete-day-btn" style="width:100%;padding:10px">Delete this day only · ${esc(fmtMDDate(editing.date))}</button>
+              <button type="button" class="btn-pill reject" id="sch-delete-all-btn" style="width:100%;padding:10px">Delete entire vacation · ${vacationBlock.length} days · ${esc(fmtMDDate(vacationStart))} → ${esc(fmtMDDate(vacationEnd))}</button>
+            </div>`
+          : `<div class="mf"><button type="button" class="btn-pill reject" id="sch-delete-btn" style="width:100%;padding:10px">Delete This Schedule</button></div>`)
+        : ''}
     </div>
   `;
 
@@ -12002,28 +12185,101 @@ function openScheduleModal(opts){
         ? document.getElementById('sch-f-member').value
         : myEmail;
       const date        = document.getElementById('sch-f-date').value;
-      const allDay      = document.getElementById('sch-f-allday').checked;
-      const startTime   = document.getElementById('sch-f-start').value || '';
-      const endTime     = document.getElementById('sch-f-end').value || '';
+      const endDateRaw  = (document.getElementById('sch-f-end-date')||{}).value || '';
       const type        = (document.querySelector('#sch-type-grid .sch-type-opt.is-selected')||{}).dataset?.type || 'shift';
       const status      = (document.querySelector('#sch-status-grid .sch-status-opt.is-selected')||{}).dataset?.status || '';
       const label       = (document.getElementById('sch-f-label').value || '').trim();
       const notes       = (document.getElementById('sch-f-notes').value || '').trim();
 
+      // Holiday → all-day, no times. Other types → use clock-in/out (may be empty).
+      const isHoliday   = (type === 'holiday');
+      const allDay      = isHoliday;
+      const startTime   = isHoliday ? '' : (document.getElementById('sch-f-start').value || '');
+      const endTime     = isHoliday ? '' : (document.getElementById('sch-f-end').value || '');
+
       if (!memberEmail){ toast('Please select a member.'); return false; }
       if (!date){ toast('Please select a date.'); return false; }
-      if (!allDay){
-        if (!startTime || !endTime){ toast('Please enter a time or select All day.'); return false; }
-        if (startTime >= endTime){ toast('End time must be after start time.'); return false; }
+      if (isHoliday && !editing && endDateRaw && endDateRaw < date){
+        toast('End date must be on or after start date.'); return false;
       }
+      if (!isHoliday && startTime && endTime && startTime >= endTime){
+        toast('Clock-out must be after clock-in.'); return false;
+      }
+
+      // If type is "shift" and Clock In was never pressed → auto-mark Late
+      let finalStatus = status;
+      if (type === 'shift' && !startTime){
+        finalStatus = 'late';
+      }
+
       content.schedules = content.schedules || [];
+
+      // Helper: create a linked Todo for a vacation schedule, if the owner is the current user
+      // and the user doesn't already have an equivalent vacation todo for the same date.
+      // (Sync only fires on NEW schedules — editing doesn't propagate.)
+      const maybeCreateLinkedVacationTodo = async (startDateIso, endDateIso) => {
+        const myEmailLc = (state.session?.email || '').toLowerCase();
+        if (memberEmail.toLowerCase() !== myEmailLc) return;  // skip if admin saving for someone else
+        const existing = (_todoState.items || []).find(t =>
+          t.category === 'work-vacation' && t.dueDate === startDateIso
+        );
+        if (existing) return; // avoid duplicates on same start date
+        // Always embed the date range marker so the Todo modal can round-trip it
+        const todoNotes = embedVacationRange(notes || '', startDateIso, endDateIso);
+        const todoData = {
+          title: label || 'Vacation',
+          notes: todoNotes,
+          category: 'work-vacation',
+          icon: '🏖',
+          priority: 'p1',
+          dueDate: startDateIso,
+          completed: false,
+        };
+        try {
+          const r = await insertTodoDb(todoData);
+          if (r && r.todo){
+            _todoState.items = _todoState.items || [];
+            _todoState.items.push(r.todo);
+            if (typeof renderTodo === 'function') renderTodo();
+          }
+        } catch (e){ console.warn('[vacation sync] create todo failed:', e); }
+      };
+
+      // Multi-day holiday on NEW: expand the range into one schedule per day.
+      if (isHoliday && !editing && endDateRaw && endDateRaw > date){
+        const dates = [];
+        let cur = new Date(date + 'T00:00:00');
+        const end = new Date(endDateRaw + 'T00:00:00');
+        while (cur <= end){
+          dates.push(isoDate(cur));
+          cur.setDate(cur.getDate() + 1);
+        }
+        for (const di of dates){
+          const schedData = {
+            memberEmail, date: di,
+            allDay: true,
+            startTime: null, endTime: null,
+            type: 'holiday',
+            status: '',
+            label, notes,
+            createdBy: state.session?.email || '',
+          };
+          const res = await insertScheduleDb(schedData);
+          if (res.error){ toast('Save failed: ' + res.error); return false; }
+          content.schedules.push(res.schedule);
+        }
+        renderSchedules();
+        await maybeCreateLinkedVacationTodo(dates[0], dates[dates.length - 1]);
+        toast(`Vacation added (${dates.length} day${dates.length>1?'s':''}).`);
+        return true;
+      }
 
       const schedData = {
         memberEmail, date, allDay,
-        startTime: allDay?null:startTime,
-        endTime: allDay?null:endTime,
+        startTime: allDay?null:(startTime||null),
+        endTime: allDay?null:(endTime||null),
         type,
-        status: type==='shift'?status:'',
+        status: type==='shift'?finalStatus:'',
         label, notes,
         createdBy: state.session?.email || '',
       };
@@ -12043,6 +12299,8 @@ function openScheduleModal(opts){
       }
 
       renderSchedules();
+      // Single-day vacation NEW → also create linked Todo
+      if (isHoliday && !editing) await maybeCreateLinkedVacationTodo(date, date);
       toast(editing ? 'Schedule saved.' : 'Schedule added.');
       return true;
     },
@@ -12050,35 +12308,219 @@ function openScheduleModal(opts){
 
   // Wire form interactions after modal renders
   setTimeout(() => {
-    const $allDay = document.getElementById('sch-f-allday');
-    const $timeField = document.getElementById('sch-time-field');
-    if ($allDay) $allDay.addEventListener('change', () => {
-      $timeField.style.display = $allDay.checked ? 'none' : '';
-    });
+    // Helper: show/hide fields based on the selected type
+    const setTypeUi = (t) => {
+      const $form        = document.getElementById('sch-type-grid')?.closest('.sch-form');
+      const $endDateField = document.getElementById('sch-end-date-field');
+      const $timeField    = document.getElementById('sch-time-field');
+      const $dateLabel    = document.getElementById('sch-date-label');
+      // Holiday → end-date visible (only when adding new), time hidden, form rows stack full-width
+      if (t === 'holiday'){
+        if ($form)         $form.classList.add('is-holiday');
+        if ($endDateField) $endDateField.style.display = editing ? 'none' : '';
+        if ($timeField)    $timeField.style.display    = 'none';
+        if ($dateLabel)    $dateLabel.textContent      = editing ? 'Date' : 'Start date';
+      } else {
+        if ($form)         $form.classList.remove('is-holiday');
+        if ($endDateField) $endDateField.style.display = 'none';
+        if ($timeField)    $timeField.style.display    = '';
+        if ($dateLabel)    $dateLabel.textContent      = 'Date';
+      }
+    };
+    setTypeUi(initial.type);
+
+    // Type buttons — Shift/Out are locked (pointer-events:none in CSS),
+    // so only Holiday will actually fire this handler.
     document.querySelectorAll('#sch-type-grid .sch-type-opt').forEach(b => {
       b.addEventListener('click', () => {
+        const t = b.dataset.type;
+        // Holiday toggle: clicking Holiday while it's already selected → switch back to Shift
+        if (t === 'holiday' && b.classList.contains('is-selected')){
+          document.querySelectorAll('#sch-type-grid .sch-type-opt').forEach(x => x.classList.remove('is-selected'));
+          const $shift = document.querySelector('#sch-type-grid .sch-type-opt[data-type="shift"]');
+          if ($shift) $shift.classList.add('is-selected');
+          setTypeUi('shift');
+          return;
+        }
         document.querySelectorAll('#sch-type-grid .sch-type-opt').forEach(x => x.classList.remove('is-selected'));
         b.classList.add('is-selected');
-        const t = b.dataset.type;
-        const $sf = document.getElementById('sch-status-field');
-        if ($sf) $sf.style.display = (t === 'shift') ? '' : 'none';
+        setTypeUi(t);
+        // When switching to holiday, default end-date to start-date if empty
+        if (t === 'holiday'){
+          const $sd = document.getElementById('sch-f-date');
+          const $ed = document.getElementById('sch-f-end-date');
+          if ($ed && $sd && !$ed.value) $ed.value = $sd.value;
+        }
       });
     });
+
+    // Keep end-date >= start-date as user types
+    const $startDate = document.getElementById('sch-f-date');
+    const $endDate   = document.getElementById('sch-f-end-date');
+    if ($startDate && $endDate){
+      $startDate.addEventListener('change', () => {
+        if (!$endDate.value || $endDate.value < $startDate.value){
+          $endDate.value = $startDate.value;
+        }
+      });
+    }
+
+    // Helper: visually select a type button + sync field visibility
+    const selectTypeBtn = (typeId) => {
+      document.querySelectorAll('#sch-type-grid .sch-type-opt').forEach(b => {
+        b.classList.toggle('is-selected', b.dataset.type === typeId);
+      });
+      setTypeUi(typeId);
+    };
+    // Helper: visually select a status button
+    const selectStatusBtn = (statusId) => {
+      document.querySelectorAll('#sch-status-grid .sch-status-opt').forEach(b => {
+        b.classList.toggle('is-selected', (b.dataset.status || '') === (statusId || ''));
+      });
+    };
+
+    // Clock-In / Clock-Out buttons → TOGGLE behavior:
+    //   First click  → records current HH:MM and auto-picks type/status
+    //   Second click → resets (clears the time)
+    //   Third click  → records new time, etc.
+    // After every change we re-sync the type display from the combined state.
+    const syncTypeFromClocks = () => {
+      // If user is currently in Holiday mode, don't auto-override their choice.
+      const currentType = (document.querySelector('#sch-type-grid .sch-type-opt.is-selected')||{}).dataset?.type;
+      if (currentType === 'holiday') return;
+      const $cInBtn  = document.getElementById('sch-clock-in-btn');
+      const $cOutBtn = document.getElementById('sch-clock-out-btn');
+      const startSet = $cInBtn  && $cInBtn.classList.contains('is-set');
+      const endSet   = $cOutBtn && $cOutBtn.classList.contains('is-set');
+      if (endSet){
+        // Clock Out pressed → Out
+        selectTypeBtn('ooo');
+        selectStatusBtn('');
+      } else if (startSet){
+        // Only Clock In pressed → Shift · On time
+        selectTypeBtn('shift');
+        selectStatusBtn('on_time');
+      } else {
+        // Neither pressed → Shift (status will become "Late" on save)
+        selectTypeBtn('shift');
+        selectStatusBtn('');
+      }
+    };
+
+    const toggleClockTime = (kind) => {
+      const idHidden = (kind === 'in') ? 'sch-f-start' : 'sch-f-end';
+      const idBtn    = (kind === 'in') ? 'sch-clock-in-btn' : 'sch-clock-out-btn';
+      const idLabel  = (kind === 'in') ? 'sch-clock-in-time' : 'sch-clock-out-time';
+      const $h = document.getElementById(idHidden);
+      const $b = document.getElementById(idBtn);
+      const $l = document.getElementById(idLabel);
+      if (!$h || !$b || !$l) return;
+      if ($b.classList.contains('is-set')){
+        // Toggle OFF: reset
+        $h.value = '';
+        $b.classList.remove('is-set');
+        $l.textContent = '— : —';
+        $l.classList.add('is-empty');
+      } else {
+        // Toggle ON: record current time
+        const now = new Date();
+        const hh = String(now.getHours()).padStart(2,'0');
+        const mm = String(now.getMinutes()).padStart(2,'0');
+        const t = `${hh}:${mm}`;
+        $h.value = t;
+        $b.classList.add('is-set');
+        $l.textContent = fmtClockHM(t);
+        $l.classList.remove('is-empty');
+      }
+      syncTypeFromClocks();
+    };
+    const $cIn  = document.getElementById('sch-clock-in-btn');
+    const $cOut = document.getElementById('sch-clock-out-btn');
+    if ($cIn)  $cIn.addEventListener('click',  () => toggleClockTime('in'));
+    if ($cOut) $cOut.addEventListener('click', () => toggleClockTime('out'));
+
+    // Reset both clock times
+    const $reset = document.getElementById('sch-clock-reset');
+    if ($reset) $reset.addEventListener('click', () => {
+      ['start','end'].forEach((k, i) => {
+        const $h = document.getElementById('sch-f-' + k);
+        if ($h) $h.value = '';
+        const $b = document.getElementById(i===0 ? 'sch-clock-in-btn' : 'sch-clock-out-btn');
+        const $l = document.getElementById(i===0 ? 'sch-clock-in-time' : 'sch-clock-out-time');
+        if ($b) $b.classList.remove('is-set');
+        if ($l){ $l.textContent = '— : —'; $l.classList.add('is-empty'); }
+      });
+      syncTypeFromClocks();
+    });
+
+    // Status buttons
     document.querySelectorAll('#sch-status-grid .sch-status-opt').forEach(b => {
       b.addEventListener('click', () => {
         document.querySelectorAll('#sch-status-grid .sch-status-opt').forEach(x => x.classList.remove('is-selected'));
         b.classList.add('is-selected');
       });
     });
+    // ===== DELETE HANDLERS =====
+    // Helper: delete a single schedule row
+    const deleteOneSchedule = async (id) => {
+      const res = await deleteScheduleDb(id);
+      if (res.error) return res.error;
+      content.schedules = (content.schedules||[]).filter(s => s.id !== id);
+      return null;
+    };
+
+    // Single delete (non-vacation OR single-day vacation)
     const $del = document.getElementById('sch-delete-btn');
     if ($del && editing){
       $del.addEventListener('click', async () => {
         if (!confirm('Delete this schedule?')) return;
-        const res = await deleteScheduleDb(editing.id);
-        if (res.error){ toast('Delete failed: ' + res.error); return; }
-        content.schedules = (content.schedules||[]).filter(s => s.id !== editing.id);
+        const wasVacation = editing.type === 'holiday';
+        const editingDate = editing.date;
+        const editingMember = editing.memberEmail;
+        const err = await deleteOneSchedule(editing.id);
+        if (err){ toast('Delete failed: ' + err); return; }
+        let cascadeMsg = '';
+        if (wasVacation){
+          const n = await cascadeDeleteVacationTodo(editingMember, editingDate, editingDate);
+          if (n > 0) cascadeMsg = ' · vacation todo removed';
+        }
         renderSchedules();
-        toast('Schedule deleted.');
+        toast('Schedule deleted.' + cascadeMsg);
+        closeModal();
+      });
+    }
+
+    // Delete this day only (multi-day vacation) — does NOT cascade to todo,
+    // since the todo represents the whole vacation block.
+    const $delDay = document.getElementById('sch-delete-day-btn');
+    if ($delDay && editing){
+      $delDay.addEventListener('click', async () => {
+        if (!confirm(`Delete vacation for this day only (${fmtMDDate(editing.date)})?\nOther vacation days will remain.`)) return;
+        const err = await deleteOneSchedule(editing.id);
+        if (err){ toast('Delete failed: ' + err); return; }
+        renderSchedules();
+        toast('Day removed from vacation.');
+        closeModal();
+      });
+    }
+
+    // Delete entire vacation (multi-day) — also deletes the matching todo
+    const $delAll = document.getElementById('sch-delete-all-btn');
+    if ($delAll && editing && isMultiDayVacation){
+      $delAll.addEventListener('click', async () => {
+        if (!confirm(`Delete the entire ${vacationBlock.length}-day vacation (${fmtMDDate(vacationStart)} → ${fmtMDDate(vacationEnd)})?`)) return;
+        let failed = 0;
+        for (const s of vacationBlock){
+          const err = await deleteOneSchedule(s.id);
+          if (err){ failed++; console.warn('[delete vacation] failed:', s.id, err); }
+        }
+        // Cascade delete matching todo
+        let cascadeMsg = '';
+        const n = await cascadeDeleteVacationTodo(editing.memberEmail, vacationStart, vacationEnd);
+        if (n > 0) cascadeMsg = ' · vacation todo removed';
+        renderSchedules();
+        if (failed) toast(`Deleted ${vacationBlock.length - failed} of ${vacationBlock.length} days. ${failed} failed.${cascadeMsg}`);
+        else        toast(`Deleted ${vacationBlock.length}-day vacation.${cascadeMsg}`);
         closeModal();
       });
     }
@@ -12657,10 +13099,136 @@ function rebuildTodoGroups(){
   TODO_GROUPS = [...builtins, ...customs];
 }
 
+// ============================================================
+// Vacation range marker helpers
+// Since the todos table doesn't have an end_date column, we embed the date
+// range as a marker on the first line of `notes`:
+//   "Vacation: 2026-05-05 → 2026-05-10"
+//   ""
+//   "<user's actual notes>"
+// parseVacationRange returns { startDate, endDate, cleanNotes }.
+// embedVacationRange re-prepends the marker before save.
+// ============================================================
+function parseVacationRange(notes){
+  if (!notes) return { startDate: null, endDate: null, cleanNotes: '' };
+  const lines = String(notes).split('\n');
+  const m = (lines[0] || '').match(/^Vacation:\s*(\d{4}-\d{2}-\d{2})\s*(?:→|->|to)\s*(\d{4}-\d{2}-\d{2})\s*$/);
+  if (!m) return { startDate: null, endDate: null, cleanNotes: notes };
+  let rest = lines.slice(1);
+  // Drop a single blank separator line if present
+  if (rest.length && rest[0].trim() === '') rest = rest.slice(1);
+  return { startDate: m[1], endDate: m[2], cleanNotes: rest.join('\n') };
+}
+function embedVacationRange(notes, startDate, endDate){
+  if (!startDate || !endDate) return notes || '';
+  const marker = `Vacation: ${startDate} → ${endDate}`;
+  const userNotes = (notes || '').trim();
+  return userNotes ? `${marker}\n\n${userNotes}` : marker;
+}
+
+// Returns true if this todo "covers" the given ISO date string.
+// Most todos match only when dueDate === isoDateStr. Vacation todos use the
+// embedded date-range marker in notes so they cover every day in the range.
+function todoCoversDate(todo, isoDateStr){
+  if (!todo || !isoDateStr) return false;
+  if (todo.dueDate === isoDateStr) return true;
+  if (todo.category === 'work-vacation' && todo.dueDate){
+    const range = parseVacationRange(todo.notes || '');
+    const start = todo.dueDate;
+    const end = range.endDate || todo.dueDate;
+    return isoDateStr >= start && isoDateStr <= end;
+  }
+  return false;
+}
+
+// Renders ONE vacation todo as a bar segment for a given calendar cell.
+// dow = 0..6 (Sunday-start). The bar visually continues across adjacent cells:
+// rounded only on the actual vacation start / end, or week boundaries.
+function renderVacationSegment(todo, dateIso, dow){
+  const range = parseVacationRange(todo.notes || '');
+  const start = todo.dueDate;
+  const end   = range.endDate || todo.dueDate;
+  const isVacStart  = dateIso === start;
+  const isVacEnd    = dateIso === end;
+  const isWeekStart = dow === 0;  // Sunday
+  const isWeekEnd   = dow === 6;  // Saturday
+  const isSegStart  = isVacStart  || isWeekStart;
+  const isSegEnd    = isVacEnd    || isWeekEnd;
+
+  let cls = 'todo-vac-bar';
+  if (isSegStart && isSegEnd) cls += ' is-only';
+  else if (isSegStart)        cls += ' is-start';
+  else if (isSegEnd)          cls += ' is-end';
+  if (todo.completed)         cls += ' completed';
+
+  // Only the segment-start cell shows the icon + title (so the bar reads cleanly)
+  const showLabel = isSegStart;
+  const icon = esc(todo.icon || '🏖');
+  const title = esc(todo.title || 'Vacation');
+  const inner = showLabel
+    ? `<span class="todo-vac-icon">${icon}</span><span class="todo-vac-text">${title}</span>`
+    : '';
+  return `<div class="${cls}" data-todo-id="${esc(todo.id)}" title="${title}">${inner}</div>`;
+}
+
+// Cascade-delete: when a vacation todo is deleted, also delete its matching
+// schedule entries (all days in the vacation range for the todo's owner).
+async function cascadeDeleteVacationSchedules(todo){
+  if (!todo || todo.category !== 'work-vacation' || !todo.dueDate) return 0;
+  const ownerEmail = (todo.userEmail || state.session?.email || '').toLowerCase();
+  const range = parseVacationRange(todo.notes || '');
+  const startDate = todo.dueDate;
+  const endDate   = range.endDate || todo.dueDate;
+  const matches = (content.schedules || []).filter(s =>
+    s.type === 'holiday'
+    && (s.memberEmail || '').toLowerCase() === ownerEmail
+    && s.date >= startDate
+    && s.date <= endDate
+  );
+  let deleted = 0;
+  for (const s of matches){
+    try {
+      const r = await deleteScheduleDb(s.id);
+      if (!r.error){
+        content.schedules = (content.schedules || []).filter(x => x.id !== s.id);
+        deleted++;
+      }
+    } catch (e){ console.warn('[vacation cascade] delete schedule failed:', e); }
+  }
+  if (deleted && typeof renderSchedules === 'function') renderSchedules();
+  return deleted;
+}
+
+// Cascade-delete: when a vacation schedule block is deleted, also delete the
+// matching todo (whose dueDate falls inside the deleted block).
+async function cascadeDeleteVacationTodo(memberEmail, dateStart, dateEnd){
+  if (!memberEmail || !dateStart) return 0;
+  const ownerEmail = memberEmail.toLowerCase();
+  const endDate = dateEnd || dateStart;
+  const matches = (_todoState.items || []).filter(t => {
+    if (t.category !== 'work-vacation') return false;
+    if (t.userEmail && t.userEmail.toLowerCase() !== ownerEmail) return false;
+    return t.dueDate && t.dueDate >= dateStart && t.dueDate <= endDate;
+  });
+  let deleted = 0;
+  for (const t of matches){
+    try {
+      const r = await deleteTodoDb(t.id);
+      if (!r.error){
+        _todoState.items = (_todoState.items || []).filter(x => x.id !== t.id);
+        deleted++;
+      }
+    } catch (e){ console.warn('[vacation cascade] delete todo failed:', e); }
+  }
+  if (deleted && typeof renderTodo === 'function') renderTodo();
+  return deleted;
+}
+
 // Built-in categories — always present for every user
 const BUILTIN_TODO_CATEGORIES = [
   { id: 'work-tasks',    group: 'WORK', label: 'Work tasks', icon: '💼', builtin: true },
   { id: 'work-meetings', group: 'WORK', label: 'Meetings',   icon: '👥', builtin: true },
+  { id: 'work-vacation', group: 'WORK', label: 'Vacation',   icon: '🏖', builtin: true, fixed: true },
   { id: 'work-other',    group: 'WORK', label: 'Other',      icon: '🖥', builtin: true },
   { id: 'life-shopping', group: 'LIFE', label: 'Shopping',   icon: '🛒', builtin: true },
   { id: 'life-meet',     group: 'LIFE', label: 'Meet-ups',   icon: '🚶', builtin: true },
@@ -12686,8 +13254,8 @@ function rebuildTodoCategories(){
     if (a.group !== b.group) return a.group === 'WORK' ? -1 : 1;
     return (a.position || 0) - (b.position || 0);
   });
-  const builtinWork = BUILTIN_TODO_CATEGORIES.filter(c => c.group === 'WORK' && !hidden.has(c.id));
-  const builtinLife = BUILTIN_TODO_CATEGORIES.filter(c => c.group === 'LIFE' && !hidden.has(c.id));
+  const builtinWork = BUILTIN_TODO_CATEGORIES.filter(c => c.group === 'WORK' && (c.fixed || !hidden.has(c.id)));
+  const builtinLife = BUILTIN_TODO_CATEGORIES.filter(c => c.group === 'LIFE' && (c.fixed || !hidden.has(c.id)));
   const customWork = customs.filter(c => c.group === 'WORK');
   const customLife = customs.filter(c => c.group === 'LIFE');
   TODO_CATEGORIES = [...builtinWork, ...customWork, ...builtinLife, ...customLife];
@@ -14344,9 +14912,16 @@ function renderTodoCalendar(){
     const isToday = di === todayIso;
     const dow = d.getDay();
     const numCls = `todo-cal-num${dow===0?' is-sun':''}${dow===6?' is-sat':''}`;
-    const items = filtered.filter(t => t.dueDate === di);
-    const visible = items.slice(0, 3);
-    const more = items.length - visible.length;
+    const items = filtered.filter(t => todoCoversDate(t, di));
+    // Split into vacation (rendered as continuous bar) vs regular items
+    const vacItems = items.filter(t => t.category === 'work-vacation');
+    const regItems = items.filter(t => t.category !== 'work-vacation');
+    // Vacation bars first (continuous strip across the row)
+    const vacInner = vacItems.map(t => renderVacationSegment(t, di, dow)).join('');
+    const vacHtml = vacInner ? `<div class="todo-vac-row">${vacInner}</div>` : '';
+    // Regular items: P1 + icon + title (existing look), capped at 3 with "+N more"
+    const visible = regItems.slice(0, 3);
+    const more = regItems.length - visible.length;
     const itemsHtml = visible.map(t => {
       const pill = t.priority === 'p1' ? 'P1' : (t.priority === 'p2' ? 'P2' : 'L');
       const completed = t.completed ? ' completed' : '';
@@ -14362,6 +14937,7 @@ function renderTodoCalendar(){
         <span class="${numCls}">${d.getDate()}</span>
         <button type="button" class="todo-cal-add" data-add-date="${di}" title="Add task on ${di}" aria-label="Add task">+</button>
       </div>
+      ${vacHtml}
       ${itemsHtml}
       ${moreHtml}
     </div>`;
@@ -14632,7 +15208,7 @@ function renderTodoOverview(){
           <span class="todo-ov-cat-icon">${esc(c.icon)}</span>
           <span class="todo-ov-cat-label">${esc(c.label)}</span>
           ${c.builtin ? '' : `<button type="button" class="todo-ov-cat-edit" data-edit-cat="${esc(c.id)}" title="Edit">✎</button>`}
-          <button type="button" class="todo-ov-cat-del" data-del-cat="${esc(c.id)}" data-builtin="${c.builtin?'1':'0'}" title="Delete">×</button>
+          ${c.fixed ? '' : `<button type="button" class="todo-ov-cat-del" data-del-cat="${esc(c.id)}" data-builtin="${c.builtin?'1':'0'}" title="Delete">×</button>`}
         </div>`;
       });
       html += `<button type="button" class="todo-ov-cat-add" data-add-group="${grp}">+ Add category</button>`;
@@ -14674,6 +15250,7 @@ function renderTodoOverview(){
         const isBuiltin = b.dataset.builtin === '1';
         const cat = TODO_CATEGORIES.find(c => c.id === catId);
         if (!cat) return;
+        if (cat.fixed){ toast('This category is fixed and cannot be hidden.'); return; }
         const inUse = _todoState.items.some(t => t.category === catId);
         const action = isBuiltin ? 'hide' : 'delete';
         const msg = inUse
@@ -14757,10 +15334,21 @@ function renderTodoOverview(){
     const di = isoDate(d);
     const isToday = di === todayIso;
     const isOther = d.getMonth() !== currentMonth;
-    const items = filtered.filter(t => t.dueDate === di);
-    const itemsHtml = items.map(t => {
+    const dow = d.getDay();
+    const items = filtered.filter(t => todoCoversDate(t, di));
+    // Split: vacation = continuous bar, others = rich list (icon + title + priority)
+    const vacItems = items.filter(t => t.category === 'work-vacation');
+    const regItems = items.filter(t => t.category !== 'work-vacation');
+    const vacInner = vacItems.map(t => renderVacationSegment(t, di, dow)).join('');
+    const vacHtml = vacInner ? `<div class="todo-vac-row">${vacInner}</div>` : '';
+    const itemsHtml = regItems.map(t => {
+      const pill = t.priority === 'p1' ? 'P1' : (t.priority === 'p2' ? 'P2' : 'L');
       const completed = t.completed ? ' completed' : '';
-      return `<div class="todo-ov-day-item${completed}" data-todo-id="${esc(t.id)}" title="${esc(t.title)}">${esc(t.title)},</div>`;
+      return `<div class="todo-ov-day-item-rich${completed}" data-todo-id="${esc(t.id)}" title="${esc(t.title)}">
+        <span class="todo-ov-pill">${pill}</span>
+        <span class="todo-ov-icon">${esc(t.icon || todoCatIcon(t.category))}</span>
+        <span class="todo-ov-text">${esc(t.title)}</span>
+      </div>`;
     }).join('');
     const dowCls = i === 0 ? ' is-sun' : (i === 6 ? ' is-sat' : '');
     return `<div class="todo-ov-day${isToday?' is-today':''}${isOther?' is-other':''}" data-date="${di}">
@@ -14769,6 +15357,7 @@ function renderTodoOverview(){
         <span class="todo-ov-dnum">${d.getDate()}</span>
         <button type="button" class="todo-ov-day-add" data-add-date="${di}" title="Add task on ${di}" aria-label="Add task">+</button>
       </div>
+      ${vacHtml}
       <div class="todo-ov-day-list">${itemsHtml}</div>
     </div>`;
   }).join('');
@@ -15417,11 +16006,18 @@ function bindTodoDetailModal(){
     const $btn = e.currentTarget;
     $btn.disabled = true;
     try {
+      // Capture pre-delete copy so we can cascade to schedule
+      const todoToCascade = _todoState.items.find(x => x.id === _td2OriginalId);
       const res = await deleteTodoDb(_td2OriginalId);
       if (res.error){ toast('Delete failed: ' + res.error); return; }
       _todoState.items = _todoState.items.filter(x => x.id !== _td2OriginalId);
+      let cascadeMsg = '';
+      if (todoToCascade){
+        const n = await cascadeDeleteVacationSchedules(todoToCascade);
+        if (n > 0) cascadeMsg = ` · ${n} schedule day${n>1?'s':''} removed`;
+      }
       renderTodo();
-      toast('Task deleted.');
+      toast('Task deleted.' + cascadeMsg);
       closeTodoDetailModal();
     } finally {
       $btn.disabled = false;
@@ -15479,6 +16075,20 @@ function openTodoNotionModal(opts){
   if (!Array.isArray(_tnState.whoWithEmails)) _tnState.whoWithEmails = [];
   // Clear any leftover invitation flag from a previous modal session
   delete _tnState._sendInvitation;
+
+  // Vacation: parse the embedded date range marker out of notes,
+  // populate _tnState.endDate, and clean up notes for editing.
+  if (_tnState.category === 'work-vacation' && _tnState.notes){
+    const parsed = parseVacationRange(_tnState.notes);
+    if (parsed.endDate){
+      if (!_tnState.dueDate) _tnState.dueDate = parsed.startDate;
+      _tnState.endDate = parsed.endDate;
+      _tnState.notes = parsed.cleanNotes;
+    }
+  }
+  if (_tnState.category === 'work-vacation' && !_tnState.endDate){
+    _tnState.endDate = _tnState.dueDate || '';
+  }
 
   // Ensure steps array has at least 1 slot so there's always a row to type in
   if (!Array.isArray(_tnState.steps)) _tnState.steps = [];
@@ -15555,8 +16165,21 @@ function renderTnFromState(){
   $sp.className = 'tn-status-pill ' + status.cls;
   $sp.dataset.status = status.id;
 
-  // Date
+  // Date — single "due date" for most categories;
+  // "start date" + "end date" for the Vacation category.
   document.getElementById('tn-date').value = t.dueDate || '';
+  const $endDateRow   = document.getElementById('tn-end-date-row');
+  const $endDateInput = document.getElementById('tn-end-date');
+  const $dateLabel    = document.getElementById('tn-date-label');
+  if (t.category === 'work-vacation'){
+    if ($endDateRow) $endDateRow.hidden = false;
+    if ($endDateInput) $endDateInput.value = t.endDate || t.dueDate || '';
+    if ($dateLabel) $dateLabel.textContent = 'start date';
+  } else {
+    if ($endDateRow) $endDateRow.hidden = true;
+    if ($endDateInput) $endDateInput.value = '';
+    if ($dateLabel) $dateLabel.textContent = 'due date';
+  }
 
   // Who with — render as chips of member names from approved users
   renderTnWhoChips();
@@ -15666,7 +16289,18 @@ function bindTodoNotionModal(){
   // Date
   document.getElementById('tn-date').addEventListener('change', (e) => {
     if (_tnState) _tnState.dueDate = e.target.value;
+    // Keep end-date >= start-date for vacation category
+    if (_tnState && _tnState.category === 'work-vacation'){
+      const $end = document.getElementById('tn-end-date');
+      if ($end && (!$end.value || $end.value < e.target.value)){
+        $end.value = e.target.value;
+        _tnState.endDate = e.target.value;
+      }
+    }
     renderTnWhoChips(); // refresh reminder hint visibility
+  });
+  document.getElementById('tn-end-date').addEventListener('change', (e) => {
+    if (_tnState) _tnState.endDate = e.target.value;
   });
 
   // Who chips (multi-select members)
@@ -15784,6 +16418,28 @@ function bindTodoNotionModal(){
     const stepsText = (_tnState.steps || []).filter(s => (s||'').trim()).map((s, i) => `${i+1}. ${s}`).join('\n');
     if (!_tnState.notes && stepsText) _tnState.notes = stepsText;
 
+    // Vacation: re-embed the date range marker into notes before saving.
+    // We capture the chosen end date here so the schedule sync below can use it.
+    // Read straight from the DOM as ground truth — covers cases where the
+    // user clicked Save without firing 'change' on the inputs.
+    let vacEnd = '';
+    if (_tnState.category === 'work-vacation'){
+      const $startEl = document.getElementById('tn-date');
+      const $endEl   = document.getElementById('tn-end-date');
+      const start = ($startEl && $startEl.value) || _tnState.dueDate || '';
+      const end   = ($endEl && $endEl.value) || _tnState.endDate || start;
+      _tnState.dueDate = start;
+      _tnState.endDate = end;
+      if (start && end && end < start){
+        toast('End date must be on or after start date.');
+        return;
+      }
+      if (start && end){
+        _tnState.notes = embedVacationRange(_tnState.notes, start, end);
+        vacEnd = end;
+      }
+    }
+
     const original = $btn.textContent;
     $btn.disabled = true; $btn.textContent = 'Saving…';
     try {
@@ -15801,6 +16457,51 @@ function bindTodoNotionModal(){
         _todoState.items.push(res.todo);
         savedTodo = res.todo;
         toast('Task added.');
+        // Todo → Schedule sync: NEW vacation tasks → create one schedule
+        // entry per day in the [dueDate, endDate] range (inclusive).
+        if (savedTodo && savedTodo.category === 'work-vacation' && savedTodo.dueDate){
+          try {
+            const myEmailLc = (state.session?.email || '').toLowerCase();
+            const startDate = savedTodo.dueDate;
+            const endDate = vacEnd || parseVacationRange(savedTodo.notes || '').endDate || startDate;
+            // Build inclusive list of dates
+            const dates = [];
+            let cur = new Date(startDate + 'T00:00:00');
+            const stop = new Date(endDate + 'T00:00:00');
+            while (cur <= stop && dates.length < 366){  // safety cap of one year
+              dates.push(isoDate(cur));
+              cur.setDate(cur.getDate() + 1);
+            }
+            let created = 0;
+            content.schedules = content.schedules || [];
+            for (const di of dates){
+              // Skip if a vacation already exists on this date for this user
+              const exists = content.schedules.some(s =>
+                s.type === 'holiday'
+                && (s.memberEmail || '').toLowerCase() === myEmailLc
+                && s.date === di
+              );
+              if (exists) continue;
+              const schedData = {
+                memberEmail: myEmailLc,
+                date: di,
+                allDay: true,
+                startTime: null, endTime: null,
+                type: 'holiday',
+                status: '',
+                label: savedTodo.title || 'Vacation',
+                notes: '',
+                createdBy: state.session?.email || '',
+              };
+              const sr = await insertScheduleDb(schedData);
+              if (sr && sr.schedule){
+                content.schedules.push(sr.schedule);
+                created++;
+              }
+            }
+            if (created && typeof renderSchedules === 'function') renderSchedules();
+          } catch (e){ console.warn('[vacation sync] create schedule failed:', e); }
+        }
       }
       // Schedule meeting reminders (1 day / 1 hour / 10 min before due_date)
       // for each whoWith member. Fire and forget — doesn't block save.
@@ -15843,11 +16544,18 @@ function bindTodoNotionModal(){
     const $btn = e.currentTarget;
     $btn.disabled = true;
     try {
+      // Capture pre-delete copy so we can cascade to schedule
+      const todoToCascade = _todoState.items.find(x => x.id === _tnEditId);
       const res = await deleteTodoDb(_tnEditId);
       if (res.error){ toast('Delete failed: ' + res.error); return; }
       _todoState.items = _todoState.items.filter(x => x.id !== _tnEditId);
+      let cascadeMsg = '';
+      if (todoToCascade){
+        const n = await cascadeDeleteVacationSchedules(todoToCascade);
+        if (n > 0) cascadeMsg = ` · ${n} schedule day${n>1?'s':''} removed`;
+      }
       renderTodo();
-      toast('Task deleted.');
+      toast('Task deleted.' + cascadeMsg);
       closeTodoNotionModal();
     } finally {
       $btn.disabled = false;
@@ -16015,6 +16723,23 @@ function showTnCatPopup(anchorEl){
       document.getElementById('tn-cat-icon').textContent = cat.icon;
       document.getElementById('tn-cat-label').textContent = (cat.group ? `${cat.group} · ` : '') + cat.label;
       document.getElementById('tn-icon-btn').textContent = _tnState.icon;
+      // Toggle the end-date row + relabel "due date" / "start date"
+      const $endDateRow   = document.getElementById('tn-end-date-row');
+      const $endDateInput = document.getElementById('tn-end-date');
+      const $dateLabel    = document.getElementById('tn-date-label');
+      if (cid === 'work-vacation'){
+        if ($endDateRow) $endDateRow.hidden = false;
+        if ($dateLabel) $dateLabel.textContent = 'start date';
+        // Default end date to start date if empty
+        if ($endDateInput && !$endDateInput.value){
+          const startVal = (document.getElementById('tn-date')||{}).value || '';
+          $endDateInput.value = startVal;
+          _tnState.endDate = startVal;
+        }
+      } else {
+        if ($endDateRow) $endDateRow.hidden = true;
+        if ($dateLabel) $dateLabel.textContent = 'due date';
+      }
       closeTnPopups();
     });
   });
