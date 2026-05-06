@@ -13995,12 +13995,22 @@ function _renderNextReminderPop(){
    ============================================================ */
 const FIRED_MEETING_REMINDERS_KEY = 'leads.fired_meeting_reminders.v1';
 
+// localStorage is shared across users on the same browser, so we MUST
+// scope the "already fired" map by user email — otherwise an admin
+// session that already received a reminder will mark it fired, and
+// when a member signs in on the same browser, their reminders get
+// silently skipped. Each account keeps its own dedupe map.
+function _firedReminderStorageKey(){
+  const me = String((state.session && state.session.email) || '').trim().toLowerCase();
+  return `${FIRED_MEETING_REMINDERS_KEY}:${me || 'anon'}`;
+}
+
 function _loadFiredMeetingReminders(){
-  try { return JSON.parse(localStorage.getItem(FIRED_MEETING_REMINDERS_KEY) || '{}'); }
+  try { return JSON.parse(localStorage.getItem(_firedReminderStorageKey()) || '{}'); }
   catch(_){ return {}; }
 }
 function _saveFiredMeetingReminders(map){
-  try { localStorage.setItem(FIRED_MEETING_REMINDERS_KEY, JSON.stringify(map)); }
+  try { localStorage.setItem(_firedReminderStorageKey(), JSON.stringify(map)); }
   catch(_){}
 }
 function _markMeetingReminderFired(key){
@@ -14039,7 +14049,8 @@ function fireMeetingReminder(thread, kind){
 function checkMeetingReminders(){
   if (!state.session) return;
   if (!Array.isArray(content.threads)) return;
-  const me = (state.session.email || '').toLowerCase();
+  const me = String(state.session.email || '').trim().toLowerCase();
+  if (!me) return;
   const now = Date.now();
   // Only fire reminders that crossed within the last hour, to avoid flooding
   // the user with stale reminders for past meetings on first load.
@@ -14055,11 +14066,13 @@ function checkMeetingReminders(){
     const meetingMs = dt.getTime();
     if (isNaN(meetingMs)) continue;
 
-    // Only notify users involved in the meeting (author or attendee)
+    // Only notify users involved in the meeting (author or attendee).
+    // Trim + lowercase both sides — defensive against accidental whitespace
+    // or case differences from manual data entry.
     const attendees = Array.isArray(t.attendees)
-      ? t.attendees.map(a => String(a && a.email || '').toLowerCase()).filter(Boolean)
+      ? t.attendees.map(a => String((a && a.email) || '').trim().toLowerCase()).filter(Boolean)
       : [];
-    const isAuthor = String(t.authorEmail || '').toLowerCase() === me;
+    const isAuthor = String(t.authorEmail || '').trim().toLowerCase() === me;
     if (!isAuthor && !attendees.includes(me)) continue;
 
     // The thread's own createdAt — reminder times that fall BEFORE this
