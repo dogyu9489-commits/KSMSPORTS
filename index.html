@@ -1032,6 +1032,12 @@
   .prof-divider{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0 4px;border-top:1px solid var(--hair);margin-top:8px}
   .prof-divider-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--ink);font-weight:600}
   .prof-divider-hint{font-family:var(--serif-kr);font-size:11px;color:var(--ink-mute);font-style:italic}
+  /* Danger zone — delete account */
+  .prof-danger{margin-top:18px;padding:16px;border:1px solid rgba(168,32,32,.25);background:rgba(168,32,32,.03);border-radius:2px}
+  .prof-danger-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:#a82020;font-weight:700;display:block;margin-bottom:6px}
+  .prof-danger-hint{font-family:var(--serif-kr);font-size:12px;color:var(--ink-soft);line-height:1.55;margin:0 0 12px}
+  .prof-danger-btn{font-family:var(--mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;padding:9px 16px;border:1px solid #a82020;background:transparent;color:#a82020;cursor:pointer;transition:all .15s;font-weight:600}
+  .prof-danger-btn:hover{background:#a82020;color:var(--paper)}
   .prof-dept-locked{background:rgba(11,11,10,.04) !important;color:var(--ink) !important;cursor:not-allowed !important;font-weight:600;letter-spacing:.05em}
   .prof-dept-locked:focus{outline:none !important;box-shadow:none !important}
 
@@ -3220,6 +3226,99 @@
     .td2-title{font-size:22px}
   }
 
+  /* ===== Presence panel (right-side floating "who's online") ===== */
+  .pres-panel{
+    position:fixed; right:18px; top:50%; transform:translateY(-50%);
+    z-index:90;
+    display:flex; flex-direction:column; align-items:flex-end;
+    gap:8px; pointer-events:none;
+  }
+  .pres-panel > *{ pointer-events:auto; }
+  /* Toggle pill — visible when collapsed, also acts as the open/close button */
+  .pres-toggle{
+    display:flex; align-items:center; gap:6px;
+    background:var(--paper); border:1px solid var(--ink);
+    padding:8px 12px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:.16em;
+    text-transform:uppercase; color:var(--ink); font-weight:600;
+    cursor:pointer; user-select:none;
+    box-shadow:0 4px 14px rgba(11,11,10,.08);
+    transition:transform .2s cubic-bezier(.2,.8,.2,1), background .15s;
+  }
+  .pres-toggle:hover{ transform:translateX(-2px); background:#fafaf6; }
+  .pres-toggle .pres-toggle-dot{
+    width:8px; height:8px; border-radius:50%;
+    background:#22c55e; box-shadow:0 0 0 2px rgba(34,197,94,.18);
+  }
+  .pres-toggle .pres-toggle-count{ font-weight:700; color:var(--ink); }
+  .pres-toggle .pres-toggle-label{ color:var(--ink-mute); font-weight:500; }
+  /* Body — list of users, only shown when expanded */
+  .pres-body{
+    width:240px; max-height:60vh; overflow-y:auto;
+    background:var(--paper); border:1px solid var(--ink);
+    box-shadow:0 12px 32px rgba(11,11,10,.14);
+    display:none; flex-direction:column;
+  }
+  .pres-panel.is-open .pres-body{ display:flex; }
+  .pres-head{
+    padding:10px 14px;
+    border-bottom:1px solid var(--hair);
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    font-family:var(--mono); font-size:10px; letter-spacing:.18em;
+    text-transform:uppercase; color:var(--ink); font-weight:600;
+    background:rgba(11,11,10,.02);
+  }
+  .pres-head-close{
+    background:none; border:none; cursor:pointer; padding:2px 6px;
+    font-family:var(--mono); font-size:14px; line-height:1; color:var(--ink-mute);
+  }
+  .pres-head-close:hover{ color:var(--ink); }
+  .pres-list{ display:flex; flex-direction:column; padding:6px 0; }
+  .pres-row{
+    display:flex; align-items:center; gap:10px;
+    padding:8px 14px; transition:background .12s;
+  }
+  .pres-row:hover{ background:rgba(11,11,10,.03); }
+  .pres-row.is-self{ background:rgba(11,11,10,.025); }
+  .pres-av{
+    width:28px; height:28px; border-radius:50%; flex:none;
+    background:var(--ink); color:var(--paper);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--serif); font-size:13px; font-weight:500;
+    overflow:hidden; position:relative;
+  }
+  .pres-av img{ width:100%; height:100%; object-fit:cover; display:block; }
+  /* Status dot on bottom-right corner of avatar */
+  .pres-av::after{
+    content:''; position:absolute; right:-1px; bottom:-1px;
+    width:10px; height:10px; border-radius:50%;
+    background:#9ca3af;
+    border:2px solid var(--paper);
+  }
+  .pres-av.s-online::after{ background:#22c55e; }
+  .pres-av.s-idle::after{   background:#eab308; }
+  .pres-av.s-offline::after{ background:#9ca3af; }
+  .pres-meta{ display:flex; flex-direction:column; min-width:0; flex:1; }
+  .pres-name{
+    font-family:var(--serif-kr); font-size:13px; font-weight:500;
+    color:var(--ink); line-height:1.2; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis;
+  }
+  .pres-status{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:.12em;
+    text-transform:uppercase; color:var(--ink-mute); margin-top:2px;
+  }
+  .pres-status.s-online{ color:#15803d; }
+  .pres-status.s-idle{   color:#a16207; }
+  .pres-empty{
+    padding:18px 14px; text-align:center;
+    font-family:var(--serif-kr); font-size:12px; color:var(--ink-mute); font-style:italic;
+  }
+  @media (max-width: 720px){
+    .pres-panel{ right:10px; top:auto; bottom:18px; transform:none; }
+    .pres-body{ width:200px; max-height:50vh; }
+  }
+
   /* ===== Reminder popup modal (centered, with confirm + sound) ===== */
   .reminder-pop-overlay{
     position:fixed; inset:0; z-index:10000;
@@ -3815,6 +3914,22 @@
     <div id="now-foot">—</div>
   </footer>
 </section>
+
+<!-- ============== PRESENCE PANEL (right-side floating, view-independent) ============== -->
+<div class="pres-panel" id="presPanel" hidden aria-label="Online users">
+  <button type="button" class="pres-toggle" id="presToggle" aria-expanded="false" aria-controls="presBody" title="Show online users">
+    <span class="pres-toggle-dot" aria-hidden="true"></span>
+    <span class="pres-toggle-count" id="presCount">0</span>
+    <span class="pres-toggle-label">online</span>
+  </button>
+  <div class="pres-body" id="presBody" role="region" aria-label="Online users list">
+    <div class="pres-head">
+      <span>Online · Activity</span>
+      <button type="button" class="pres-head-close" id="presClose" aria-label="Collapse">×</button>
+    </div>
+    <div class="pres-list" id="presList"></div>
+  </div>
+</div>
 
 <!-- ============== MODAL ============== -->
 <div class="modal" id="modal" aria-hidden="true">
@@ -4606,6 +4721,35 @@ async function saveCurrentUserProfile(patch){
   return { ok: true };
 }
 
+/* ================================================================
+   Delete (deactivate) the current user's own account.
+
+   Implementation note: the Supabase JS client we're using runs with the
+   anon key, which doesn't have permission to delete a row from
+   `auth.users`. Permanent deletion of the auth record requires a
+   service-role key (Edge Function or admin API), which isn't safe to
+   expose in the browser.
+
+   So we do a SOFT delete:
+     1) Set the user's profiles.status to 'deleted'.
+     2) Sign them out client-side and stop realtime subscriptions.
+     3) Login is then blocked by the 'deleted' status check in login().
+
+   An administrator can later permanently remove the auth user from the
+   Supabase Dashboard if needed (Authentication → Users → Delete user).
+   ================================================================ */
+async function deleteCurrentUserAccount(){
+  if (!Sb || !state.session) return { error:'Not signed in' };
+  const email = state.session.email;
+  // Mark the profile as deleted. Also wipe the avatar so the user's image
+  // doesn't keep appearing in stale UI surfaces (e.g. directory listings).
+  const { error } = await Sb.from('profiles')
+    .update({ status: 'deleted', avatar: '' })
+    .eq('email', email);
+  if (error) return { error: error.message };
+  return { ok: true };
+}
+
 async function login(email, password){
   email = (email || '').trim().toLowerCase();
   if (!Sb) return { error:'Service unavailable. Please reload the page.' };
@@ -4628,6 +4772,10 @@ async function login(email, password){
   if (prof.status === 'rejected'){
     await Sb.auth.signOut();
     return { error:'Access request was rejected. Please contact an administrator.' };
+  }
+  if (prof.status === 'deleted'){
+    await Sb.auth.signOut();
+    return { error:'This account has been deleted. Please contact an administrator if this is in error.' };
   }
   state.session = {
     email: prof.email,
@@ -4661,7 +4809,13 @@ async function signup(name, email, password, department, birthdate){
   const { data: signUpData, error: signUpErr } = await Sb.auth.signUp({
     email,
     password,
-    options: { data: { name, department } }
+    options: {
+      data: { name, department },
+      // Send the user back to the app after they click the verify link.
+      // Without this, Supabase falls back to the project's default Site URL,
+      // which may not match where the app is actually hosted (→ 404).
+      emailRedirectTo: window.location.origin + window.location.pathname,
+    }
   });
   if (signUpErr){
     const m = (signUpErr.message || '').toLowerCase();
@@ -4702,6 +4856,7 @@ async function logout(){
   // Stop realtime subscriptions before signing out
   stopNotificationRealtime();
   stopContentRealtime();
+  stopPresence();
   if (Sb){ try { await Sb.auth.signOut(); } catch(_){} }
   state.session = null;
   if (typeof _monitorTimer !== 'undefined' && _monitorTimer){
@@ -4986,6 +5141,248 @@ function stopContentRealtime(){
     clearTimeout(_contentReloadTimers[k]);
     delete _contentReloadTimers[k];
   });
+}
+
+/* =====================================================================
+   PRESENCE PANEL — "who's online" floating right-side widget.
+
+   How it works:
+     • Uses Supabase Realtime presence channel ('online-users').
+     • On login we 'track' our own state {email, name, avatar, lastActivity}.
+     • Activity events (mouse / key / touch / scroll) update lastActivity
+       locally AND push an updated track to the channel — but throttled to
+       once per ~10s so we don't spam realtime.
+     • A 30s tick computes status for every presence entry:
+         online = lastActivity within 5 min
+         idle   = lastActivity older than 5 min
+       (anyone who fully disconnects is removed by Supabase automatically).
+     • The panel is mounted once on the body, lives outside the view
+       containers, so switching nav tabs does not affect it.
+     • Collapse/expand is purely a CSS toggle — when collapsed only the
+       compact pill (count + "online") is visible.
+   ===================================================================== */
+
+const PRESENCE_IDLE_MS = 5 * 60 * 1000;        // 5 minutes → idle
+const PRESENCE_BROADCAST_MS = 10 * 1000;       // throttle per-activity track() calls
+const PRESENCE_RECOMPUTE_MS = 30 * 1000;       // recompute online/idle every 30s
+
+const _presence = {
+  channel: null,
+  lastActivity: Date.now(),
+  lastBroadcast: 0,
+  rerenderTimer: null,
+  activityHandler: null,
+  pendingBroadcastTimer: null,
+};
+
+function _presKey(){
+  // Stable key per user — Supabase presence groups updates under this key.
+  return String((state.session && state.session.email) || '').trim().toLowerCase() || 'anon';
+}
+
+function _presBuildState(){
+  const s = state.session || {};
+  return {
+    email: String(s.email || '').toLowerCase(),
+    name: s.name || s.email || 'Unknown',
+    avatar: s.avatar || '',
+    lastActivity: _presence.lastActivity,
+  };
+}
+
+function _presBroadcast(force){
+  if (!_presence.channel) return;
+  const now = Date.now();
+  if (!force && now - _presence.lastBroadcast < PRESENCE_BROADCAST_MS){
+    // Throttle: schedule a deferred broadcast so we don't lose the very
+    // last activity update during a quiet period.
+    if (_presence.pendingBroadcastTimer) return;
+    const delay = PRESENCE_BROADCAST_MS - (now - _presence.lastBroadcast);
+    _presence.pendingBroadcastTimer = setTimeout(() => {
+      _presence.pendingBroadcastTimer = null;
+      _presBroadcast(true);
+    }, delay);
+    return;
+  }
+  _presence.lastBroadcast = now;
+  try { _presence.channel.track(_presBuildState()); } catch(_){}
+}
+
+function _presBumpActivity(){
+  _presence.lastActivity = Date.now();
+  _presBroadcast(false);
+  // If the user was rendered as idle, we want to re-render quickly so the
+  // dot turns green again. Cheap — just calls renderPresencePanel().
+  renderPresencePanel();
+}
+
+function startPresence(){
+  if (!Sb || !state.session) return;
+  if (_presence.channel) return;  // already running
+  // Make sure the panel element actually exists and is visible.
+  const $panel = document.getElementById('presPanel');
+  if ($panel) $panel.hidden = false;
+
+  _presence.lastActivity = Date.now();
+  _presence.lastBroadcast = 0;
+
+  // Activity listeners — passive so they don't interfere with scroll perf.
+  const handler = () => _presBumpActivity();
+  _presence.activityHandler = handler;
+  ['mousemove','mousedown','keydown','touchstart','scroll','focus'].forEach(ev => {
+    window.addEventListener(ev, handler, { passive: true });
+  });
+
+  // Realtime presence channel. The key uniquely identifies this client;
+  // using email keeps multi-tab presence consolidated under one user.
+  const channel = Sb.channel('online-users', {
+    config: { presence: { key: _presKey() } }
+  });
+  _presence.channel = channel;
+
+  channel
+    .on('presence', { event: 'sync' }, () => renderPresencePanel())
+    .on('presence', { event: 'join' }, () => renderPresencePanel())
+    .on('presence', { event: 'leave' }, () => renderPresencePanel())
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED'){
+        try { await channel.track(_presBuildState()); } catch(_){}
+        renderPresencePanel();
+      }
+    });
+
+  // Recompute online/idle state periodically — even with no activity
+  // events, after 5 min of silence we want everyone's dot to turn yellow.
+  if (_presence.rerenderTimer) clearInterval(_presence.rerenderTimer);
+  _presence.rerenderTimer = setInterval(() => {
+    // Push our own current activity timestamp so other clients see fresh
+    // data, then re-render ours.
+    _presBroadcast(true);
+    renderPresencePanel();
+  }, PRESENCE_RECOMPUTE_MS);
+
+  // Wire up toggle controls (idempotent — if the user logs in/out repeatedly
+  // we replace the handlers via the dataset flag).
+  const $toggle = document.getElementById('presToggle');
+  const $close  = document.getElementById('presClose');
+  if ($panel && $toggle && !$panel.dataset.bound){
+    $panel.dataset.bound = '1';
+    $toggle.addEventListener('click', () => {
+      const isOpen = $panel.classList.toggle('is-open');
+      $toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+    if ($close){
+      $close.addEventListener('click', (e) => {
+        e.stopPropagation();
+        $panel.classList.remove('is-open');
+        $toggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+  }
+}
+
+function stopPresence(){
+  if (_presence.channel){
+    try { _presence.channel.untrack(); } catch(_){}
+    try { Sb.removeChannel(_presence.channel); } catch(_){}
+    _presence.channel = null;
+  }
+  if (_presence.rerenderTimer){
+    clearInterval(_presence.rerenderTimer);
+    _presence.rerenderTimer = null;
+  }
+  if (_presence.pendingBroadcastTimer){
+    clearTimeout(_presence.pendingBroadcastTimer);
+    _presence.pendingBroadcastTimer = null;
+  }
+  if (_presence.activityHandler){
+    ['mousemove','mousedown','keydown','touchstart','scroll','focus'].forEach(ev => {
+      window.removeEventListener(ev, _presence.activityHandler);
+    });
+    _presence.activityHandler = null;
+  }
+  // Hide the panel + reset
+  const $panel = document.getElementById('presPanel');
+  if ($panel){
+    $panel.hidden = true;
+    $panel.classList.remove('is-open');
+  }
+}
+
+function renderPresencePanel(){
+  const $panel = document.getElementById('presPanel');
+  const $list  = document.getElementById('presList');
+  const $count = document.getElementById('presCount');
+  if (!$panel || !$list || !$count) return;
+  if (!_presence.channel || !state.session){
+    $list.innerHTML = '';
+    $count.textContent = '0';
+    return;
+  }
+
+  // Aggregate presence state. Supabase's presenceState() returns:
+  //   { <key>: [ {email, name, ...}, {email, name, ...} ] }
+  // Multiple entries per key happen when one user has multiple tabs open.
+  // We collapse by email and take the freshest lastActivity.
+  let state_ = {};
+  try { state_ = _presence.channel.presenceState() || {}; } catch(_){ state_ = {}; }
+
+  const byEmail = new Map();
+  Object.values(state_).forEach(entries => {
+    (entries || []).forEach(meta => {
+      const email = String(meta.email || '').toLowerCase();
+      if (!email) return;
+      const prev = byEmail.get(email);
+      if (!prev || (meta.lastActivity || 0) > (prev.lastActivity || 0)){
+        byEmail.set(email, meta);
+      }
+    });
+  });
+
+  const me = String(state.session.email || '').toLowerCase();
+  // Make sure my own latest activity appears even if the channel hasn't
+  // round-tripped my own track() back yet.
+  byEmail.set(me, _presBuildState());
+
+  const now = Date.now();
+  const rows = Array.from(byEmail.values()).map(u => {
+    const isMe = String(u.email || '').toLowerCase() === me;
+    const idle = (now - (u.lastActivity || 0)) > PRESENCE_IDLE_MS;
+    const status = idle ? 'idle' : 'online';
+    return { ...u, isMe, status };
+  });
+
+  // Sort: me first, then online before idle, then alpha by name.
+  rows.sort((a, b) => {
+    if (a.isMe !== b.isMe) return a.isMe ? -1 : 1;
+    if (a.status !== b.status) return a.status === 'online' ? -1 : 1;
+    return String(a.name||'').localeCompare(String(b.name||''));
+  });
+
+  // Counter for the toggle pill — count distinct online (not idle) users.
+  const onlineN = rows.filter(r => r.status === 'online').length;
+  $count.textContent = String(onlineN);
+
+  if (!rows.length){
+    $list.innerHTML = `<div class="pres-empty">No one's around.</div>`;
+    return;
+  }
+
+  $list.innerHTML = rows.map(r => {
+    const initial = String(r.name || r.email || '?').trim().charAt(0).toUpperCase();
+    const av = r.avatar
+      ? `<img src="${esc(r.avatar)}" alt="" />`
+      : `${esc(initial)}`;
+    const label = r.status === 'online' ? 'Active' : 'Idle';
+    const meSuffix = r.isMe ? ' (you)' : '';
+    return `<div class="pres-row${r.isMe ? ' is-self' : ''}" title="${esc(r.email)}">
+      <div class="pres-av s-${r.status}">${av}</div>
+      <div class="pres-meta">
+        <div class="pres-name">${esc(r.name || r.email)}${meSuffix}</div>
+        <div class="pres-status s-${r.status}">${label}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 const $auth = document.getElementById('auth');
@@ -5840,6 +6237,12 @@ function openProfileEditModal(){
       <div class="mf"><label for="prof-pw-cf">Confirm New Password</label>
         <input id="prof-pw-cf" type="password" autocomplete="new-password" placeholder="••••••••" minlength="6" />
       </div>
+      ${isAdmin ? '' : `
+      <div class="prof-danger">
+        <span class="prof-danger-label">⚠ Danger zone</span>
+        <p class="prof-danger-hint">Deleting your account signs you out and prevents you from signing in again. Your name will remain on past posts and projects for record-keeping. This cannot be undone without an administrator.</p>
+        <button type="button" class="prof-danger-btn" id="prof-delete-account">Delete my account</button>
+      </div>`}
     </div>
   `;
 
@@ -5951,6 +6354,49 @@ function openProfileEditModal(){
         _pendingAvatar = '';
         _pendingAvatarRemoved = true;
         paintPreview();
+      });
+    }
+    // Danger zone: delete account button (members only — admins don't see it)
+    const $del = document.getElementById('prof-delete-account');
+    if ($del){
+      $del.addEventListener('click', async () => {
+        // Two-step confirmation: native confirm + typed phrase prompt.
+        // Browser dialogs are intentionally used here so the user has to
+        // explicitly act — this isn't a "click yes by accident" decision.
+        const ok1 = window.confirm(
+          'Delete your account?\n\n' +
+          '• You will be signed out immediately\n' +
+          '• You will not be able to sign in again with this email\n' +
+          '• Your past posts/projects keep your name for record-keeping\n\n' +
+          'This cannot be undone without an administrator. Continue?'
+        );
+        if (!ok1) return;
+        const typed = window.prompt('To confirm, type DELETE (in capital letters):');
+        if (!typed || typed.trim() !== 'DELETE'){
+          toast('Account deletion cancelled.');
+          return;
+        }
+        $del.disabled = true;
+        $del.textContent = 'Deleting…';
+        const res = await deleteCurrentUserAccount();
+        if (res.error){
+          $del.disabled = false;
+          $del.textContent = 'Delete my account';
+          toast('Delete failed: ' + res.error);
+          return;
+        }
+        // Sign out and return to the login screen.
+        try { await logout(); } catch(_){}
+        // Hide app shell, show auth pane.
+        try {
+          if (typeof $app !== 'undefined' && $app) $app.classList.add('hidden');
+          if (typeof $auth !== 'undefined' && $auth){
+            $auth.classList.remove('hidden','fade-out');
+          }
+          if (typeof showAuthPane === 'function') showAuthPane('login');
+          if (typeof closeModal === 'function') closeModal();
+        } catch(_){}
+        toast('Your account has been deleted.');
       });
     }
   }, 0);
@@ -10179,8 +10625,16 @@ function fmtTimelineRange(range){
 }
 
 function openAddColumnModal(groupId){
-  const group = content.projectBoard.find(g => g.id === groupId);
-  if (!group){ toast('Groupnot found.'); return; }
+  // Search root groups AND their subgroups — the + button on a subgroup
+  // header passes the subgroup's id, which won't be found by a root-only
+  // lookup. Walk both levels so adding a column works on subgroups too.
+  let group = null;
+  for (const g of (content.projectBoard || [])){
+    if (g.id === groupId){ group = g; break; }
+    const sg = (g.subgroups || []).find(x => x.id === groupId);
+    if (sg){ group = sg; break; }
+  }
+  if (!group){ toast('Group not found.'); return; }
 
   // Step 1: type picker
   const essentials = COLUMN_TYPES.filter(t => t.section === 'essentials');
@@ -17219,9 +17673,35 @@ async function bootContent(){
   initOrgChart().catch(e => console.warn('[org] init failed:', e));
   // Live sync of shared content (posts/threads/tasks/schedules/etc.) across all users
   startContentRealtime();
+  // Right-side floating "who's online" panel — view-independent
+  startPresence();
 }
 
 (async () => {
+  // Detect a Supabase email-verification redirect.
+  // After the user clicks the verify link, Supabase appends the auth tokens
+  // to the URL fragment (e.g. "#access_token=...&type=signup&...").
+  // The Supabase client picks them up automatically — we just need to
+  // recognise the redirect, show a friendly message, and clean the URL so
+  // the address bar isn't full of tokens.
+  let justVerifiedEmail = false;
+  try {
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    const isAuthCallback =
+      /[#&?]type=(signup|email_change|magiclink|recovery|invite)/.test(hash + search) ||
+      /[#&?]access_token=/.test(hash);
+    if (isAuthCallback){
+      // Supabase JS reads the hash and stores the session before this point;
+      // give it a tick just in case, then strip the hash so the URL is clean.
+      await new Promise(r => setTimeout(r, 50));
+      try {
+        history.replaceState(null, '', window.location.pathname + window.location.search.replace(/[?&](access_token|refresh_token|expires_in|token_type|type|provider_token|provider_refresh_token)=[^&]*/g, '').replace(/^&/, '?'));
+      } catch(_){}
+      justVerifiedEmail = /type=signup/.test(hash + search);
+    }
+  } catch(_){}
+
   // Restore Supabase session if present
   let restoredSession = null;
   if (Sb){
@@ -17237,7 +17717,7 @@ async function bootContent(){
             id: prof.id,
           };
         } else if (prof){
-          // status pending/rejected — sign them out
+          // status pending/rejected/deleted — sign them out
           await Sb.auth.signOut();
         }
       }
@@ -17255,7 +17735,15 @@ async function bootContent(){
       renderAdmin();
     }
     bootContent();
+    if (justVerifiedEmail){
+      setTimeout(() => toast('Email verified — welcome!'), 600);
+    }
   } else {
+    if (justVerifiedEmail){
+      // Verified but not yet approved (or session not auto-established):
+      // show a clear message and the login pane.
+      setTimeout(() => toast('Email verified. An admin will approve your account shortly.'), 400);
+    }
     showAuthPane('login');
   }
 })();
