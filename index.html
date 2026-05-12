@@ -4079,13 +4079,29 @@
   .notif-action-btn:hover{background:var(--brand);color:#fff;border-color:var(--brand)}
   .notif-list{overflow-y:auto;flex:1;background:var(--card)}
   .notif-empty{padding:42px 22px;text-align:center;font-family:var(--sans);font-size:13px;color:var(--ink-mute);font-style:normal;font-weight:400}
-  .notif-item{display:flex;gap:12px;padding:14px 18px;border-bottom:1px solid var(--hair);cursor:pointer;transition:background .12s;position:relative}
+  .notif-item{display:flex;gap:12px;padding:14px 18px;border-bottom:1px solid var(--hair);cursor:pointer;transition:background .12s;position:relative;align-items:flex-start}
   .notif-item:last-child{border-bottom:none}
   .notif-item:hover{background:rgba(30,64,175,.025)}
   .notif-item.is-unread::before{content:'';position:absolute;left:7px;top:50%;width:5px;height:5px;background:var(--brand);border-radius:50%;transform:translateY(-50%)}
   .notif-item.is-unread{background:rgba(30,64,175,.03)}
   .notif-item.is-unread:hover{background:rgba(30,64,175,.06)}
-  .notif-icon{width:32px;height:32px;border-radius:50%;flex:none;display:inline-flex;align-items:center;justify-content:center;font-size:15px;background:rgba(11,11,10,.05)}
+  /* Fixed-size circular avatar for each notification.
+     IMPORTANT: explicit min/max width+height and align-self:flex-start
+     are required for mobile Safari — without them, when the body text
+     wraps to many lines, the flex row's default cross-axis stretching
+     can make the icon a long vertical ellipse instead of a circle. */
+  .notif-icon{
+    width:32px;height:32px;
+    min-width:32px;min-height:32px;
+    max-width:32px;max-height:32px;
+    flex:0 0 32px;
+    align-self:flex-start;
+    border-radius:50%;
+    display:inline-flex;align-items:center;justify-content:center;
+    font-size:15px;line-height:1;
+    background:rgba(11,11,10,.05);
+    overflow:hidden;
+  }
   .notif-icon.post{background:#dbeafe;color:#1e40af}
   .notif-icon.meeting{background:#e0e7ff;color:#3730a3}
   .notif-icon.file{background:#dcfce7;color:#166534}
@@ -13914,6 +13930,15 @@ async function login(email, password){
     factory: prof.factory || '',
     avatar: prof.avatar || '',
     id: prof.id,
+    // Include extra fields that signup wrote so they're available
+    // immediately on first login — without this, the user has to log
+    // out and back in (or wait for loadUsers) to see their profile
+    // fully populated.
+    birthdate: prof.birthdate || '',
+    phone:     (prof.extra_meta && prof.extra_meta.phone) || '',
+    signature: (prof.extra_meta && prof.extra_meta.signature) || '',
+    deptRole:  (prof.extra_meta && prof.extra_meta.deptRole) || null,
+    extra_meta: prof.extra_meta || {},
   };
   return { ok: true };
 }
@@ -13985,6 +14010,39 @@ async function signup(name, email, password, department, birthdate, factory, pho
 
   if (signUpData?.session) await Sb.auth.signOut();
 
+  // Send "registration request received" email to the new user.
+  // English-only as requested, with a brief explanation of next steps.
+  // Failure here doesn't block signup — the user can still log in once
+  // an admin approves them.
+  try {
+    const emailHtml = _buildEmailHtml({
+      title: 'Registration Request Received',
+      intro: `Hello <strong>${esc(name)}</strong>,`,
+      bodyHtml: `
+        <p style="margin:0 0 14px">Thank you for requesting access to the <strong>KSM Sports Intranet</strong>. We've received your registration request and it is now awaiting administrator approval.</p>
+        <p style="margin:0 0 14px"><strong>Your submitted information:</strong></p>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;font-size:13.5px;color:#2b2b2b">
+          <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Name</td><td style="padding:4px 0">${esc(name)}</td></tr>
+          <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Email</td><td style="padding:4px 0">${esc(email)}</td></tr>
+          <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Department</td><td style="padding:4px 0">${esc(department)}</td></tr>
+          ${factory ? `<tr><td style="padding:4px 14px 4px 0;color:#6b6354">Factory</td><td style="padding:4px 0">${factory === 'A' ? 'Main' : 'Annex'}</td></tr>` : ''}
+        </table>
+        <p style="margin:0 0 14px"><strong>What happens next?</strong></p>
+        <ol style="margin:0 0 14px;padding-left:20px;line-height:1.8">
+          <li>An administrator will review your request.</li>
+          <li>You'll receive a separate approval email once your account is activated.</li>
+          <li>The approval email will include a link to sign in to the intranet.</li>
+        </ol>
+      `,
+      footer: 'This is an automated message. Please do not reply to this email. If you have questions, please contact your KSM Sports administrator directly.',
+    });
+    await _sendUserEmail({
+      to:      email,
+      subject: '[KSM Sports] Registration Request Received',
+      body:    emailHtml,
+    });
+  } catch(e){ console.warn('[signup email]', e); }
+
   return { ok: true, user: { name, email, department, birthdate, factory, phone } };
 }
 
@@ -14012,6 +14070,56 @@ async function setStatus(email, status){
     status === 'rejected' ? `${u.name || email} rejected.` :
     'Status updated.'
   );
+
+  // Send approval / rejection email to the user.
+  // Approval includes the intranet URL as a clickable button.
+  // Rejection is a brief courtesy notice.
+  // Both fire-and-forget — they don't block the optimistic UI update.
+  if (status === 'approved' && prevStatus !== 'approved'){
+    try {
+      const url = _intranetUrl();
+      const emailHtml = _buildEmailHtml({
+        title: 'Your Account Has Been Approved',
+        intro: `Hello <strong>${esc(u.name || '')}</strong>,`,
+        bodyHtml: `
+          <p style="margin:0 0 14px">Good news — your registration for the <strong>KSM Sports Intranet</strong> has been approved by an administrator. You can now sign in to access the system.</p>
+          <p style="margin:0 0 14px"><strong>Your account details:</strong></p>
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 18px;font-size:13.5px;color:#2b2b2b">
+            <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Name</td><td style="padding:4px 0">${esc(u.name || '')}</td></tr>
+            <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Email</td><td style="padding:4px 0">${esc(u.email)}</td></tr>
+            <tr><td style="padding:4px 14px 4px 0;color:#6b6354">Department</td><td style="padding:4px 0">${esc(u.department || '')}</td></tr>
+            ${u.factory ? `<tr><td style="padding:4px 14px 4px 0;color:#6b6354">Factory</td><td style="padding:4px 0">${u.factory === 'A' ? 'Main' : 'Annex'}</td></tr>` : ''}
+          </table>
+          <p style="margin:0 0 14px">Click the button below to open the intranet and sign in with the password you set during registration.</p>
+        `,
+        ctaLabel: 'Open KSM Sports Intranet →',
+        ctaUrl:   url,
+        footer:   `If the button doesn't work, copy and paste this URL into your browser:<br /><span style="font-family:'Courier New',monospace;font-size:11.5px;word-break:break-all;color:#374151">${url}</span><br /><br />This is an automated message. Please do not reply to this email.`,
+      });
+      _sendUserEmail({
+        to:      u.email,
+        subject: '[KSM Sports] Your Account Has Been Approved — Sign In Now',
+        body:    emailHtml,
+      }).catch(() => {});
+    } catch(e){ console.warn('[approval email]', e); }
+  } else if (status === 'rejected' && prevStatus !== 'rejected'){
+    try {
+      const emailHtml = _buildEmailHtml({
+        title: 'Registration Request — Update',
+        intro: `Hello <strong>${esc(u.name || '')}</strong>,`,
+        bodyHtml: `
+          <p style="margin:0 0 14px">We're writing to let you know that your registration request for the <strong>KSM Sports Intranet</strong> was not approved at this time.</p>
+          <p style="margin:0 0 14px">If you believe this was in error or you'd like to discuss this decision, please contact your KSM Sports administrator directly.</p>
+        `,
+        footer: 'This is an automated message. Please do not reply to this email.',
+      });
+      _sendUserEmail({
+        to:      u.email,
+        subject: '[KSM Sports] Registration Request — Update',
+        body:    emailHtml,
+      }).catch(() => {});
+    } catch(e){ console.warn('[rejection email]', e); }
+  }
 
   // Fire-and-forget DB update.
   Sb.from('profiles').update({ status }).eq('email', email).then(({ error }) => {
@@ -25901,6 +26009,118 @@ async function _opsNotifyEmails(emails, notification){
 }
 
 /* =====================================================================
+   REAL EMAIL DELIVERY (Supabase Edge Function)
+   =====================================================================
+   Sends an actual email via the `send-email` Supabase Edge Function
+   (deployed separately — see /mnt/user-data/outputs/edge-function-
+   send-email/ for the function source + SQL setup). The function uses
+   a transactional email provider (Resend/SendGrid) on the server side.
+
+   Failure path: if the Edge Function isn't deployed yet, or the network
+   call fails, we log a warning and continue silently. The in-app
+   notification (via _opsNotifyEmails) still fires, so users get a
+   visible signal even when email delivery is down.
+
+   Usage:
+     await _sendUserEmail({
+       to:      'jane@example.com',
+       subject: 'Welcome to KSM Sports Intranet',
+       body:    '<p>Your registration is being reviewed.</p>',
+       // Optional plain-text fallback for clients that don't render HTML
+       text:    'Your registration is being reviewed.',
+     });
+   ===================================================================== */
+async function _sendUserEmail({ to, subject, body, text }){
+  if (!Sb) return { error: 'Supabase not initialized' };
+  const recipient = String(to || '').trim().toLowerCase();
+  if (!recipient || !/^\S+@\S+\.\S+$/.test(recipient)){
+    console.warn('[email] invalid recipient:', to);
+    return { error: 'invalid recipient' };
+  }
+  try {
+    const { data, error } = await Sb.functions.invoke('send-email', {
+      body: {
+        to:      recipient,
+        subject: subject || '(no subject)',
+        html:    body || '',
+        text:    text || _stripHtml(body || ''),
+      },
+    });
+    if (error){
+      console.warn('[email] Edge Function failed:', error.message || error);
+      return { error: error.message || 'send-email failed' };
+    }
+    return { ok: true, data };
+  } catch (e){
+    // Edge Function not deployed yet → fail silently so signup/approval
+    // still completes. Logging gives admins a hint to deploy it.
+    console.warn('[email] send-email invocation threw:', e?.message || e);
+    return { error: e?.message || 'send-email unavailable' };
+  }
+}
+
+// Strip HTML tags for plain-text fallback.
+function _stripHtml(html){
+  return String(html || '')
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Build the canonical intranet URL — used in approval emails so the
+// recipient can click straight back into the app. Falls back to a
+// generic message if window.location isn't available (server-side).
+function _intranetUrl(){
+  try {
+    return window.location.origin + window.location.pathname;
+  } catch(_){
+    return '(intranet URL unavailable)';
+  }
+}
+
+// Standard email shell — wraps body content in branded HTML so every
+// system email has the same look. `bodyHtml` is the per-template content.
+function _buildEmailHtml({ title, intro, bodyHtml, ctaLabel, ctaUrl, footer }){
+  const ctaBtn = (ctaLabel && ctaUrl)
+    ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:28px 0">
+         <tr><td>
+           <a href="${ctaUrl}" target="_blank" style="display:inline-block;background:#111;color:#fff;text-decoration:none;font-family:Georgia,serif;font-size:14px;letter-spacing:.05em;padding:13px 28px;border-radius:3px">${ctaLabel}</a>
+         </td></tr>
+       </table>`
+    : '';
+  return `<!doctype html>
+<html><head><meta charset="utf-8" /><title>${title || 'KSM Sports'}</title></head>
+<body style="margin:0;padding:0;background:#f7f5ef;font-family:Georgia,'Times New Roman',serif;color:#1f2937">
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f7f5ef;padding:40px 16px">
+    <tr><td align="center">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#fff;border:1px solid #e5e1d6">
+        <tr><td style="padding:36px 40px 12px;border-bottom:1px solid #f0ece1">
+          <div style="font-family:'Courier New',monospace;font-size:10.5px;letter-spacing:.22em;color:#6b6354;text-transform:uppercase">§ KSM SPORTS / DOGYU JANG</div>
+          <h1 style="margin:8px 0 0;font-size:22px;font-weight:600;color:#111;letter-spacing:-.01em">${title || ''}</h1>
+        </td></tr>
+        <tr><td style="padding:24px 40px 36px;font-size:14.5px;line-height:1.7;color:#2b2b2b">
+          ${intro ? `<p style="margin:0 0 16px">${intro}</p>` : ''}
+          ${bodyHtml || ''}
+          ${ctaBtn}
+          ${footer ? `<p style="margin:24px 0 0;font-size:12.5px;color:#6b6354;line-height:1.6">${footer}</p>` : ''}
+        </td></tr>
+        <tr><td style="padding:18px 40px;background:#faf8f3;border-top:1px solid #f0ece1;font-family:'Courier New',monospace;font-size:10.5px;letter-spacing:.14em;color:#8a826f;text-transform:uppercase">
+          © 2026 KSM SPORTS · Internal use only
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body></html>`;
+}
+
+/* =====================================================================
    Dispatch request form (Per-employee Dispatch Form).
    The user picks a registered vehicle from a dropdown, fills in the
    trip details, and submits. The dispatch lands as `status='pending'`
@@ -26890,13 +27110,21 @@ function showAuth(){
   if (execTab) execTab.style.display = 'none';
 }
 
-function showApp(){
+async function showApp(){
   $auth.classList.add('fade-out');
   setTimeout(()=>{
     $auth.classList.add('hidden');
     $app.classList.remove('hidden');
     requestAnimationFrame(()=> $app.classList.add('show'));
   }, 600);
+  // Refresh users from DB FIRST so paintMe() sees the latest avatar /
+  // role / department. Without this, a freshly-signed-up user logging
+  // in for the first time sees the dashboard render against a stale or
+  // empty `state.users` list — their profile chip is missing data
+  // until the next manual refresh.
+  try {
+    if (typeof loadUsers === 'function') await loadUsers();
+  } catch(e){ console.warn('[showApp] loadUsers failed:', e); }
   paintMe();
   if (state.session.role === 'admin'){
     document.getElementById('adminTab').style.display = '';
@@ -26918,6 +27146,10 @@ function showApp(){
   Promise.resolve(bootContent()).then(() => {
     try {
       if (typeof renderApprovals === 'function') renderApprovals();
+      // Re-paint after bootContent in case any late-arriving data (e.g.
+      // avatar uploaded via a different browser between loadUsers() and
+      // bootContent finishing) should show now.
+      paintMe();
     } catch (e) {
       console.warn('[showApp] renderApprovals failed (non-fatal):', e);
     }
@@ -40192,8 +40424,16 @@ function _meetIsRequester(r){
 function _meetIsAttendee(r){
   const myEmail = (state.session?.email || '').toLowerCase();
   if (!myEmail) return false;
-  if ((r.attendees || []).some(a => (a.email || '').toLowerCase() === myEmail)) return true;
-  if ((r.observers || []).some(e => (e || '').toLowerCase() === myEmail)) return true;
+  if ((r.attendees || []).some(a => (a && a.email ? a.email : '').toLowerCase() === myEmail)) return true;
+  // Observers are stored as [{email, name, department, phone}] objects
+  // (same shape as attendees). The old code treated them as strings,
+  // which made `.toLowerCase()` run on '[object Object]' and always
+  // miss — so users added as observers never saw their meetings.
+  if ((r.observers || []).some(o => {
+    if (!o) return false;
+    if (typeof o === 'string') return o.toLowerCase() === myEmail;
+    return (o.email || '').toLowerCase() === myEmail;
+  })) return true;
   return false;
 }
 
@@ -40227,9 +40467,12 @@ function _meetUpdateCounts(){
   const today = _todayDateStr();
   const isApproved = r => r.status === 'approved';
 
-  const visible = all.filter(r => _meetIsRequester(r) || _meetIsAttendee(r) || _meetIsApprover(r));
-  const allCount       = visible.length;
-  const progressCount  = visible.filter(isApproved).length;
+  // "All Meetings" + "Meeting Progress & Activity" are PUBLIC — every
+  // member counts every meeting. Personal-inbox tabs still scope to
+  // meetings the current user is involved in (requester / attendee /
+  // observer) so the My Meetings list stays focused.
+  const allCount       = all.length;
+  const progressCount  = all.filter(isApproved).length;
   // My Meetings = meetings where I'm REQUESTER, attendee, or observer.
   // Including the requester so people see their own meetings in their
   // inbox (otherwise the host of a meeting wouldn't see it — only the
@@ -40904,9 +41147,17 @@ function _meetRenderList(kind){
   const myEmail = (state.session?.email || '').toLowerCase();
   let list = [];
   if (kind === 'all'){
-    list = all.filter(r => _meetIsRequester(r) || _meetIsAttendee(r) || _meetIsApprover(r));
+    // All Meetings — fully public. Every member can see every meeting
+    // (pending / 1st approved / 2nd approved / approved / rejected),
+    // matching the pane subtitle "All requested meetings". This way
+    // admin-created meetings AND member-created meetings are equally
+    // visible to the whole org. Personal-inbox tabs (My Pending /
+    // Upcoming / Completed) still scope to the current user.
+    list = all.slice();
   } else if (kind === 'progress'){
-    list = all.filter(r => r.status === 'approved' && (_meetIsRequester(r) || _meetIsAttendee(r) || _meetIsApprover(r)));
+    // Meeting Progress & Activity — every fully-approved meeting,
+    // company-wide. Same visibility principle as "All Meetings".
+    list = all.filter(r => r.status === 'approved');
   } else if (kind === 'my-pending'){
     list = all.filter(r => _meetInvolvesMe(r) && (r.status === 'pending' || r.status === 'first_approved'));
   } else if (kind === 'my-upcoming'){
@@ -51489,8 +51740,18 @@ async function bootContent(){
         if (prof && prof.status === 'approved'){
           restoredSession = {
             email: prof.email, name: prof.name, role: prof.role,
-            department: prof.department || '', avatar: prof.avatar || '',
+            department: prof.department || '',
+            factory: prof.factory || '',
+            avatar: prof.avatar || '',
             id: prof.id,
+            // Mirror the login() shape so paintMe + downstream code
+            // see a fully-populated session on a refresh, not just
+            // on a fresh login.
+            birthdate: prof.birthdate || '',
+            phone:     (prof.extra_meta && prof.extra_meta.phone) || '',
+            signature: (prof.extra_meta && prof.extra_meta.signature) || '',
+            deptRole:  (prof.extra_meta && prof.extra_meta.deptRole) || null,
+            extra_meta: prof.extra_meta || {},
           };
         } else if (prof){
           // status pending/rejected/deleted — sign them out
