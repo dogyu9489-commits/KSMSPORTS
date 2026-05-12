@@ -14836,6 +14836,18 @@ function stopContentRealtime(){
 const PRESENCE_IDLE_MS = 5 * 60 * 1000;        // 5 minutes → idle
 const PRESENCE_BROADCAST_MS = 10 * 1000;       // throttle per-activity track() calls
 const PRESENCE_RECOMPUTE_MS = 30 * 1000;       // recompute online/idle every 30s
+// DB-polling fallback: even if Supabase Realtime isn't configured / can't
+// reach this client (e.g. publication not enabled, websocket blocked by a
+// corporate firewall), we still want users to see each other online. So
+// in parallel with the Realtime channel we write our own lastActiveAt to
+// the `profiles.extra_meta` JSONB column every PRESENCE_DB_PUSH_MS, and
+// every PRESENCE_DB_POLL_MS we read everyone else's lastActiveAt and
+// merge them into the rendered list. If a user's lastActiveAt is within
+// PRESENCE_IDLE_MS we count them as online; otherwise idle (or hidden
+// entirely if stale by >2x idle).
+const PRESENCE_DB_PUSH_MS  = 25 * 1000;        // push our own lastActiveAt every 25s
+const PRESENCE_DB_POLL_MS  = 25 * 1000;        // poll others' lastActiveAt every 25s
+const PRESENCE_DB_STALE_MS = 10 * 60 * 1000;   // beyond 10 min → don't show at all
 
 const _presence = {
   channel: null,
@@ -14844,6 +14856,11 @@ const _presence = {
   rerenderTimer: null,
   activityHandler: null,
   pendingBroadcastTimer: null,
+  // DB-polling fallback state
+  dbState: new Map(),       // email → { name, avatar, lastActivity (ms) }
+  dbPushTimer: null,
+  dbPollTimer: null,
+  lastDbPushAt: 0,
 };
 
 function _presKey(){
@@ -14885,6 +14902,91 @@ function _presBumpActivity(){
   // If the user was rendered as idle, we want to re-render quickly so the
   // dot turns green again. Cheap — just calls renderPresencePanel().
   renderPresencePanel();
+}
+
+/* ============================================================
+   DB-polling fallback for presence.
+
+   We treat the `profiles.extra_meta` JSONB column as a tiny
+   per-user heartbeat store. Every PRESENCE_DB_PUSH_MS we write
+   our own lastActiveAt; every PRESENCE_DB_POLL_MS we read everyone
+   else's. The result is merged with Realtime presence state in
+   renderPresencePanel(), so users see each other online even when
+   Realtime isn't available.
+
+   Why extra_meta and not a new table:
+     • Already a JSONB column on profiles — no schema migration.
+     • Lives next to other small per-user bits (phone, signature,
+       deptRole) we already write there.
+     • Survives a row-level UPDATE — Postgres merges fine because
+       we read-modify-write the whole object.
+   ============================================================ */
+async function _presDbPush(){
+  if (!Sb || !state.session) return;
+  const email = String(state.session.email || '').toLowerCase();
+  if (!email) return;
+  const now = Date.now();
+  // Throttle — even if a re-render or activity-bump triggers us
+  // back-to-back, only push every PRESENCE_DB_PUSH_MS at most.
+  if (now - _presence.lastDbPushAt < (PRESENCE_DB_PUSH_MS - 1000)) return;
+  _presence.lastDbPushAt = now;
+  // Merge with current extra_meta so we don't clobber other fields.
+  // The local profile copy is the most recent one (signup/edit sync
+  // through here), so we read it from state.users when available.
+  const me = (state.users || []).find(u => (u.email || '').toLowerCase() === email);
+  const existingMeta = (me && me.extra_meta) || (state.session.extra_meta) || {};
+  const nextMeta = { ...existingMeta, lastActiveAt: now };
+  try {
+    const { error } = await Sb.from('profiles')
+      .update({ extra_meta: nextMeta })
+      .eq('email', email);
+    if (error){
+      // Silently degrade — RLS or permissions could block this for
+      // some users. We still have Realtime as the primary path.
+      console.warn('[presence DB push]', error.message || error);
+      return;
+    }
+    // Keep local state in sync so subsequent pushes don't overwrite
+    // a stale extra_meta.
+    if (me) me.extra_meta = nextMeta;
+    if (state.session) state.session.extra_meta = nextMeta;
+  } catch(e){
+    console.warn('[presence DB push]', e?.message || e);
+  }
+}
+
+async function _presDbPoll(){
+  if (!Sb || !state.session) return;
+  try {
+    // Pull all approved profiles' email/name/avatar/extra_meta in one
+    // query. The table is small (a few dozen rows) so this is cheap.
+    const { data, error } = await Sb.from('profiles')
+      .select('email,name,avatar,extra_meta')
+      .eq('status', 'approved');
+    if (error){
+      console.warn('[presence DB poll]', error.message || error);
+      return;
+    }
+    const cutoff = Date.now() - PRESENCE_DB_STALE_MS;
+    const next = new Map();
+    (data || []).forEach(p => {
+      const email = String(p.email || '').toLowerCase();
+      if (!email) return;
+      const ts = Number(p.extra_meta && p.extra_meta.lastActiveAt) || 0;
+      if (ts < cutoff) return;  // older than stale threshold → skip
+      next.set(email, {
+        email,
+        name: p.name || email,
+        avatar: p.avatar || '',
+        lastActivity: ts,
+      });
+    });
+    _presence.dbState = next;
+    // Re-render so any newly-online user appears immediately.
+    renderPresencePanel();
+  } catch(e){
+    console.warn('[presence DB poll]', e?.message || e);
+  }
 }
 
 function startPresence(){
@@ -14931,6 +15033,19 @@ function startPresence(){
     _presBroadcast(true);
     renderPresencePanel();
   }, PRESENCE_RECOMPUTE_MS);
+
+  // DB-polling fallback. Pushes our heartbeat + polls everyone else's
+  // every PRESENCE_DB_*_MS. Runs in parallel with Realtime so even if
+  // Realtime isn't available, presence still works (just with a slight
+  // delay — up to 25s — instead of instant).
+  // First push + poll happen immediately so the panel populates without
+  // waiting a full interval.
+  _presDbPush().catch(()=>{});
+  _presDbPoll().catch(()=>{});
+  if (_presence.dbPushTimer) clearInterval(_presence.dbPushTimer);
+  _presence.dbPushTimer = setInterval(() => { _presDbPush().catch(()=>{}); }, PRESENCE_DB_PUSH_MS);
+  if (_presence.dbPollTimer) clearInterval(_presence.dbPollTimer);
+  _presence.dbPollTimer = setInterval(() => { _presDbPoll().catch(()=>{}); }, PRESENCE_DB_POLL_MS);
 
   // Wire up toggle controls (idempotent — if the user logs in/out repeatedly
   // we replace the handlers via the dataset flag).
@@ -15127,6 +15242,17 @@ function stopPresence(){
     clearTimeout(_presence.pendingBroadcastTimer);
     _presence.pendingBroadcastTimer = null;
   }
+  // Stop DB polling fallback timers too.
+  if (_presence.dbPushTimer){
+    clearInterval(_presence.dbPushTimer);
+    _presence.dbPushTimer = null;
+  }
+  if (_presence.dbPollTimer){
+    clearInterval(_presence.dbPollTimer);
+    _presence.dbPollTimer = null;
+  }
+  _presence.dbState = new Map();
+  _presence.lastDbPushAt = 0;
   if (_presence.activityHandler){
     ['mousemove','mousedown','keydown','touchstart','scroll','focus'].forEach(ev => {
       window.removeEventListener(ev, _presence.activityHandler);
@@ -15146,11 +15272,15 @@ function renderPresencePanel(){
   const $list  = document.getElementById('presList');
   const $count = document.getElementById('presCount');
   if (!$panel || !$list || !$count) return;
-  if (!_presence.channel || !state.session){
+  if (!state.session){
     $list.innerHTML = '';
     $count.textContent = '0';
     return;
   }
+  // Note: we used to bail out when _presence.channel was null, but that
+  // hides users even when the DB-polling fallback has data. Now we
+  // proceed and just leave Realtime state empty if the channel failed
+  // — the DB merge below will still surface online users.
 
   // Aggregate presence state. Supabase's presenceState() returns:
   //   { <key>: [ {email, name, ...}, {email, name, ...} ] }
@@ -15170,6 +15300,21 @@ function renderPresencePanel(){
       }
     });
   });
+
+  // Merge in the DB-polled fallback state. For any email that's already
+  // in Realtime data, take the freshest lastActivity. For emails that
+  // are ONLY in DB state (i.e. Realtime didn't reach this client for
+  // them), add them. This is what makes presence work even when
+  // Realtime isn't available — without this merge, Realtime-isolated
+  // clients would only see themselves.
+  if (_presence.dbState && _presence.dbState.size){
+    _presence.dbState.forEach((meta, email) => {
+      const prev = byEmail.get(email);
+      if (!prev || (meta.lastActivity || 0) > (prev.lastActivity || 0)){
+        byEmail.set(email, meta);
+      }
+    });
+  }
 
   const me = String(state.session.email || '').toLowerCase();
   // Make sure my own latest activity appears even if the channel hasn't
@@ -15402,6 +15547,11 @@ async function loadOpsData(){
   data.vehicles   = Array.isArray(data.vehicles)   ? data.vehicles   : [];
   data.drivers    = Array.isArray(data.drivers)    ? data.drivers    : [];
   data.dispatches = Array.isArray(data.dispatches) ? data.dispatches : [];
+  // Approval-flow request buckets — same defensive shape so a stale
+  // ops_state row without these keys doesn't crash any reader.
+  data.timeOffRequests  = Array.isArray(data.timeOffRequests)  ? data.timeOffRequests  : [];
+  data.clockRequests    = Array.isArray(data.clockRequests)    ? data.clockRequests    : [];
+  data.meetingRequests  = Array.isArray(data.meetingRequests)  ? data.meetingRequests  : [];
   data.production = data.production || JSON.parse(JSON.stringify(OPS_SEED.production));
   data.production.factoryA = data.production.factoryA || JSON.parse(JSON.stringify(OPS_SEED.production.factoryA));
   data.production.factoryB = data.production.factoryB || JSON.parse(JSON.stringify(OPS_SEED.production.factoryB));
@@ -15750,6 +15900,10 @@ function startOpsRealtime(){
       content.ops.vehicles   = Array.isArray(content.ops.vehicles)   ? content.ops.vehicles   : [];
       content.ops.drivers    = Array.isArray(content.ops.drivers)    ? content.ops.drivers    : [];
       content.ops.dispatches = Array.isArray(content.ops.dispatches) ? content.ops.dispatches : [];
+      // Approval-flow request buckets — same defensive shape as loadOpsData
+      content.ops.timeOffRequests  = Array.isArray(content.ops.timeOffRequests)  ? content.ops.timeOffRequests  : [];
+      content.ops.clockRequests    = Array.isArray(content.ops.clockRequests)    ? content.ops.clockRequests    : [];
+      content.ops.meetingRequests  = Array.isArray(content.ops.meetingRequests)  ? content.ops.meetingRequests  : [];
       content.ops.permissions = content.ops.permissions || { vehicleReviewers: [] };
       content.ops.permissions.vehicleReviewers   = Array.isArray(content.ops.permissions.vehicleReviewers)   ? content.ops.permissions.vehicleReviewers   : [];
       content.ops.permissions.resourceReviewers  = Array.isArray(content.ops.permissions.resourceReviewers)  ? content.ops.permissions.resourceReviewers  : [];
@@ -25330,7 +25484,17 @@ async function _dxSubmitNew(){
     createdByName: state.session?.name || state.session?.email || '',
   });
   content.ops.dispatches.push(newD);
-  saveOpsData();
+  // Awaitable save so cloud-save failures don't silently drop the
+  // request. On failure: roll back local push, tell user to retry.
+  try {
+    await saveOpsDataAwait();
+  } catch (e){
+    const idx = content.ops.dispatches.indexOf(newD);
+    if (idx >= 0) content.ops.dispatches.splice(idx, 1);
+    console.error('[dispatch submit] cloud save failed:', e);
+    toast('✗ Could not save dispatch — please retry. (' + (e?.message || e) + ')');
+    return;
+  }
   toast('Request submitted — pending approval.');
   // Immediately refresh the Approvals tab/dot so the red badge appears
   // on the sidebar without waiting for a navigation. Without this the
@@ -32192,7 +32356,15 @@ function _openClockTimeEditModal(field){
         content.ops = content.ops || {};
         content.ops.clockRequests = content.ops.clockRequests || [];
         content.ops.clockRequests.push(req);
-        await saveOpsData();
+        try {
+          await saveOpsDataAwait();
+        } catch (e){
+          const idx = content.ops.clockRequests.indexOf(req);
+          if (idx >= 0) content.ops.clockRequests.splice(idx, 1);
+          console.error('[clock request] cloud save failed:', e);
+          toast('✗ Could not save request — please retry. (' + (e?.message || e) + ')');
+          return false;
+        }
         const reqLabel = newTime == null ? '(clear)' : newTime;
         _opsNotifyEmails(_adminEmails(), {
           type: 'clock_request',
@@ -34651,7 +34823,18 @@ function _openTimeOffModal(presetKind){
       content.ops = content.ops || {};
       content.ops.timeOffRequests = content.ops.timeOffRequests || [];
       content.ops.timeOffRequests.push(req);
-      await saveOpsData();
+      // Awaitable save — surfaces cloud-save failures so the user doesn't
+      // get a false "✓ Request sent" toast when the cloud upsert silently
+      // dropped the data. On failure we roll back the local push.
+      try {
+        await saveOpsDataAwait();
+      } catch (e){
+        const idx = content.ops.timeOffRequests.indexOf(req);
+        if (idx >= 0) content.ops.timeOffRequests.splice(idx, 1);
+        console.error('[time-off submit] cloud save failed:', e);
+        toast('✗ Could not save request — please retry. (' + (e?.message || e) + ')');
+        return false;
+      }
       _opsNotifyEmails(_adminEmails(), {
         type: 'time_off',
         title: `🏖 ${TIME_OFF_KIND_META[kind].label} Request`,
@@ -41062,7 +41245,23 @@ async function _meetSubmit(){
   content.ops = content.ops || {};
   content.ops.meetingRequests = content.ops.meetingRequests || [];
   content.ops.meetingRequests.push(req);
-  await saveOpsData();
+  // Use the AWAITABLE save path so we can detect cloud-save failures
+  // and roll back if persistence fails. Without this, the meeting only
+  // existed in the requester's local browser — other users (the
+  // approver / attendees) never saw it because the cloud upsert was
+  // silently fire-and-forget. After this change, a failed cloud save
+  // pops a toast and removes the local copy, so the user knows to retry.
+  try {
+    await saveOpsDataAwait();
+  } catch (e){
+    // Roll back the local push so we don't show a meeting that doesn't
+    // actually exist on the server.
+    const idx = content.ops.meetingRequests.indexOf(req);
+    if (idx >= 0) content.ops.meetingRequests.splice(idx, 1);
+    console.error('[meeting submit] cloud save failed:', e);
+    toast('✗ Could not save meeting — please retry. (' + (e?.message || e) + ')');
+    return;
+  }
 
   // Notify everyone in the workflow at submission time:
   //   1. Admins  → Pending Approval in their Approvals queue
