@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="light">
 <meta name="format-detection" content="telephone=no">
 <meta name="robots" content="noindex, nofollow">
-<meta name="ksm-mat-version" content="2026.10.04.5">
+<meta name="ksm-mat-version" content="2026.10.04.8">
 <link rel="icon" href="data:,">
 <title>KSM 자재관리</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
@@ -3631,6 +3631,7 @@ body.modal-open { overflow: hidden; }
       'hdr.lang': 'EN', 'hdr.langTitle': 'Switch to English',
       'rt.live': '실시간 연결됨', 'rt.connecting': '연결 중…', 'rt.offline': '오프라인 — 자동 재연결 중', 'rt.demo': '데모 모드',
       'role.none': '권한 없음', 'role.viewer': '조회', 'role.staff': '담당자', 'role.manager': '관리자', 'role.admin': '최고관리자',
+      'role.changed': '내 권한이 \'{role}\'(으)로 변경되었습니다.',
       'login.title': '로그인', 'login.subtitle': 'KSM 계정(이메일/비밀번호)으로 로그인하세요.',
       'login.email': '이메일', 'login.password': '비밀번호', 'login.submit': '로그인', 'login.signingIn': '로그인 중…',
       'login.or': '또는', 'login.demo': '데모로 체험', 'login.demoHint': '데모는 이 PC에만 저장되는 연습용 데이터로 동작합니다.',
@@ -3709,6 +3710,7 @@ body.modal-open { overflow: hidden; }
       'hdr.lang': '한국어', 'hdr.langTitle': '한국어로 전환',
       'rt.live': 'Live', 'rt.connecting': 'Connecting…', 'rt.offline': 'Offline — reconnecting', 'rt.demo': 'Demo mode',
       'role.none': 'No access', 'role.viewer': 'Viewer', 'role.staff': 'Staff', 'role.manager': 'Manager', 'role.admin': 'Admin',
+      'role.changed': 'Your access changed to \'{role}\'.',
       'login.title': 'Sign in', 'login.subtitle': 'Sign in with your KSM account (email / password).',
       'login.email': 'Email', 'login.password': 'Password', 'login.submit': 'Sign in', 'login.signingIn': 'Signing in…',
       'login.or': 'or', 'login.demo': 'Try the demo', 'login.demoHint': 'The demo uses practice data stored on this PC only.',
@@ -4479,7 +4481,7 @@ body.modal-open { overflow: hidden; }
   var DEFAULT_CONN = { url: 'https://pgjawfpguzjhkvfrhqwh.supabase.co', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnamF3ZnBndXpqaGt2ZnJocXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDc3MTYsImV4cCI6MjA5MDQyMzcxNn0.c_NQoTEpcx5nA3ifFlQ0j8M2TP-G8wtjlPIqGpIM7MI' };
   // build stamp — build.mjs substitutes both placeholders (SPEC §0.1). Unbuilt source → dev / non-prod.
   var BUILD_PROD_RAW = '1';
-  var BUILD_VERSION_RAW = '2026.10.04.5';
+  var BUILD_VERSION_RAW = '2026.10.04.8';
   var BUILD = {
     prod: BUILD_PROD_RAW === '1',
     version: /^__/.test(BUILD_VERSION_RAW) ? 'dev' : BUILD_VERSION_RAW
@@ -5564,8 +5566,45 @@ body.modal-open { overflow: hidden; }
     var evt = { table: last.table, type: last.type, row: last.row, batch: batch };
     quietRefresh().then(function () { notifyScreen(evt); });
   }, 400);
+  // ---------- live role changes ----------
+  // An admin changing someone's access (⚙ 설정 → 사용자 권한, or 기본 권한) must reach that person's OPEN app without a
+  // re-login: re-read whoami when mat_members / default_role change (realtime) and, throttled, on focus / periodic refresh.
+  var roleCheckTimer = null, roleCheckBusy = false, lastRoleCheck = 0;
+  function scheduleRoleCheck(urgent) {
+    if (Data.mode !== 'cloud' || !App.state.me) return;
+    var now = Date.now();
+    if (!urgent && now - lastRoleCheck < 15000) return;
+    if (roleCheckTimer) clearTimeout(roleCheckTimer);
+    roleCheckTimer = setTimeout(function () { roleCheckTimer = null; recheckRole(); }, urgent ? 600 : 0);
+  }
+  async function recheckRole() {
+    if (roleCheckBusy || Data.mode !== 'cloud' || !App.state.me) return;
+    roleCheckBusy = true;
+    lastRoleCheck = Date.now();
+    try {
+      var me;
+      try { me = await Data.whoami(); } catch (e) { return; }   // offline etc. — keep the current session as is
+      var cur = App.state.me;
+      if (!cur || Data.mode !== 'cloud') return;
+      if (!me || me.role === 'none' || me.approved === false || !hasOwn(ROLE_RANK, me.role)) {
+        leaveApp();
+        showPending(me);
+        return;
+      }
+      if (me.role === cur.role) return;
+      App.state.me = { email: cur.email, name: me.name || cur.name || '', role: me.role, approved: true };
+      renderHeader();
+      renderNav();
+      App.rerender();
+      UI.toast(t('role.changed', { role: t('role.' + me.role) }), 'info', 5000);
+    } finally { roleCheckBusy = false; }
+  }
+  App._recheckRole = recheckRole;
+
   function onRealtime(evt) {
     if (!evt || !App.state.me) return;
+    if (evt.table === 'mat_members' || (evt.table === 'mat_settings' && (!evt.row || evt.row.key === 'default_role'))) scheduleRoleCheck(true);
+    else if (evt.type === 'REFRESH') scheduleRoleCheck(false);
     rtPending.push(evt);
     if (rtPending.length > 500) rtPending.splice(0, rtPending.length - 500);
     flushRealtime();
