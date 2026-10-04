@@ -15912,6 +15912,136 @@
   .inv-table colgroup col.c-sub { min-width:160px; }
   .inv-table colgroup col.c-num { min-width:110px; }
 
+  /* v301 — 📦 Barcode Stock tab (read-only mirror of the barcode materials app) */
+  .bcs-snav-ico{ width:17px; flex:none; text-align:center; font-size:14px; line-height:1; }
+  .bcs-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .bcs-head-act{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .bcs-open{ display:inline-flex; align-items:center; gap:6px; padding:7px 12px; border-radius:10px; border:1px solid var(--card-border); background:var(--card); color:var(--brand); font-family:var(--sans); font-size:12.5px; font-weight:600; text-decoration:none; white-space:nowrap; }
+  .bcs-open:hover{ border-color:var(--brand); box-shadow:0 0 0 3px rgba(30,64,175,.10); }
+  .bcs-open.is-primary{ background:var(--brand); color:#fff; border-color:var(--brand); }
+  .bcs-btn{ padding:7px 14px; border-radius:10px; border:1px solid var(--card-border); background:var(--card); color:var(--ink); font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer; }
+  .bcs-btn.is-primary{ background:var(--brand); color:#fff; border-color:var(--brand); }
+  .bcs-linkbtn{ border:none; background:none; color:inherit; text-decoration:underline; cursor:pointer; font:inherit; padding:0 0 0 4px; }
+  .bcs-live{ display:inline-flex; align-items:center; gap:6px; font-family:var(--sans); font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+  .bcs-dot{ width:8px; height:8px; border-radius:50%; background:#9CA3AF; flex:none; }
+  .bcs-live.is-live .bcs-dot{ background:#10B981; box-shadow:0 0 0 3px rgba(16,185,129,.18); }
+  .bcs-live.is-poll .bcs-dot{ background:#F59E0B; }
+  .bcs-live.is-err{ color:#B91C1C; }
+  .bcs-live.is-err .bcs-dot{ background:#DC2626; }
+  .bcs-kpis{ display:grid; grid-template-columns:repeat(6, minmax(0,1fr)); gap:10px; margin-bottom:14px; }
+  .bcs-kpi{ display:flex; flex-direction:column; align-items:flex-start; gap:2px; padding:12px 14px; border-radius:12px; border:1px solid var(--card-border); background:var(--card); box-shadow:var(--card-shadow); font-family:var(--sans); text-align:left; cursor:pointer; color:var(--ink); }
+  .bcs-kpi[disabled]{ cursor:default; color:var(--ink); opacity:1; }
+  .bcs-kpi-val{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.01em; }
+  .bcs-kpi-lbl{ font-size:11.5px; color:var(--ink-mute); font-weight:500; }
+  .bcs-kpi.is-now .bcs-kpi-val{ color:#B91C1C; }
+  .bcs-kpi.is-soon .bcs-kpi-val{ color:#B45309; }
+  .bcs-kpi.is-risk .bcs-kpi-val{ color:#C2410C; }
+  .bcs-kpi.is-over .bcs-kpi-val{ color:#6D28D9; }
+  .bcs-kpi.is-on{ border-color:var(--brand); box-shadow:0 0 0 3px rgba(30,64,175,.12); }
+  .bcs-toolbar{ display:flex; flex-direction:column; gap:10px; margin-bottom:12px; }
+  .bcs-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+  .bcs-chip{ display:inline-flex; align-items:center; gap:5px; padding:5px 10px; border-radius:999px; border:1px solid var(--card-border); background:var(--card); font-family:var(--sans); font-size:12px; color:var(--ink-soft); cursor:pointer; }
+  .bcs-chip:hover{ border-color:var(--brand); color:var(--ink); }
+  .bcs-chip.is-on{ background:var(--brand); border-color:var(--brand); color:#fff; }
+  .bcs-chip.is-on .bcs-chip-en, .bcs-chip.is-on .bcs-chip-n{ color:rgba(255,255,255,.8); }
+  .bcs-chip.is-on .bcs-chip-code{ background:rgba(255,255,255,.18); color:#fff; }
+  .bcs-chip-code{ font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 5px; border-radius:5px; background:var(--bg-main); color:var(--ink-soft); }
+  .bcs-chip-en{ color:var(--ink-mute); }
+  .bcs-chip-n{ font-variant-numeric:tabular-nums; color:var(--ink-mute); font-size:11px; }
+  .bcs-tool-row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .bcs-search{ flex:1 1 260px; max-width:420px; }
+  .bcs-table-wrap .inv-table.bcs-table{ min-width:980px; }
+  .bcs-table td.cat{ max-width:110px; }
+  .bcs-table td.cat .bcs-sub{ font-size:11.5px; color:var(--ink-soft); }
+  .bcs-table .bcs-name{ min-width:140px; max-width:200px; overflow-wrap:break-word; }
+  .bcs-table .bcs-lowconf{ display:block; margin:3px 0 0; }
+  .bcs-table tbody td.num{ font-family:var(--sans); font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .bcs-table .bcs-sub.bcs-mono{ font-size:10.5px; }
+  .bcs-table thead th{ white-space:normal; line-height:1.25; vertical-align:bottom; }
+  .bcs-table thead th.num{ min-width:40px; }
+  .bcs-table thead th, .bcs-table tbody td{ padding-left:7px; padding-right:7px; }
+  .bcs-table thead th:first-child, .bcs-table tbody td:first-child{ padding-left:14px; }
+  .bcs-table tbody td{ vertical-align:top; }
+  .bcs-table tbody tr:focus{ outline:2px solid rgba(30,64,175,.35); outline-offset:-2px; }
+  .bcs-code{ font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 5px; border-radius:5px; background:var(--bg-main); color:var(--ink-soft); }
+  .bcs-name{ font-weight:600; color:var(--ink); }
+  .bcs-sub{ font-size:11px; color:var(--ink-mute); margin-top:1px; }
+  .bcs-later{ color:var(--ink-soft); font-weight:400; }   /* next-order qty while no order is needed yet */
+  .bcs-th-sub{ font-weight:400; color:var(--ink-mute); }
+  .bcs-mono{ font-family:var(--mono); }
+  .bcs-up{ color:#B45309; }
+  .bcs-down{ color:#047857; }
+  .bcs-st{ white-space:nowrap; }
+  .bcs-pill{ display:inline-block; padding:2px 9px; border-radius:999px; font-family:var(--sans); font-size:11px; font-weight:600; white-space:nowrap; }
+  .bcs-pill.is-now{ background:#FEE2E2; color:#B91C1C; }
+  .bcs-pill.is-soon{ background:#FEF3C7; color:#92400E; }
+  .bcs-pill.is-ok{ background:#D1FAE5; color:#065F46; }
+  .bcs-pill.is-over{ background:#EDE9FE; color:#5B21B6; }
+  .bcs-pill.is-idle{ background:#F3F4F6; color:#4B5563; }
+  .bcs-pill.is-nodata{ background:#F9FAFB; color:#9CA3AF; border:1px dashed #D1D5DB; }
+  .bcs-lowconf{ display:inline-block; margin-left:6px; font-size:11px; color:#92400E; cursor:help; }
+  .bcs-foot{ font-family:var(--sans); font-size:11.5px; color:var(--ink-mute); line-height:1.5; padding:0 4px 8px; }
+  .bcs-foot a{ color:var(--brand); }
+  .bcs-state{ background:var(--card); border:1px solid var(--card-border); border-radius:14px; box-shadow:var(--card-shadow); padding:44px 24px; text-align:center; font-family:var(--sans); }
+  .bcs-state-ico{ font-size:30px; margin-bottom:10px; }
+  .bcs-state-title{ font-size:16px; font-weight:700; color:var(--ink); }
+  .bcs-state-sub{ font-size:13px; color:var(--ink-soft); margin:6px auto 0; max-width:560px; line-height:1.55; }
+  .bcs-state-sub code{ font-family:var(--mono); font-size:12px; background:var(--bg-main); padding:1px 5px; border-radius:4px; }
+  .bcs-state-act{ margin-top:16px; display:flex; gap:8px; justify-content:center; flex-wrap:wrap; }
+  .bcs-state-err{ flex-basis:100%; margin-top:8px; font-family:var(--mono); font-size:11px; color:#991B1B; word-break:break-word; }
+  .bcs-spin{ display:inline-block; width:26px; height:26px; border-radius:50%; border:3px solid rgba(30,64,175,.15); border-top-color:var(--brand); animation:bcs-spin .8s linear infinite; }
+  @keyframes bcs-spin{ to{ transform:rotate(360deg); } }
+  .bcs-muted{ color:var(--ink-mute); font-size:12px; }
+  .bcs-modal-bg{ position:fixed; inset:0; z-index:9000; background:rgba(11,11,10,.42); display:flex; align-items:flex-start; justify-content:center; padding:40px 16px; overflow-y:auto; }
+  .bcs-modal{ width:100%; max-width:960px; background:var(--card); border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,.25); font-family:var(--sans); color:var(--ink); }
+  .bcs-m-head{ display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:18px 22px 14px; border-bottom:1px solid var(--hair); flex-wrap:wrap; }
+  .bcs-m-eyebrow{ font-size:12px; color:var(--ink-mute); margin-bottom:4px; }
+  .bcs-m-title{ font-size:19px; font-weight:700; letter-spacing:-.01em; }
+  .bcs-m-sub{ margin-top:6px; font-size:12.5px; color:var(--ink-soft); display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .bcs-m-actions{ display:flex; align-items:center; gap:8px; }
+  .bcs-x{ width:32px; height:32px; border-radius:8px; border:1px solid var(--card-border); background:var(--card); font-size:20px; line-height:1; cursor:pointer; color:var(--ink-soft); }
+  .bcs-m-body{ padding:16px 22px 22px; }
+  .bcs-sec{ margin-bottom:18px; min-width:0; }
+  .bcs-sec-t{ font-size:11px; font-weight:600; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-mute); margin-bottom:8px; }
+  .bcs-explain p{ margin:0 0 6px; font-size:13.5px; line-height:1.55; }
+  .bcs-explain .bcs-warn{ color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; border-radius:8px; padding:6px 10px; font-size:12.5px; }
+  .bcs-chart{ width:100%; height:auto; display:block; }
+  .bcs-chart .bcs-b-out{ fill:#1E40AF; }
+  .bcs-chart .bcs-b-ret{ fill:#10B981; }
+  .bcs-chart .bcs-b-in{ fill:#9CA3AF; }
+  .bcs-chart .bcs-b-hit{ fill:transparent; }
+  .bcs-chart .bcs-base{ stroke:rgba(11,11,10,.35); stroke-width:1; }
+  .bcs-chart .bcs-grid{ stroke:rgba(11,11,10,.08); stroke-width:1; }
+  .bcs-chart .bcs-avg{ stroke:#F59E0B; stroke-width:1.5; stroke-dasharray:4 3; }
+  .bcs-chart .bcs-ax{ font-family:var(--sans); font-size:10.5px; fill:rgba(11,11,10,.5); }
+  .bcs-legend{ display:flex; flex-wrap:wrap; gap:14px; font-size:11.5px; color:var(--ink-soft); margin-top:4px; }
+  .bcs-legend i{ display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:5px; vertical-align:-1px; }
+  .bcs-lg-out{ background:#1E40AF; } .bcs-lg-ret{ background:#10B981; } .bcs-lg-in{ background:#9CA3AF; border-radius:50% !important; }
+  .bcs-lg-avg{ background:none; border-top:2px dashed #F59E0B; height:0 !important; vertical-align:3px !important; }
+  .bcs-stats{ display:grid; grid-template-columns:repeat(auto-fill, minmax(160px,1fr)); gap:8px; }
+  .bcs-stat{ background:var(--bg-main); border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; gap:2px; }
+  .bcs-stat span{ font-size:11px; color:var(--ink-mute); }
+  .bcs-stat b{ font-size:13px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .bcs-stat small{ font-weight:400; color:var(--ink-mute); margin-left:4px; }
+  .bcs-grid2{ display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .bcs-kvs{ display:flex; flex-direction:column; gap:4px; }
+  .bcs-kv{ display:flex; justify-content:space-between; gap:12px; font-size:12.5px; padding:4px 0; border-bottom:1px solid var(--hair); }
+  .bcs-kv span{ color:var(--ink-mute); }
+  .bcs-kv b{ font-weight:600; text-align:right; word-break:break-word; }
+  .bcs-scroll{ overflow-x:auto; }
+  .bcs-mini{ width:100%; border-collapse:collapse; font-size:12px; }
+  .bcs-mini th{ text-align:left; font-weight:600; color:var(--ink-soft); font-size:11px; padding:6px 8px; background:#F8F9FC; border-bottom:1px solid var(--card-border); white-space:nowrap; }
+  .bcs-mini td{ padding:6px 8px; border-bottom:1px solid var(--hair); vertical-align:top; }
+  .bcs-mini th.num, .bcs-mini td.num{ text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .bcs-mini tr.is-dim td{ color:var(--ink-mute); }
+  .bcs-nowrap{ white-space:nowrap; }
+  .bcs-mv{ display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:5px; background:#F3F4F6; color:#374151; }
+  .bcs-mv-in{ background:#DBEAFE; color:#1E40AF; } .bcs-mv-out{ background:#FEE2E2; color:#B91C1C; }
+  .bcs-mv-return{ background:#D1FAE5; color:#065F46; } .bcs-mv-adjust, .bcs-mv-void{ background:#FEF3C7; color:#92400E; }
+  @media (max-width: 1100px){ .bcs-kpis{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
+  @media (max-width: 760px){ .bcs-grid2{ grid-template-columns:1fr; } .bcs-modal-bg{ padding:12px 8px; } }
+  @media (max-width: 640px){ .bcs-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); } .bcs-m-head, .bcs-m-body{ padding-left:14px; padding-right:14px; } }
+
   /* Phase 33 — Stock pane advanced filter dropdowns.
      Sit alongside the month selector + search field on the inv-toolbar
      so users can narrow the catalog by Type / Category / Sub-category. */
@@ -18459,7 +18589,7 @@ Lets a user request a mix across multiple production stations in one form (e.g. 
                  Defaults to the requester's own factory. Pairs with
                  Destination to form a clear "from → to" route. --><label class="dx-f"><span>Start Factory *</span><select id="dx-f-start-factory"><option value="A">Main</option><option value="B">Annex</option></select></label><label class="dx-f"><span>Destination *</span><input type="text" id="dx-f-destination" /></label><label class="dx-f"><span>Purpose *</span><input type="text" id="dx-f-purpose" /></label><!-- Row 3 --><label class="dx-f"><span>Driver</span><select id="dx-f-driver"></select></label><label class="dx-f"><span>Department</span><input type="text" id="dx-f-department" /></label><label class="dx-f"><span>Start</span><span class="dx-f-inline"><input type="date" id="dx-f-start-date" /><input type="time" id="dx-f-start-time" /></span></label><!-- Row 4 --><label class="dx-f dx-row-passengers"><span>Passengers</span><input type="text" id="dx-f-passengers" placeholder="comma-separated" /></label><label class="dx-f dx-row-end"><span>End</span><span class="dx-f-inline"><input type="date" id="dx-f-end-date" /><input type="time" id="dx-f-end-time" /></span></label><label class="dx-f dx-f-wide dx-row-notes"><span>Notes</span><input type="text" id="dx-f-notes" /></label></div><div class="dx-form-foot"><span class="dx-form-status" id="dx-form-status"></span><span class="dx-form-actions"><button type="button" class="dx-btn dx-btn-primary" id="dx-btn-submit">📥 Submit</button><button type="button" class="dx-btn" id="dx-btn-update" hidden>✏ Update</button><button type="button" class="dx-btn" id="dx-btn-clear">🗑 Clear</button><button type="button" class="dx-btn dx-btn-danger" id="dx-btn-delete" hidden>✕ Delete</button><button type="button" class="dx-btn dx-btn-success" id="dx-btn-approve" hidden>✓ Approve</button><button type="button" class="dx-btn dx-btn-danger" id="dx-btn-reject" hidden>✕ Reject</button></span></div></div><!-- Today's dispatches — only those whose `date` field equals
              today, click row to act on them. For full history including
-             past days, switch to the 📋 Records tab. --></div><div class="meet-pane" data-veh-pane="today" hidden><div class="meet-pane-head">Today's Dispatches <span class="meet-pane-sub">Click a row to load and review</span></div><div class="ops-section-head" style="margin-top:28px"><span class="ops-section-title">📅 Today's Dispatches</span><span class="ops-section-hint" id="dx-today-date-hint">— · Click to review</span></div><div class="dx-grid-wrap"><table class="dx-grid"><thead><tr><th><br>Plate</th><th><br>Model</th><th><br>Driver</th><th><br>Dept</th><th><br>Passengers</th><th><br>Type</th><th><br>Destination</th><th><br>Start</th><th><br>End</th><th class="num"><br>Actual</th><th class="num"><br>km</th><th><br>Purpose</th><th><br>Status</th></tr></thead><tbody id="dx-today-body"></tbody></table></div></div><div class="meet-pane" data-veh-pane="records" hidden><div class="meet-pane-head">All Records <span class="meet-pane-sub">Filterable dispatch history · Click row to load into form</span></div><!-- Filter toolbar (date + search) --><div class="dx-toolbar"><span class="dx-tool-title">Dispatch History</span><span class="dx-tool-actions"><label class="dx-tool-label">Date<input type="date" id="dx-filter-date" /></label><input type="text" id="dx-filter-search" placeholder="🔍 Search (vehicle, driver, dest)" /><button type="button" class="dx-tool-btn" id="dx-tool-clear-filter">Clear filter</button></span></div><!-- Dispatch grid (list of all dispatches, click row to load into form) --><div class="dx-grid-wrap"><table class="dx-grid"><thead><tr><th><br>Plate</th><th><br>Model</th><th><br>Driver</th><th><br>Dept</th><th><br>Passengers</th><th><br>Type</th><th><br>Destination</th><th><br>Start</th><th><br>End</th><th class="num"><br>Actual</th><th class="num"><br>km</th><th><br>Purpose</th><th><br>Status</th></tr></thead><tbody id="dx-grid-body"></tbody></table></div></div><div class="meet-pane" data-veh-pane="reports" hidden><div class="meet-pane-head">Records Summary <span class="meet-pane-sub">Mileage &amp; repairs by vehicle / driver · managers only</span></div><div id="veh-reports-body"></div></div><div class="meet-pane" data-veh-pane="vehicles" hidden><div class="meet-pane-head">Manage Vehicles <span class="meet-pane-sub">Add · edit · remove vehicles in the fleet</span></div><div class="dx-toolbar"><span class="dx-tool-title">Fleet</span><span class="dx-tool-actions"><button type="button" class="dx-tool-btn dx-tool-btn-add" id="veh-mgmt-add-vehicle">+ Add Vehicle</button></span></div><div id="veh-mgmt-vehicle-list"></div></div><div class="meet-pane" data-veh-pane="drivers" hidden><div class="meet-pane-head">Manage Drivers <span class="meet-pane-sub">Add · edit · remove drivers</span></div><div class="dx-toolbar"><span class="dx-tool-title">Drivers</span><span class="dx-tool-actions"><button type="button" class="dx-tool-btn dx-tool-btn-add" id="veh-mgmt-add-driver">+ Add Driver</button></span></div><div id="veh-mgmt-driver-list"></div></div></div></div></section><section class="view" data-view="inventory"><div class="sec-head"><h1 class="title">Inventory<em>.</em><span class="kr">ML-based inventory management index</span></h1><div class="meta"><span class="now" id="inv-count">— items</span><a class="btn-ext-link" href="https://dogyu9489-commits.github.io/KSMSPORTS/materials.html" target="_blank" rel="noopener" title="재고 바코드 시스템 (Materials) — opens in a new tab">📦 Barcode Stock System ↗</a></div></div><div class="inv-shell-2"><aside class="inv-sidenav"><div class="inv-sidenav-brand"><span class="inv-sidenav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span><span class="inv-sidenav-name">Inventory<br><strong>System</strong></span></div><div class="inv-snav-section">Solutions</div><button type="button" class="inv-snav-btn" data-inv-tab="forecast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="inv-snav-label">Demand Forecast</span></button><button type="button" class="inv-snav-btn is-active" data-inv-tab="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="inv-snav-label">Inventory</span></button><button type="button" class="inv-snav-btn" data-inv-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3v1h6v-1c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg><span class="inv-snav-label">Insights</span></button><div class="inv-snav-section">Managing</div><button type="button" class="inv-snav-btn" data-inv-tab="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="inv-snav-label">Item Management</span></button><button type="button" class="inv-snav-btn" data-inv-tab="usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="inv-snav-label">Usage</span></button></aside><div class="inv-main"><div class="inv-pane" data-inv-pane="forecast" hidden><div class="inv-pane-head"><div class="inv-pane-title">Demand Forecast</div><div class="inv-pane-sub">Projected shipment volume for the next six months. Forecast combines linear trend with seasonal patterns when 12+ months of data are available.</div></div><div class="inv-fc-picker"><label class="inv-fc-picker-label" for="inv-fc-search">Item</label><div class="inv-fc-combo" id="inv-fc-combo"><input type="text" id="inv-fc-search" class="inv-fc-combo-input" placeholder="Search by code, name, category…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="inv-fc-panel" /><button type="button" class="inv-fc-combo-clear" id="inv-fc-search-clear" title="Clear search" aria-label="Clear search">×</button><svg class="inv-fc-combo-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg><div class="inv-fc-combo-panel" id="inv-fc-panel" role="listbox" aria-label="Inventory items"></div></div><span class="inv-fc-picker-method" id="inv-fc-method">—</span></div><div class="inv-fc-stats" id="inv-fc-stats"></div><div class="inv-fc-chart-card"><div class="inv-fc-chart-head"><span class="inv-fc-chart-title">Shipment volume · past history + 6-month forecast</span><div class="inv-fc-legend"><span class="inv-fc-legend-item"><span class="inv-fc-legend-line is-past"></span>Past</span><span class="inv-fc-legend-item"><span class="inv-fc-legend-line is-future"></span>Forecast</span><span class="inv-fc-legend-item"><span class="inv-fc-legend-band"></span>Confidence band</span></div></div><div id="inv-fc-chart"></div></div><div class="inv-fc-factors-card"><div class="inv-fc-factors-head"><span class="inv-fc-factors-title">Influence factors</span><span class="inv-fc-factors-sub">What is driving this forecast, ranked by contribution</span></div><div id="inv-fc-factors"></div></div><div class="inv-fc-bulk-card"><div class="inv-fc-bulk-head"><span class="inv-fc-bulk-title">All items · next 3-month forecast total</span></div><div id="inv-fc-bulk"></div></div></div><div class="inv-pane" data-inv-pane="stock"><div class="inv-pane-head"><div class="inv-pane-title">Inventory</div><div class="inv-pane-sub">Stock levels and shipment history for every item</div></div><div class="inv-toolbar"><div class="inv-month-wrap"><select id="inv-month" class="inv-month-select" aria-label="Month"></select><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-search-wrap"><svg class="inv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" id="inv-search" placeholder="Search code, name, category, sub-category (any word)" /></div><div class="inv-filter-wrap"><select id="inv-filter-type" class="inv-filter-select" aria-label="Filter by type"><option value="">All types</option><option value="generic">📦 Material</option><option value="leather">🐄 Leather</option><option value="liquid">🧪 Liquid</option><option value="equipment">🔧 Equipment</option></select><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-filter-wrap"><input type="text" id="inv-filter-category" class="inv-filter-select inv-filter-combo" placeholder="All categories" aria-label="Filter by category" autocomplete="off" name="inv_cat_no_autofill" role="combobox" aria-autocomplete="list" /><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-filter-wrap"><input type="text" id="inv-filter-subcategory" class="inv-filter-select inv-filter-combo" placeholder="All sub-categories" aria-label="Filter by sub-category" autocomplete="off" name="inv_sub_no_autofill" role="combobox" aria-autocomplete="list" /><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><button type="button" class="inv-filter-clear" id="inv-filter-clear" title="Clear all filters">Clear</button><span class="inv-facview-toggle" style="display:inline-flex;border:1px solid var(--card-border);border-radius:6px;overflow:hidden;margin-left:4px" title="Stock view — Total: one company-wide On Hand column (default). By factory: adds Main / Annex columns from the per-factory store."><button type="button" data-inv-facview="total" style="padding:4px 12px;border:none;cursor:pointer;font-size:11px;background:#1E40AF;color:#fff">Total</button><button type="button" data-inv-facview="factory" style="padding:4px 12px;border:none;cursor:pointer;font-size:11px;background:#fff;color:var(--ink)">By factory</button></span><span style="flex:1"></span><span class="inv-result-hint" id="inv-result-hint">— items</span><button type="button" class="inv-download-btn" id="inv-download" title="Download Excel (.xlsx) — current filtered view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Excel</span></button><button type="button" class="inv-download-btn" id="inv-download-csv" title="Download as CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>CSV</span></button></div><div class="inv-charts"><div class="inv-chart-card"><div class="inv-chart-head"><span class="inv-chart-title">Shipment volume</span><span class="inv-chart-sub" id="inv-chart-ship-sub">Select an item to view its history</span></div><div class="inv-chart-body" id="inv-chart-ship"></div></div><div class="inv-chart-card"><div class="inv-chart-head"><span class="inv-chart-title">Ending Inventory</span><span class="inv-chart-sub" id="inv-chart-end-sub">Select an item to view its history</span></div><div class="inv-chart-body" id="inv-chart-end"></div></div></div><div class="inv-table-wrap"><table class="inv-table"><colgroup><col class="c-code"><col class="c-name"><col class="c-type"><col class="c-cat"><col class="c-sub"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-act"></colgroup><thead><tr class="inv-h-top"><th rowspan="2" data-inv-sort="code" title="Click to sort">Item Code<span class="inv-sort-ind"></span></th><th rowspan="2" data-inv-sort="name" title="Click to sort">Item Name<span class="inv-sort-ind"></span></th><th rowspan="2">Type</th><th colspan="2" class="inv-h-group">Item info</th><th rowspan="2" class="num" title="Current on-hand quantity. Updated by purchase QC receipts and material-request approvals. Click to sort." data-inv-sort="onhand">On Hand<span class="inv-sort-ind"></span></th><th rowspan="2" class="num" title="On Hand × unit cost. Cost is the moving average from priced purchase receipts, or the Unit Cost entered on the item. — means no cost data yet.">Value (₱)</th><th rowspan="2" class="num" title="About how many days the current on-hand will last at your recent usage rate (from Usage OUT movements). Lower = reorder sooner. Click to sort." data-inv-sort="dus">Days Until Stockout<span class="inv-sort-ind"></span></th><th rowspan="2" class="num" title="Stock health at a glance: At Risk = runs out within 30 days · Watch = 30-60 days · Healthy = 60-210 days · Overstock = over 210 days · No data = not enough shipment history yet.">Status</th><th rowspan="2" class="num" title="Your buffer setting: how many months of average use to keep as a minimum (e.g. 0.33 = about 10 days). When on-hand falls below (ratio x 3-month average) the row shows a LOW flag.">Safety Stock Ratio</th><th colspan="2" class="inv-h-group">Shipment history</th><th rowspan="2" class="inv-act-col" aria-label="Actions"></th></tr><tr class="inv-h-bot"><th data-inv-sort="category" title="Click to sort">Category<span class="inv-sort-ind"></span></th><th data-inv-sort="subcategory" title="Click to sort">Sub-category<span class="inv-sort-ind"></span></th><th class="num" title="Average monthly stock-IN over the last 3 months (auto-summed from Usage deliveries). Drives Days Until Stockout when there is no recent usage.">Past Avg (3M)</th><th class="num" title="Average monthly stock-IN over the last 6 months.">Past Avg (6M)</th></tr></thead><tbody id="inv-tbody"></tbody></table><div class="inv-pager" id="inv-pager"></div><div class="inv-empty" id="inv-empty" hidden><div class="inv-empty-title">No items yet</div><div class="inv-empty-sub">Switch to <strong>Item Management</strong> in the left sidebar to register your first item.</div></div></div></div><div class="inv-pane" data-inv-pane="insights" hidden><div class="inv-pane-head"><div class="inv-pane-title">Inventory Highlights</div><div class="inv-pane-sub">Items grouped by stock status so the team can act on what matters first</div></div><div class="inv-hl-status-grid" id="inv-insights-kpis"></div><div class="inv-hl-section"><div class="inv-hl-section-head"><span class="inv-hl-dot is-warn"></span><span class="inv-hl-section-title">At Risk</span><span class="inv-hl-section-sub">Stockout within 30 days · review reorder priority</span></div><div class="inv-hl-card-grid" id="inv-insights-risk"></div></div><div class="inv-hl-section"><div class="inv-hl-section-head"><span class="inv-hl-dot is-over"></span><span class="inv-hl-section-title">Overstock</span><span class="inv-hl-section-sub">More than 210 days of cover · slow movers</span></div><div class="inv-hl-card-grid" id="inv-insights-top"></div></div></div><div class="inv-pane" data-inv-pane="usage" hidden><div id="inv-usage-pane"></div></div><div class="inv-pane" data-inv-pane="items" hidden><div class="inv-pane-head"><div class="inv-pane-title">Item Management</div><div class="inv-pane-sub">Add, edit, and remove items from the inventory catalog</div></div><div class="inv-toolbar"><div class="inv-search-wrap" style="max-width:480px"><svg class="inv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" id="inv-items-search" placeholder="Search by item code or name (any word)" /></div><div class="inv-actions"><button type="button" class="btn-add" id="inv-add" title="Add inventory item"><span class="plus">+</span>Add Item</button></div></div><div class="inv-table-wrap"><table class="inv-table inv-items-table"><thead><tr><th>Item Code</th><th>Item Name</th><th title="Material kind — sets units & extra fields: Generic (pcs) · Leather (sheets + sqft) · Liquid (kg/L) · Equipment (units).">Type</th><th>Category</th><th>Sub-category</th><th class="num" title="Current on-hand quantity. Click this cell to edit it directly.">On Hand</th><th class="num" title="Stock health at a glance: At Risk (under 30 days) / Watch / Healthy / Overstock / No data.">Status</th><th class="num" title="Buffer setting: months of average use to keep as a minimum. Below (ratio x 3-month average) flags the item as LOW.">Safety Stock Ratio</th><th class="inv-act-col"></th></tr></thead><tbody id="inv-items-tbody"></tbody></table><div class="inv-empty" id="inv-items-empty" hidden><div class="inv-empty-title">No items yet</div><div class="inv-empty-sub">Click <strong>+ Add Item</strong> to register the first inventory record.</div></div></div></div></div></div></section><section class="view" data-view="approvals"><div class="sec-head"><h1 class="title">Approval<em>.</em><span class="kr">Review · approve · reject all in-progress documents</span></h1><div class="meta"><span class="now" id="ap-pending-count">—</span><span>Clock · Dispatch · Overtime · Leave · Material</span></div></div><div class="ap-shell"><aside class="ap-sidenav"><div class="ap-sidenav-head">In-progress Documents</div><button type="button" class="ap-snav-btn is-active" data-ap-tab="all"><span class="ap-snav-label">All</span><span class="ap-snav-count" data-count-key="all">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="pending"><span class="ap-snav-label">Pending</span><span class="ap-snav-count is-accent" data-count-key="pending">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="progress"><span class="ap-snav-label">In Progress</span><span class="ap-snav-count" data-count-key="progress">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="confirm"><span class="ap-snav-label">Confirm</span><span class="ap-snav-count" data-count-key="confirm">0</span></button></aside><div class="ap-main"><div class="ap-main-toolbar"><span class="ap-main-tab-name" id="ap-main-tab-name">All</span><span class="ap-main-count" id="ap-main-count">—  items</span><span style="flex:1"></span><button type="button" id="ap-sort-toggle" title="Toggle date/time order" style="display:flex;align-items:center;gap:6px;padding:4px 10px;margin-right:10px;border:1px solid var(--card-border);border-radius:4px;background:#fff;font-size:12px;font-family:var(--sans);color:var(--ink-soft);cursor:pointer"></button><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);font-family:var(--sans)"><span>Category</span><select id="ap-cat-filter" style="padding:4px 8px;border:1px solid var(--card-border);border-radius:4px;background:#fff;font-size:12px;font-family:var(--sans);min-width:170px"></select></label></div><div class="ap-table-wrap"><table class="ap-doc-table"><thead><tr><th class="ap-c-num">Doc No.</th><th class="ap-c-title">Title</th><th class="ap-c-author">Requester</th><th class="ap-c-date">Filed Date</th><th class="ap-c-class">Type</th></tr></thead><tbody id="ap-doc-body"></tbody></table><div class="ap-empty" id="ap-empty" hidden>— No documents to show —</div></div></div></div></section><section class="view" data-view="exec"><div class="sec-head"><h1 class="title">Executive<em>.</em><span class="kr">Operational summary · KPIs · Reports</span></h1><div class="meta"><span class="now" id="exec-now">—</span><span>Admin · HR Chief / Deputy only</span></div></div><div class="exec-shell"><div class="exec-toolbar"><div class="exec-period-tabs" id="exec-period-tabs"><button type="button" class="exec-period-btn is-active" data-exec-period="today">Today</button><button type="button" class="exec-period-btn" data-exec-period="week">This Week</button><button type="button" class="exec-period-btn" data-exec-period="month">This Month</button><button type="button" class="exec-period-btn" data-exec-period="custom">Custom</button></div><div class="exec-custom-range" id="exec-custom-range" hidden><label class="dx-tool-field"><span class="dx-tool-field-label">From</span><input type="date" id="exec-range-from" /></label><label class="dx-tool-field"><span class="dx-tool-field-label">To</span><input type="date" id="exec-range-to" /></label><button type="button" class="ops-btn-add" id="exec-range-apply">Apply</button></div><span style="flex:1"></span><button type="button" class="ops-btn-add" id="exec-export-pdf">📄 Export PDF Report</button><button type="button" class="ops-btn-add" id="exec-export-csv">⬇ Export CSV</button></div><div class="exec-kpi-grid" id="exec-kpi-grid"></div><div class="exec-section-row"><div class="exec-section-card"><div class="exec-section-head">📊 Production Performance</div><div class="exec-section-body" id="exec-prod-body"></div></div><div class="exec-section-card"><div class="exec-section-head">🐄 Leather Yield by Market</div><div class="exec-section-body" id="exec-yield-body"></div></div></div><div class="exec-section-row"><div class="exec-section-card"><div class="exec-section-head">📦 PEZA Stock Status</div><div class="exec-section-body" id="exec-peza-body"></div></div><div class="exec-section-card"><div class="exec-section-head">👥 Attendance & Approvals</div><div class="exec-section-body" id="exec-people-body"></div></div></div><div class="exec-section-row"><div class="exec-section-card exec-full-width"><div class="exec-section-head">🏆 Top Performers (by yield)</div><div class="exec-section-body" id="exec-top-body"></div></div></div></div></section><section class="view" data-view="accounting"><div class="sec-head"><h1 class="title">Accounting<em>.</em><span class="kr">Finance · BIR Calendar · BIR Forms · Purchase Management</span></h1><div class="meta"><span class="now" id="acc-now">—</span><span>Admin · ACF Chief / Deputy only</span></div></div>
+             past days, switch to the 📋 Records tab. --></div><div class="meet-pane" data-veh-pane="today" hidden><div class="meet-pane-head">Today's Dispatches <span class="meet-pane-sub">Click a row to load and review</span></div><div class="ops-section-head" style="margin-top:28px"><span class="ops-section-title">📅 Today's Dispatches</span><span class="ops-section-hint" id="dx-today-date-hint">— · Click to review</span></div><div class="dx-grid-wrap"><table class="dx-grid"><thead><tr><th><br>Plate</th><th><br>Model</th><th><br>Driver</th><th><br>Dept</th><th><br>Passengers</th><th><br>Type</th><th><br>Destination</th><th><br>Start</th><th><br>End</th><th class="num"><br>Actual</th><th class="num"><br>km</th><th><br>Purpose</th><th><br>Status</th></tr></thead><tbody id="dx-today-body"></tbody></table></div></div><div class="meet-pane" data-veh-pane="records" hidden><div class="meet-pane-head">All Records <span class="meet-pane-sub">Filterable dispatch history · Click row to load into form</span></div><!-- Filter toolbar (date + search) --><div class="dx-toolbar"><span class="dx-tool-title">Dispatch History</span><span class="dx-tool-actions"><label class="dx-tool-label">Date<input type="date" id="dx-filter-date" /></label><input type="text" id="dx-filter-search" placeholder="🔍 Search (vehicle, driver, dest)" /><button type="button" class="dx-tool-btn" id="dx-tool-clear-filter">Clear filter</button></span></div><!-- Dispatch grid (list of all dispatches, click row to load into form) --><div class="dx-grid-wrap"><table class="dx-grid"><thead><tr><th><br>Plate</th><th><br>Model</th><th><br>Driver</th><th><br>Dept</th><th><br>Passengers</th><th><br>Type</th><th><br>Destination</th><th><br>Start</th><th><br>End</th><th class="num"><br>Actual</th><th class="num"><br>km</th><th><br>Purpose</th><th><br>Status</th></tr></thead><tbody id="dx-grid-body"></tbody></table></div></div><div class="meet-pane" data-veh-pane="reports" hidden><div class="meet-pane-head">Records Summary <span class="meet-pane-sub">Mileage &amp; repairs by vehicle / driver · managers only</span></div><div id="veh-reports-body"></div></div><div class="meet-pane" data-veh-pane="vehicles" hidden><div class="meet-pane-head">Manage Vehicles <span class="meet-pane-sub">Add · edit · remove vehicles in the fleet</span></div><div class="dx-toolbar"><span class="dx-tool-title">Fleet</span><span class="dx-tool-actions"><button type="button" class="dx-tool-btn dx-tool-btn-add" id="veh-mgmt-add-vehicle">+ Add Vehicle</button></span></div><div id="veh-mgmt-vehicle-list"></div></div><div class="meet-pane" data-veh-pane="drivers" hidden><div class="meet-pane-head">Manage Drivers <span class="meet-pane-sub">Add · edit · remove drivers</span></div><div class="dx-toolbar"><span class="dx-tool-title">Drivers</span><span class="dx-tool-actions"><button type="button" class="dx-tool-btn dx-tool-btn-add" id="veh-mgmt-add-driver">+ Add Driver</button></span></div><div id="veh-mgmt-driver-list"></div></div></div></div></section><section class="view" data-view="inventory"><div class="sec-head"><h1 class="title">Inventory<em>.</em><span class="kr">ML-based inventory management index</span></h1><div class="meta"><span class="now" id="inv-count">— items</span><a class="btn-ext-link" href="https://dogyu9489-commits.github.io/KSMSPORTS/materials.html" target="_blank" rel="noopener" title="KSM Materials (KSM 자재관리) — the barcode stock app, opens in a new tab">📦 KSM Materials (barcode app) ↗</a></div></div><div class="inv-shell-2"><aside class="inv-sidenav"><div class="inv-sidenav-brand"><span class="inv-sidenav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span><span class="inv-sidenav-name">Inventory<br><strong>System</strong></span></div><div class="inv-snav-section">Barcode</div><button type="button" class="inv-snav-btn is-active" data-inv-tab="barcode" title="Live, read-only stock from the barcode materials system + usage-based reorder forecast"><span class="bcs-snav-ico" aria-hidden="true">📦</span><span class="inv-snav-label">Barcode Stock</span></button><div class="inv-snav-section">Solutions</div><button type="button" class="inv-snav-btn" data-inv-tab="forecast"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg><span class="inv-snav-label">Demand Forecast</span></button><button type="button" class="inv-snav-btn" data-inv-tab="stock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg><span class="inv-snav-label">Inventory</span></button><button type="button" class="inv-snav-btn" data-inv-tab="insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6"/><path d="M10 22h4"/><path d="M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.4 1 2.3v1h6v-1c0-.9.4-1.8 1-2.3A7 7 0 0 0 12 2z"/></svg><span class="inv-snav-label">Insights</span></button><div class="inv-snav-section">Managing</div><button type="button" class="inv-snav-btn" data-inv-tab="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="inv-snav-label">Item Management</span></button><button type="button" class="inv-snav-btn" data-inv-tab="usage"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg><span class="inv-snav-label">Usage</span></button></aside><div class="inv-main"><div class="inv-pane" data-inv-pane="barcode"><div id="inv-bcs-pane"></div></div><div class="inv-pane" data-inv-pane="forecast" hidden><div class="inv-pane-head"><div class="inv-pane-title">Demand Forecast</div><div class="inv-pane-sub">Projected shipment volume for the next six months. Forecast combines linear trend with seasonal patterns when 12+ months of data are available.</div></div><div class="inv-fc-picker"><label class="inv-fc-picker-label" for="inv-fc-search">Item</label><div class="inv-fc-combo" id="inv-fc-combo"><input type="text" id="inv-fc-search" class="inv-fc-combo-input" placeholder="Search by code, name, category…" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="inv-fc-panel" /><button type="button" class="inv-fc-combo-clear" id="inv-fc-search-clear" title="Clear search" aria-label="Clear search">×</button><svg class="inv-fc-combo-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg><div class="inv-fc-combo-panel" id="inv-fc-panel" role="listbox" aria-label="Inventory items"></div></div><span class="inv-fc-picker-method" id="inv-fc-method">—</span></div><div class="inv-fc-stats" id="inv-fc-stats"></div><div class="inv-fc-chart-card"><div class="inv-fc-chart-head"><span class="inv-fc-chart-title">Shipment volume · past history + 6-month forecast</span><div class="inv-fc-legend"><span class="inv-fc-legend-item"><span class="inv-fc-legend-line is-past"></span>Past</span><span class="inv-fc-legend-item"><span class="inv-fc-legend-line is-future"></span>Forecast</span><span class="inv-fc-legend-item"><span class="inv-fc-legend-band"></span>Confidence band</span></div></div><div id="inv-fc-chart"></div></div><div class="inv-fc-factors-card"><div class="inv-fc-factors-head"><span class="inv-fc-factors-title">Influence factors</span><span class="inv-fc-factors-sub">What is driving this forecast, ranked by contribution</span></div><div id="inv-fc-factors"></div></div><div class="inv-fc-bulk-card"><div class="inv-fc-bulk-head"><span class="inv-fc-bulk-title">All items · next 3-month forecast total</span></div><div id="inv-fc-bulk"></div></div></div><div class="inv-pane" data-inv-pane="stock" hidden><div class="inv-pane-head"><div class="inv-pane-title">Inventory</div><div class="inv-pane-sub">Stock levels and shipment history for every item</div></div><div class="inv-toolbar"><div class="inv-month-wrap"><select id="inv-month" class="inv-month-select" aria-label="Month"></select><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-search-wrap"><svg class="inv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" id="inv-search" placeholder="Search code, name, category, sub-category (any word)" /></div><div class="inv-filter-wrap"><select id="inv-filter-type" class="inv-filter-select" aria-label="Filter by type"><option value="">All types</option><option value="generic">📦 Material</option><option value="leather">🐄 Leather</option><option value="liquid">🧪 Liquid</option><option value="equipment">🔧 Equipment</option></select><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-filter-wrap"><input type="text" id="inv-filter-category" class="inv-filter-select inv-filter-combo" placeholder="All categories" aria-label="Filter by category" autocomplete="off" name="inv_cat_no_autofill" role="combobox" aria-autocomplete="list" /><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><div class="inv-filter-wrap"><input type="text" id="inv-filter-subcategory" class="inv-filter-select inv-filter-combo" placeholder="All sub-categories" aria-label="Filter by sub-category" autocomplete="off" name="inv_sub_no_autofill" role="combobox" aria-autocomplete="list" /><svg class="inv-month-chev" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 5l3 3 3-3"/></svg></div><button type="button" class="inv-filter-clear" id="inv-filter-clear" title="Clear all filters">Clear</button><span class="inv-facview-toggle" style="display:inline-flex;border:1px solid var(--card-border);border-radius:6px;overflow:hidden;margin-left:4px" title="Stock view — Total: one company-wide On Hand column (default). By factory: adds Main / Annex columns from the per-factory store."><button type="button" data-inv-facview="total" style="padding:4px 12px;border:none;cursor:pointer;font-size:11px;background:#1E40AF;color:#fff">Total</button><button type="button" data-inv-facview="factory" style="padding:4px 12px;border:none;cursor:pointer;font-size:11px;background:#fff;color:var(--ink)">By factory</button></span><span style="flex:1"></span><span class="inv-result-hint" id="inv-result-hint">— items</span><button type="button" class="inv-download-btn" id="inv-download" title="Download Excel (.xlsx) — current filtered view"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Excel</span></button><button type="button" class="inv-download-btn" id="inv-download-csv" title="Download as CSV"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>CSV</span></button></div><div class="inv-charts"><div class="inv-chart-card"><div class="inv-chart-head"><span class="inv-chart-title">Shipment volume</span><span class="inv-chart-sub" id="inv-chart-ship-sub">Select an item to view its history</span></div><div class="inv-chart-body" id="inv-chart-ship"></div></div><div class="inv-chart-card"><div class="inv-chart-head"><span class="inv-chart-title">Ending Inventory</span><span class="inv-chart-sub" id="inv-chart-end-sub">Select an item to view its history</span></div><div class="inv-chart-body" id="inv-chart-end"></div></div></div><div class="inv-table-wrap"><table class="inv-table"><colgroup><col class="c-code"><col class="c-name"><col class="c-type"><col class="c-cat"><col class="c-sub"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-act"></colgroup><thead><tr class="inv-h-top"><th rowspan="2" data-inv-sort="code" title="Click to sort">Item Code<span class="inv-sort-ind"></span></th><th rowspan="2" data-inv-sort="name" title="Click to sort">Item Name<span class="inv-sort-ind"></span></th><th rowspan="2">Type</th><th colspan="2" class="inv-h-group">Item info</th><th rowspan="2" class="num" title="Current on-hand quantity. Updated by purchase QC receipts and material-request approvals. Click to sort." data-inv-sort="onhand">On Hand<span class="inv-sort-ind"></span></th><th rowspan="2" class="num" title="On Hand × unit cost. Cost is the moving average from priced purchase receipts, or the Unit Cost entered on the item. — means no cost data yet.">Value (₱)</th><th rowspan="2" class="num" title="About how many days the current on-hand will last at your recent usage rate (from Usage OUT movements). Lower = reorder sooner. Click to sort." data-inv-sort="dus">Days Until Stockout<span class="inv-sort-ind"></span></th><th rowspan="2" class="num" title="Stock health at a glance: At Risk = runs out within 30 days · Watch = 30-60 days · Healthy = 60-210 days · Overstock = over 210 days · No data = not enough shipment history yet.">Status</th><th rowspan="2" class="num" title="Your buffer setting: how many months of average use to keep as a minimum (e.g. 0.33 = about 10 days). When on-hand falls below (ratio x 3-month average) the row shows a LOW flag.">Safety Stock Ratio</th><th colspan="2" class="inv-h-group">Shipment history</th><th rowspan="2" class="inv-act-col" aria-label="Actions"></th></tr><tr class="inv-h-bot"><th data-inv-sort="category" title="Click to sort">Category<span class="inv-sort-ind"></span></th><th data-inv-sort="subcategory" title="Click to sort">Sub-category<span class="inv-sort-ind"></span></th><th class="num" title="Average monthly stock-IN over the last 3 months (auto-summed from Usage deliveries). Drives Days Until Stockout when there is no recent usage.">Past Avg (3M)</th><th class="num" title="Average monthly stock-IN over the last 6 months.">Past Avg (6M)</th></tr></thead><tbody id="inv-tbody"></tbody></table><div class="inv-pager" id="inv-pager"></div><div class="inv-empty" id="inv-empty" hidden><div class="inv-empty-title">No items yet</div><div class="inv-empty-sub">Switch to <strong>Item Management</strong> in the left sidebar to register your first item.</div></div></div></div><div class="inv-pane" data-inv-pane="insights" hidden><div class="inv-pane-head"><div class="inv-pane-title">Inventory Highlights</div><div class="inv-pane-sub">Items grouped by stock status so the team can act on what matters first</div></div><div class="inv-hl-status-grid" id="inv-insights-kpis"></div><div class="inv-hl-section"><div class="inv-hl-section-head"><span class="inv-hl-dot is-warn"></span><span class="inv-hl-section-title">At Risk</span><span class="inv-hl-section-sub">Stockout within 30 days · review reorder priority</span></div><div class="inv-hl-card-grid" id="inv-insights-risk"></div></div><div class="inv-hl-section"><div class="inv-hl-section-head"><span class="inv-hl-dot is-over"></span><span class="inv-hl-section-title">Overstock</span><span class="inv-hl-section-sub">More than 210 days of cover · slow movers</span></div><div class="inv-hl-card-grid" id="inv-insights-top"></div></div></div><div class="inv-pane" data-inv-pane="usage" hidden><div id="inv-usage-pane"></div></div><div class="inv-pane" data-inv-pane="items" hidden><div class="inv-pane-head"><div class="inv-pane-title">Item Management</div><div class="inv-pane-sub">Add, edit, and remove items from the inventory catalog</div></div><div class="inv-toolbar"><div class="inv-search-wrap" style="max-width:480px"><svg class="inv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" id="inv-items-search" placeholder="Search by item code or name (any word)" /></div><div class="inv-actions"><button type="button" class="btn-add" id="inv-add" title="Add inventory item"><span class="plus">+</span>Add Item</button></div></div><div class="inv-table-wrap"><table class="inv-table inv-items-table"><thead><tr><th>Item Code</th><th>Item Name</th><th title="Material kind — sets units & extra fields: Generic (pcs) · Leather (sheets + sqft) · Liquid (kg/L) · Equipment (units).">Type</th><th>Category</th><th>Sub-category</th><th class="num" title="Current on-hand quantity. Click this cell to edit it directly.">On Hand</th><th class="num" title="Stock health at a glance: At Risk (under 30 days) / Watch / Healthy / Overstock / No data.">Status</th><th class="num" title="Buffer setting: months of average use to keep as a minimum. Below (ratio x 3-month average) flags the item as LOW.">Safety Stock Ratio</th><th class="inv-act-col"></th></tr></thead><tbody id="inv-items-tbody"></tbody></table><div class="inv-empty" id="inv-items-empty" hidden><div class="inv-empty-title">No items yet</div><div class="inv-empty-sub">Click <strong>+ Add Item</strong> to register the first inventory record.</div></div></div></div></div></div></section><section class="view" data-view="approvals"><div class="sec-head"><h1 class="title">Approval<em>.</em><span class="kr">Review · approve · reject all in-progress documents</span></h1><div class="meta"><span class="now" id="ap-pending-count">—</span><span>Clock · Dispatch · Overtime · Leave · Material</span></div></div><div class="ap-shell"><aside class="ap-sidenav"><div class="ap-sidenav-head">In-progress Documents</div><button type="button" class="ap-snav-btn is-active" data-ap-tab="all"><span class="ap-snav-label">All</span><span class="ap-snav-count" data-count-key="all">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="pending"><span class="ap-snav-label">Pending</span><span class="ap-snav-count is-accent" data-count-key="pending">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="progress"><span class="ap-snav-label">In Progress</span><span class="ap-snav-count" data-count-key="progress">0</span></button><button type="button" class="ap-snav-btn" data-ap-tab="confirm"><span class="ap-snav-label">Confirm</span><span class="ap-snav-count" data-count-key="confirm">0</span></button></aside><div class="ap-main"><div class="ap-main-toolbar"><span class="ap-main-tab-name" id="ap-main-tab-name">All</span><span class="ap-main-count" id="ap-main-count">—  items</span><span style="flex:1"></span><button type="button" id="ap-sort-toggle" title="Toggle date/time order" style="display:flex;align-items:center;gap:6px;padding:4px 10px;margin-right:10px;border:1px solid var(--card-border);border-radius:4px;background:#fff;font-size:12px;font-family:var(--sans);color:var(--ink-soft);cursor:pointer"></button><label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);font-family:var(--sans)"><span>Category</span><select id="ap-cat-filter" style="padding:4px 8px;border:1px solid var(--card-border);border-radius:4px;background:#fff;font-size:12px;font-family:var(--sans);min-width:170px"></select></label></div><div class="ap-table-wrap"><table class="ap-doc-table"><thead><tr><th class="ap-c-num">Doc No.</th><th class="ap-c-title">Title</th><th class="ap-c-author">Requester</th><th class="ap-c-date">Filed Date</th><th class="ap-c-class">Type</th></tr></thead><tbody id="ap-doc-body"></tbody></table><div class="ap-empty" id="ap-empty" hidden>— No documents to show —</div></div></div></div></section><section class="view" data-view="exec"><div class="sec-head"><h1 class="title">Executive<em>.</em><span class="kr">Operational summary · KPIs · Reports</span></h1><div class="meta"><span class="now" id="exec-now">—</span><span>Admin · HR Chief / Deputy only</span></div></div><div class="exec-shell"><div class="exec-toolbar"><div class="exec-period-tabs" id="exec-period-tabs"><button type="button" class="exec-period-btn is-active" data-exec-period="today">Today</button><button type="button" class="exec-period-btn" data-exec-period="week">This Week</button><button type="button" class="exec-period-btn" data-exec-period="month">This Month</button><button type="button" class="exec-period-btn" data-exec-period="custom">Custom</button></div><div class="exec-custom-range" id="exec-custom-range" hidden><label class="dx-tool-field"><span class="dx-tool-field-label">From</span><input type="date" id="exec-range-from" /></label><label class="dx-tool-field"><span class="dx-tool-field-label">To</span><input type="date" id="exec-range-to" /></label><button type="button" class="ops-btn-add" id="exec-range-apply">Apply</button></div><span style="flex:1"></span><button type="button" class="ops-btn-add" id="exec-export-pdf">📄 Export PDF Report</button><button type="button" class="ops-btn-add" id="exec-export-csv">⬇ Export CSV</button></div><div class="exec-kpi-grid" id="exec-kpi-grid"></div><div class="exec-section-row"><div class="exec-section-card"><div class="exec-section-head">📊 Production Performance</div><div class="exec-section-body" id="exec-prod-body"></div></div><div class="exec-section-card"><div class="exec-section-head">🐄 Leather Yield by Market</div><div class="exec-section-body" id="exec-yield-body"></div></div></div><div class="exec-section-row"><div class="exec-section-card"><div class="exec-section-head">📦 PEZA Stock Status</div><div class="exec-section-body" id="exec-peza-body"></div></div><div class="exec-section-card"><div class="exec-section-head">👥 Attendance & Approvals</div><div class="exec-section-body" id="exec-people-body"></div></div></div><div class="exec-section-row"><div class="exec-section-card exec-full-width"><div class="exec-section-head">🏆 Top Performers (by yield)</div><div class="exec-section-body" id="exec-top-body"></div></div></div></div></section><section class="view" data-view="accounting"><div class="sec-head"><h1 class="title">Accounting<em>.</em><span class="kr">Finance · BIR Calendar · BIR Forms · Purchase Management</span></h1><div class="meta"><span class="now" id="acc-now">—</span><span>Admin · ACF Chief / Deputy only</span></div></div>
 
 <!-- Sub-tabs: BIR Calendar / BIR Forms / Purchase Management / Payroll Cross-Check / Bank Master -->
 <div class="ops-tabs2" id="acc-tabs2" style="margin:14px 0">
@@ -19784,7 +19914,7 @@ const state = { users:[], session:null };
         with the page open see the banner within ~3-5 seconds of
         the admin's first load of the new version.
 ============================================================ */
-const APP_VERSION = '2026.05.22.300';
+const APP_VERSION = '2026.05.22.301';
 
 /* ============================================================
    Supabase client (singleton)
@@ -21159,6 +21289,7 @@ async function logout(){
   stopPresence();
   if (typeof stopOpsRealtime === 'function') stopOpsRealtime();
   if (typeof stopLeatherRealtime === 'function') stopLeatherRealtime();   // Phase 29
+  try { if (typeof _bcsStop === 'function') _bcsStop(true); } catch(_){}   // v301 — Barcode Stock channel/poll + cached data
   try { _pwrStop(); } catch(_){}   // v299 — stop password-reset polling
   if (Sb){ try { await Sb.auth.signOut(); } catch(_){} }
   state.session = null;
@@ -55771,9 +55902,9 @@ function _invShortMonth(m){
 // Module state: which sub-pane is currently active. Persists between
 // view-switches (i.e. when the user navigates to Vehicle and back,
 // they return to the same Inventory sub-page they left). Defaults to
-// "stock" (the original main table), matching the active class on
-// the rendered sidenav button.
-let _invActiveTab = "stock";
+// "barcode" (v301 — 📦 Barcode Stock, the live barcode-system mirror),
+// matching the active class on the rendered sidenav button.
+let _invActiveTab = "barcode";
 let _invItemsSearch = "";
 
 function renderInventory(){
@@ -55783,17 +55914,32 @@ function renderInventory(){
   // averages / Days-Until-Stockout / Status turn on from logged deliveries
   // without any manual 12-month entry.
   if (typeof _invSyncAllMonthlyFromLedger === 'function') _invSyncAllMonthlyFromLedger();
-  // Counter in page header — always reflects the catalog size
-  const items = _invState();
-  const $count = document.getElementById("inv-count");
-  if ($count) $count.textContent = items.length + " item" + (items.length === 1 ? "" : "s");
+  // Counter in page header — intranet catalog size; on the 📦 Barcode Stock tab it shows the barcode item count (v301)
+  _invPaintHeaderCount();
   // Switch panes + render whichever one is now active
   _invSwitchTab(_invActiveTab);
+}
+
+/* v301 — page-header counter follows the active tab: the barcode catalog on 📦 Barcode Stock, the intranet catalog elsewhere. */
+function _invPaintHeaderCount(){
+  const $count = document.getElementById("inv-count");
+  if (!$count) return;
+  if (_invActiveTab === "barcode" && typeof _bcs !== "undefined"){
+    const d = _bcs.data, ok = d && (_bcs.mode === "data" || _bcs.mode === "empty");
+    const n = ok ? d.rows.length : null;
+    $count.textContent = n == null ? "— barcode items" : n + " barcode item" + (n === 1 ? "" : "s");
+    $count.title = "Active items in KSM Materials (the barcode app). Other tabs show the intranet catalog count.";
+    return;
+  }
+  const items = _invState();
+  $count.textContent = items.length + " item" + (items.length === 1 ? "" : "s");
+  $count.removeAttribute("title");
 }
 
 /* Show one pane, hide the others, and dispatch to its renderer. */
 function _invSwitchTab(tab){
   _invActiveTab = tab;
+  if (tab !== "barcode" && typeof _bcsStop === "function") _bcsStop();   // v301 — release realtime/poll of the Barcode Stock tab
   document.querySelectorAll('section.view[data-view="inventory"] .inv-snav-btn').forEach(b => {
     b.classList.toggle("is-active", b.dataset.invTab === tab);
   });
@@ -55813,7 +55959,847 @@ function _invSwitchTab(tab){
     _invRenderItemsPane();
   } else if (tab === "usage"){
     _invRenderUsagePane();
+  } else if (tab === "barcode"){
+    _bcsEnter();
   }
+  _invPaintHeaderCount();   // v301 — barcode count on the Barcode Stock tab, intranet count elsewhere
+}
+
+/* ================================================================
+   v301 — 📦 Barcode Stock tab (Inventory → first sub-tab)
+   ────────────────────────────────────────────────────────────────
+   READ-ONLY live mirror of the standalone "KSM 자재관리" barcode app
+   (materials.html, same Supabase project). The barcode app is the
+   source of truth: categories / items / quantities / info are created
+   and edited ONLY there. This tab never writes — it only SELECTs
+   mat_categories / mat_items / mat_lots / mat_lot_stock / mat_moves and
+   calls the viewer+ RPCs mat_forecast / mat_usage_series / mat_whoami
+   (RLS + mat_require('viewer') decide who may read; nothing here
+   weakens that). The existing intranet stock tabs (content.ops) are
+   untouched.
+   Live: while the tab is visible a realtime channel on mat_units +
+   mat_moves + mat_items + mat_categories triggers a debounced (1.5 s,
+   max wait 5 s during continuous scanning) refresh; a 60 s poll is the
+   fallback when realtime is not SUBSCRIBED.
+   Forecast windows always use the factory zone (Asia/Manila), never the
+   viewer's device zone, so Korea / Manila viewers see identical numbers.
+   Channel + timers are torn down when leaving the tab, the Inventory
+   page, or on logout (_bcsStop).
+   ================================================================ */
+const _BCS_URL = 'https://dogyu9489-commits.github.io/KSMSPORTS/materials.html';
+const _BCS_APP = 'KSM Materials';   // the barcode app's own English title (KO: KSM 자재관리) — one name in every link/message
+const _BCS_TZ = 'Asia/Manila';      // factory-local dates for every forecast window (same as the barcode app)
+const _BCS_RT_TABLES = ['mat_units','mat_moves','mat_items','mat_categories'];
+const _BCS_RANK = { order_now:0, order_soon:1, ok:2, overstock:3, no_usage:4, no_data:5 };
+const _BCS_STATUS = {
+  order_now:  { label:'Order now',  cls:'is-now',   tip:'Stock is at or below the reorder point, or runs out within the lead time — place an order today.' },
+  order_soon: { label:'Order soon', cls:'is-soon',  tip:'Runs out within lead time + 7 days — plan the order this week.' },
+  ok:         { label:'OK',         cls:'is-ok',    tip:'Enough stock for the lead time plus a buffer.' },
+  overstock:  { label:'Overstock',  cls:'is-over',  tip:'More cover than needed (over 90 days, or 3× lead + cover days).' },
+  no_usage:   { label:'No usage',   cls:'is-idle',  tip:'Nothing issued in the last 30 days — no stockout predicted.' },
+  no_data:    { label:'No data',    cls:'is-nodata',tip:'Nothing received yet for this item.' },
+};
+const _BCS_MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const _bcs = {
+  live:false, gen:0, ch:null, rtHealthy:false, rtStatus:'', pollTimer:null, debTimer:null,
+  pollMs:60000, debounceMs:1500, maxWaitMs:5000, staleMs:300000, kickFirstAt:0,
+  inflight:false, again:false,
+  mode:'loading',          // loading | setup | forbidden | error | empty | data
+  modeInfo:null,           // {msg, update}
+  data:null,               // {email, cats, catMap, items, itemMap, fc, rows}
+  lastOkAt:0, lastErr:null,
+  who:null,                // {email, role}
+  filt:{ cat:'', q:'', status:'' },
+  bound:false, built:false, docBound:false,
+  detailId:null, detailGen:0,
+};
+
+function _bcsTz(){ return _BCS_TZ; }   // pinned: the device zone would shift every window (Seoul ≠ Manila)
+function _bcsPad(n){ return (n < 10 ? '0' : '') + n; }
+function _bcsHm(ms){ const d = new Date(ms); return _bcsPad(d.getHours()) + ':' + _bcsPad(d.getMinutes()); }
+function _bcsTs(iso){
+  if (!iso) return '—';
+  const d = new Date(iso); if (isNaN(d.getTime())) return '—';
+  return d.getFullYear() + '-' + _bcsPad(d.getMonth()+1) + '-' + _bcsPad(d.getDate()) + ' ' + _bcsPad(d.getHours()) + ':' + _bcsPad(d.getMinutes());
+}
+/* 'YYYY-MM-DD' → 'Oct 18' (+ ', 2027' when the year differs from refYear). No Date() → no TZ shift. */
+function _bcsDay(s, refYear){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ''));
+  if (!m) return '—';
+  return _BCS_MON[+m[2]-1] + ' ' + (+m[3]) + ((refYear && m[1] !== String(refYear)) ? ', ' + m[1] : '');
+}
+function _bcsNum(n, d){
+  if (n == null || n === '' || !isFinite(+n)) return '—';
+  return (+n).toLocaleString('en-US', { maximumFractionDigits: (d == null ? 1 : d) });
+}
+function _bcsIsNum(n){ return n != null && n !== '' && isFinite(+n); }
+function _bcsUnitWord(cat, n){
+  const en = cat && cat.unit_label_en;
+  const w = String(en || (cat && cat.unit_label) || 'unit');
+  if (!en || Math.abs(+n) === 1 || !/[a-z]$/i.test(w)) return w;
+  if (/(s|x|z|ch|sh)$/i.test(w)) return w + 'es';
+  if (/[^aeiou]y$/i.test(w)) return w.slice(0, -1) + 'ies';
+  return w + 's';
+}
+function _bcsUnits(cat, n, d){ return _bcsNum(n, d == null ? 0 : d) + ' ' + _bcsUnitWord(cat, n); }
+function _bcsAmt(f, n, d){ return _bcsNum(n, d == null ? 2 : d) + (f && f.measure_uom ? ' ' + f.measure_uom : ''); }   // 2 dp = the app's UI.fmtAmount
+/* stock amount text; units received without an amount are named instead of silently adding "0 sqft" */
+function _bcsStockAmt(f, cat){
+  if (!f || !f.measure_uom || !_bcsIsNum(f.in_amount)) return '';
+  const unm = +f.in_unmeasured || 0, n = +f.in_count || 0;
+  if (unm > 0 && unm >= n) return `${_bcsUnits(cat, unm)} without ${f.measure_uom}`;
+  return _bcsAmt(f, f.in_amount) + (unm > 0 ? ` + ${_bcsUnits(cat, unm)} without ${f.measure_uom}` : '');
+}
+/* amount for the suggested order: when MOQ raised the count, the amount of THAT order (count × avg per unit) */
+function _bcsSugAmt(f){
+  if (f.basis !== 'amount') return null;
+  if (f.moq_applied === true && _bcsIsNum(f.avg_unit_amount) && +f.avg_unit_amount > 0) return Math.round(+f.suggest_count * +f.avg_unit_amount * 10) / 10;
+  return _bcsIsNum(f.suggest_amount) ? +f.suggest_amount : null;
+}
+/* quantity in the row's forecast basis (amount → uom, count → unit word) */
+function _bcsBasisQty(f, cat, n, d){
+  if (!_bcsIsNum(n)) return '—';
+  return f.basis === 'amount' ? _bcsAmt(f, n, d) : _bcsUnits(cat, n, d == null ? 1 : d);
+}
+function _bcsCatName(cat, code){
+  if (!cat) return code || '—';
+  return cat.name_en && cat.name_en !== cat.name ? cat.name + ' · ' + cat.name_en : (cat.name || cat.code);
+}
+function _bcsErrKind(e){
+  if (!e) return null;
+  const code = String(e.code || '');
+  const msg = String(e.message || e || '');
+  if (/MAT_FORBIDDEN/.test(msg) || code === '42501' || /permission denied/i.test(msg)) return 'forbidden';
+  if (code === 'PGRST202' || code === 'PGRST205' || code === '42883' || code === '42P01'
+      || /Could not find the (function|table)/i.test(msg) || /does not exist/i.test(msg)) return 'setup';
+  return 'network';
+}
+function _bcsErrText(e){
+  if (!e) return '';
+  return String((e.code ? e.code + ': ' : '') + (e.message || e)).slice(0, 240);
+}
+
+/* Is the tab actually on screen for a signed-in user? */
+function _bcsShouldBeLive(){
+  if (!Sb || !state.session) return false;
+  if (typeof _invActiveTab === 'undefined' || _invActiveTab !== 'barcode') return false;
+  const sec = document.querySelector('section.view[data-view="inventory"]');
+  return !!(sec && sec.classList.contains('active'));
+}
+
+/* Entry point — called from _invSwitchTab('barcode') (and therefore on
+   every renderInventory()). Idempotent: when already live it only
+   repaints from cache, never re-subscribes. */
+function _bcsEnter(){
+  _bcsBuild();
+  if (state.session && _bcs.data && _bcs.data.email !== String(state.session.email || '').toLowerCase()){
+    _bcs.data = null; _bcs.who = null; _bcs.mode = 'loading'; _bcs.lastOkAt = 0;
+  }
+  if (!_bcsShouldBeLive()){ _bcsPaint(); return; }   // rendered off-screen (global refresh) → no live resources
+  if (_bcs.live){ _bcsPaint(); return; }
+  _bcs.live = true;
+  _bcs.gen++;
+  if (!_bcs.data) _bcs.mode = 'loading';
+  _bcsPaint();
+  _bcsRefresh();
+  _bcsStartRealtime();
+  _bcsStartPoll();
+}
+
+function _bcsStop(clearData){
+  _bcs.live = false;
+  _bcs.gen++;
+  if (_bcs.ch && Sb){ try { Sb.removeChannel(_bcs.ch); } catch(_){} }
+  _bcs.ch = null; _bcs.rtHealthy = false; _bcs.rtStatus = '';
+  if (_bcs.pollTimer){ clearInterval(_bcs.pollTimer); _bcs.pollTimer = null; }
+  if (_bcs.debTimer){ clearTimeout(_bcs.debTimer); _bcs.debTimer = null; }
+  _bcs.kickFirstAt = 0;
+  _bcs.again = false;
+  _bcsCloseDetail();
+  if (clearData){
+    _bcs.data = null; _bcs.who = null; _bcs.mode = 'loading'; _bcs.modeInfo = null;
+    _bcs.lastOkAt = 0; _bcs.lastErr = null;
+    const root = document.getElementById('inv-bcs-pane');
+    if (root){ root.innerHTML = ''; _bcs.built = false; }   // listeners stay on the persistent root (_bcs.bound)
+  }
+}
+
+function _bcsStartRealtime(){
+  if (!Sb || typeof Sb.channel !== 'function') return;
+  try {
+    const ch = Sb.channel('inv-bcs-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7));
+    _BCS_RT_TABLES.forEach(t => {
+      ch.on('postgres_changes', { event:'*', schema:'public', table:t }, () => _bcsKick());
+    });
+    _bcs.ch = ch;
+    ch.subscribe(status => {
+      if (_bcs.ch !== ch) return;             // a stale channel reporting after teardown
+      const was = _bcs.rtHealthy;
+      _bcs.rtStatus = String(status || '');
+      _bcs.rtHealthy = status === 'SUBSCRIBED';
+      _bcsPaintLive();
+      // came (back) online → catch anything missed while disconnected
+      if (_bcs.rtHealthy && !was && _bcs.lastOkAt && Date.now() - _bcs.lastOkAt > 5000) _bcsKick();
+    });
+  } catch(e){
+    console.warn('[barcode stock] realtime unavailable — polling only', e);
+    _bcs.ch = null; _bcs.rtHealthy = false;
+  }
+}
+function _bcsStartPoll(){
+  if (_bcs.pollTimer) clearInterval(_bcs.pollTimer);
+  _bcs.pollTimer = setInterval(_bcsPollTick, _bcs.pollMs);
+}
+function _bcsPollTick(){
+  if (!_bcsShouldBeLive()){ _bcsStop(); return; }   // left the page some other way → no leak
+  if (document.hidden) return;
+  if (!_bcs.rtHealthy || !_bcs.lastOkAt || Date.now() - _bcs.lastOkAt >= _bcs.staleMs) _bcsRefresh();
+}
+function _bcsKick(){
+  if (!_bcs.live) return;
+  if (!_bcsShouldBeLive()){ _bcsStop(); return; }
+  const now = Date.now();
+  if (!_bcs.debTimer) _bcs.kickFirstAt = now;
+  if (_bcs.debTimer) clearTimeout(_bcs.debTimer);
+  // trailing debounce, but never wait more than maxWaitMs after the first queued event (continuous bulk scanning)
+  const wait = Math.max(0, Math.min(_bcs.debounceMs, _bcs.kickFirstAt + _bcs.maxWaitMs - now));
+  _bcs.debTimer = setTimeout(() => { _bcs.debTimer = null; _bcs.kickFirstAt = 0; _bcsRefresh(); }, wait);
+}
+
+async function _bcsWho(){
+  const email = String(state.session && state.session.email || '').toLowerCase();
+  if (_bcs.who && _bcs.who.email === email) return _bcs.who.role;
+  try {
+    const r = await Sb.rpc('mat_whoami');
+    if (r.error) return null;
+    const role = (r.data && r.data.role) || 'none';
+    _bcs.who = { email, role };
+    return role;
+  } catch(_){ return null; }
+}
+
+async function _bcsRefresh(){
+  if (!_bcs.live || !Sb) return;
+  if (_bcs.inflight){ _bcs.again = true; return; }
+  _bcs.inflight = true;
+  const gen = _bcs.gen;
+  const email = String(state.session && state.session.email || '').toLowerCase();
+  try {
+    const tz = _bcsTz();
+    const [c, i, f] = await Promise.all([
+      Sb.from('mat_categories').select('*').order('sort', { ascending:true }).order('code', { ascending:true }),
+      Sb.from('mat_items').select('*').eq('active', true).order('name', { ascending:true }).limit(5000),
+      Sb.rpc('mat_forecast', { p:{ tz } }),
+    ]);
+    if (gen !== _bcs.gen) return;
+    const kc = _bcsErrKind(c.error), ki = _bcsErrKind(i.error), kf = _bcsErrKind(f.error);
+    const firstErr = c.error || i.error || f.error;
+    if (kc === 'setup' || ki === 'setup'){
+      _bcsSetMode('setup', { update:false, msg:_bcsErrText(c.error || i.error) });
+    } else if (kc === 'forbidden' || ki === 'forbidden' || kf === 'forbidden'){
+      _bcsSetMode('forbidden', { msg:_bcsErrText(firstErr) });
+    } else if (kf === 'setup'){
+      // tables exist but the forecast RPC is missing → old SQL; tell no-access apart first
+      const noRows = !(c.data || []).length && !(i.data || []).length;
+      const role = noRows ? await _bcsWho() : null;
+      if (gen !== _bcs.gen) return;
+      if (role === 'none') _bcsSetMode('forbidden', { msg:'' });
+      else _bcsSetMode('setup', { update:true, msg:_bcsErrText(f.error) });
+    } else if (firstErr){
+      _bcs.lastErr = firstErr;
+      if (_bcs.data && (_bcs.mode === 'data' || _bcs.mode === 'empty')){ _bcsPaintLive(); }   // keep last good data, flag stale
+      else _bcsSetMode('error', { msg:_bcsErrText(firstErr) });
+    } else {
+      const cats = c.data || [], items = i.data || [];
+      const fc = f.data || {};
+      const catMap = {}; cats.forEach(x => { catMap[x.code] = x; });
+      const itemMap = {}; items.forEach(x => { itemMap[String(x.id)] = x; });
+      const rows = (Array.isArray(fc.items) ? fc.items : []).map(r => ({
+        f: r, it: itemMap[String(r.item_id)] || null, cat: catMap[r.category] || null,
+      }));
+      _bcs.data = { email, cats, catMap, items, itemMap, fc, rows };
+      _bcs.lastOkAt = Date.now(); _bcs.lastErr = null;
+      let mode = rows.length ? 'data' : 'empty';
+      if (!rows.length && !items.length){
+        const role = await _bcsWho();     // empty because RLS hides it?
+        if (gen !== _bcs.gen) return;
+        if (role === 'none') mode = 'forbidden';
+      }
+      _bcsSetMode(mode, null);
+      if (_bcs.detailId != null) _bcsRenderDetail(true);
+    }
+  } catch(e){
+    if (gen !== _bcs.gen) return;
+    _bcs.lastErr = e;
+    if (_bcs.data && (_bcs.mode === 'data' || _bcs.mode === 'empty')) _bcsPaintLive();
+    else _bcsSetMode('error', { msg:_bcsErrText(e) });
+  } finally {
+    _bcs.inflight = false;
+    if (_bcs.again && _bcs.live){ _bcs.again = false; _bcsRefresh(); }
+  }
+}
+
+function _bcsSetMode(mode, info){
+  _bcs.mode = mode; _bcs.modeInfo = info || null;
+  if (mode !== 'data' && mode !== 'empty') _bcs.data = mode === 'error' ? _bcs.data : null;
+  _bcsPaint();
+}
+
+/* ---------- rendering ---------- */
+function _bcsBuild(){
+  const root = document.getElementById('inv-bcs-pane');
+  if (!root || _bcs.built) return;
+  root.innerHTML = `
+    <div class="inv-pane-head bcs-head">
+      <div>
+        <div class="inv-pane-title">📦 Barcode Stock</div>
+        <div class="inv-pane-sub">Live, read-only view of the KSM Materials barcode app — categories, items and quantities are created and edited only there. Forecast &amp; reorder suggestions are based on actual usage history (issues minus returns), on Manila dates.</div>
+      </div>
+      <div class="bcs-head-act">
+        <span class="bcs-live" id="bcs-live" aria-live="polite"></span>
+        <a class="bcs-open" href="${esc(_BCS_URL)}" target="_blank" rel="noopener">Open ${esc(_BCS_APP)} ↗</a>
+      </div>
+    </div>
+    <div id="bcs-body"></div>`;
+  _bcs.built = true; _bcs.bodyMode = '';
+  if (!_bcs.bound){
+    _bcs.bound = true;
+    root.addEventListener('click', _bcsOnClick);
+    root.addEventListener('keydown', e => {
+      const tr = e.target && e.target.closest && e.target.closest('tr[data-bcs-row]');
+      if (tr && (e.key === 'Enter' || e.key === ' ')){ e.preventDefault(); _bcsOpenDetail(tr.getAttribute('data-bcs-row')); }
+    });
+    root.addEventListener('input', e => {
+      if (e.target && e.target.id === 'bcs-q'){ _bcs.filt.q = e.target.value; _bcsPaintData(); }
+    });
+    root.addEventListener('change', e => {
+      if (e.target && e.target.id === 'bcs-status'){ _bcs.filt.status = e.target.value; _bcsPaintData(); }
+    });
+  }
+  if (!_bcs.docBound){
+    _bcs.docBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden && _bcs.live && (!_bcs.lastOkAt || Date.now() - _bcs.lastOkAt > _bcs.pollMs)) _bcsKick();
+    });
+  }
+}
+
+function _bcsOnClick(e){
+  const t = e.target;
+  if (!t || !t.closest) return;
+  const retry = t.closest('[data-bcs-retry]');
+  if (retry){ e.preventDefault(); if (!_bcs.live) _bcsEnter(); else { if (_bcs.mode === 'error') { _bcs.mode = 'loading'; _bcsPaint(); } _bcsRefresh(); } return; }
+  const chip = t.closest('[data-bcs-cat]');
+  if (chip){ _bcs.filt.cat = chip.getAttribute('data-bcs-cat') || ''; _bcsPaintData(); return; }
+  const kpi = t.closest('[data-bcs-kpi]');
+  if (kpi){
+    const v = kpi.getAttribute('data-bcs-kpi') || '';
+    _bcs.filt.status = (_bcs.filt.status === v) ? '' : v;
+    const sel = document.getElementById('bcs-status'); if (sel) sel.value = _bcs.filt.status;
+    _bcsPaintData(); return;
+  }
+  const tr = t.closest('tr[data-bcs-row]');
+  if (tr && !t.closest('a')){ _bcsOpenDetail(tr.getAttribute('data-bcs-row')); }
+}
+
+function _bcsPaintLive(){
+  const el = document.getElementById('bcs-live');
+  if (!el) return;
+  const at = _bcs.lastOkAt ? _bcsHm(_bcs.lastOkAt) : '';
+  if (_bcs.lastErr && _bcs.lastOkAt){
+    el.className = 'bcs-live is-err';
+    el.innerHTML = `<span class="bcs-dot"></span>Couldn't refresh · last updated ${esc(at)} <button type="button" class="bcs-linkbtn" data-bcs-retry="1">Retry</button>`;
+    el.title = _bcsErrText(_bcs.lastErr);
+  } else if (!_bcs.lastOkAt){
+    el.className = 'bcs-live is-wait';
+    el.innerHTML = `<span class="bcs-dot"></span>${_bcs.live ? 'Connecting…' : 'Paused'}`;
+    el.title = '';
+  } else if (_bcs.rtHealthy){
+    el.className = 'bcs-live is-live';
+    el.innerHTML = `<span class="bcs-dot"></span>Live · updated ${esc(at)}`;
+    el.title = 'Realtime: changes made in ' + _BCS_APP + ' appear here within a few seconds.';
+  } else {
+    el.className = 'bcs-live is-poll';
+    el.innerHTML = `<span class="bcs-dot"></span>Live · updated ${esc(at)}`;
+    el.title = 'Realtime connection unavailable — refreshing every ' + Math.round(_bcs.pollMs / 1000) + ' s instead.';
+  }
+}
+
+function _bcsStateBox(icon, title, sub, actions){
+  return `<div class="bcs-state"><div class="bcs-state-ico">${icon}</div><div class="bcs-state-title">${title}</div>${sub ? `<div class="bcs-state-sub">${sub}</div>` : ''}${actions ? `<div class="bcs-state-act">${actions}</div>` : ''}</div>`;
+}
+
+function _bcsPaint(){
+  const body = document.getElementById('bcs-body');
+  _bcsPaintLive();
+  if (_invActiveTab === 'barcode') _invPaintHeaderCount();
+  if (!body) return;
+  const mode = _bcs.mode;
+  const info = _bcs.modeInfo || {};
+  const openBtn = `<a class="bcs-open" href="${esc(_BCS_URL)}" target="_blank" rel="noopener">Open ${esc(_BCS_APP)} ↗</a>`;
+  if (mode === 'data'){
+    if (_bcs.bodyMode !== 'data'){
+      body.innerHTML = `
+        <div class="bcs-kpis" id="bcs-kpis"></div>
+        <div class="bcs-toolbar">
+          <div class="bcs-chips" id="bcs-chips" role="toolbar" aria-label="Category"></div>
+          <div class="bcs-tool-row">
+            <div class="inv-search-wrap bcs-search"><svg class="inv-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg><input type="text" id="bcs-q" placeholder="Search item, SKU, supplier, spec…" autocomplete="off" aria-label="Search barcode stock" /></div>
+            <div class="inv-filter-wrap"><select id="bcs-status" class="inv-filter-select" aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="order_now">Order now</option>
+              <option value="order_soon">Order soon</option>
+              <option value="stockout14">Stockout ≤ 14 days</option>
+              <option value="ok">OK</option>
+              <option value="overstock">Overstock</option>
+              <option value="no_usage">No usage</option>
+              <option value="no_data">No data</option>
+            </select></div>
+            <span style="flex:1"></span>
+            <span class="inv-result-hint" id="bcs-hint"></span>
+          </div>
+        </div>
+        <div class="inv-table-wrap bcs-table-wrap"><table class="inv-table bcs-table">
+          <thead><tr>
+            <th>Category</th><th>Item</th>
+            <th class="num" title="Barcode units currently in stock (+ remaining measure).">In stock</th>
+            <th class="num" title="Safety stock (minimum units) set on the item in KSM Materials.">Min</th>
+            <th class="num" title="Average daily usage over the last 30 days (issues minus returns), in the forecast basis.">Daily use<span class="bcs-th-sub"> /day</span></th>
+            <th class="num" title="Net usage in the last 30 days and the change vs the previous 30 days.">30-day use</th>
+            <th class="num" title="How many days the current stock lasts at the daily usage rate.">Days of cover</th>
+            <th class="num" title="Estimated date the stock runs out at the current usage rate.">Stockout</th>
+            <th class="num" title="Order when stock falls to this level: daily use × lead days + safety stock.">Reorder point</th>
+            <th class="num" title="Quantity to order when you place the next order: lead time + cover days of use plus safety stock, minus current stock (raised to the minimum order quantity). Greyed out while no order is needed yet.">Next order qty</th>
+            <th class="num" title="Supplier lead time in days (item setting, or the KSM Materials default).">Lead</th>
+            <th>Status</th>
+          </tr></thead>
+          <tbody id="bcs-tbody"></tbody>
+        </table><div class="inv-empty" id="bcs-nomatch" hidden><div class="inv-empty-title">No matching items</div><div class="inv-empty-sub">Try another category, search or status.</div></div></div>
+        <div class="bcs-foot" id="bcs-foot"></div>`;
+      _bcs.bodyMode = 'data';
+      const q = document.getElementById('bcs-q'); if (q) q.value = _bcs.filt.q;
+      const s = document.getElementById('bcs-status'); if (s) s.value = _bcs.filt.status;
+    }
+    _bcsPaintData();
+    return;
+  }
+  _bcs.bodyMode = mode;
+  if (mode === 'loading'){
+    body.innerHTML = _bcsStateBox('<span class="bcs-spin" aria-hidden="true"></span>', 'Loading Barcode Stock…', '', '');
+  } else if (mode === 'setup'){
+    body.innerHTML = _bcsStateBox('🛠', 'Barcode system not set up',
+      info.update
+        ? 'The barcode database is missing the forecast functions. Ask the owner to re-run the latest <code>ksm-sql/materials-setup.sql</code> in the Supabase SQL editor.'
+        : 'The barcode materials tables were not found in this database. Ask the owner to run <code>ksm-sql/materials-setup.sql</code> once in the Supabase SQL editor.',
+      `${openBtn}<button type="button" class="bcs-btn" data-bcs-retry="1">Retry</button>` + (info.msg ? `<div class="bcs-state-err">${esc(info.msg)}</div>` : ''));
+  } else if (mode === 'forbidden'){
+    body.innerHTML = _bcsStateBox('🔒', 'No access',
+      'No access — ask the owner to give you Viewer access in KSM Materials → Settings → User access.',
+      `<button type="button" class="bcs-btn" data-bcs-retry="1">Retry</button>`);
+  } else if (mode === 'error'){
+    body.innerHTML = _bcsStateBox('⚠️', "Couldn't load Barcode Stock",
+      'Check your connection and try again.',
+      `<button type="button" class="bcs-btn is-primary" data-bcs-retry="1">Retry</button>` + (info.msg ? `<div class="bcs-state-err">${esc(info.msg)}</div>` : ''));
+  } else if (mode === 'empty'){
+    body.innerHTML = _bcsStateBox('📦', 'No barcode items yet',
+      'Categories, items and stock are created in ' + _BCS_APP + ' (the barcode app) and appear here automatically.',
+      `<a class="bcs-open is-primary" href="${esc(_BCS_URL)}" target="_blank" rel="noopener">Create categories and items in ${esc(_BCS_APP)} ↗</a>`);
+  }
+}
+
+function _bcsSortRows(rows){
+  return rows.slice().sort((a, b) => {
+    const ra = _BCS_RANK[a.f.status] != null ? _BCS_RANK[a.f.status] : 9;
+    const rb = _BCS_RANK[b.f.status] != null ? _BCS_RANK[b.f.status] : 9;
+    if (ra !== rb) return ra - rb;
+    const da = _bcsIsNum(a.f.days_cover) ? +a.f.days_cover : Infinity;
+    const db = _bcsIsNum(b.f.days_cover) ? +b.f.days_cover : Infinity;
+    if (da !== db) return da - db;
+    const sa = a.cat ? (+a.cat.sort || 0) : 0, sb = b.cat ? (+b.cat.sort || 0) : 0;
+    if (sa !== sb) return sa - sb;
+    const ca = String(a.f.category || ''), cb = String(b.f.category || '');
+    if (ca !== cb) return ca < cb ? -1 : 1;
+    const na = String(a.it && a.it.name || '').toLowerCase(), nb = String(b.it && b.it.name || '').toLowerCase();
+    if (na !== nb) return na < nb ? -1 : 1;
+    return (+a.f.item_id || 0) - (+b.f.item_id || 0);
+  });
+}
+/* same rule as the barcode app: stockout_on ≤ as_of + 14 (pure Y-M-D math, no local-TZ Date) */
+function _bcsAddDays(ymd, n){
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(ymd || ''));
+  if (!m) return '';
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + n));
+  return d.getUTCFullYear() + '-' + _bcsPad(d.getUTCMonth() + 1) + '-' + _bcsPad(d.getUTCDate());
+}
+function _bcsStockout14(f, asOf){
+  if (!f.stockout_on || !asOf) return false;
+  return String(f.stockout_on).slice(0, 10) <= _bcsAddDays(asOf, 14);
+}
+function _bcsMatches(r, q){
+  if (!q) return true;
+  const it = r.it || {}, cat = r.cat || {};
+  const spec = it.spec && typeof it.spec === 'object' ? Object.keys(it.spec).map(k => it.spec[k]).join(' ') : '';
+  const hay = [it.name, it.sku, it.supplier, it.location, it.memo, r.f.category, cat.name, cat.name_en, spec].join(' ').toLowerCase();
+  return q.split(/\s+/).filter(Boolean).every(w => hay.indexOf(w) >= 0);
+}
+
+function _bcsPaintData(){
+  const d = _bcs.data;
+  if (!d || _bcs.bodyMode !== 'data') return;
+  const all = d.rows;
+  // KPIs (all active items, independent of filters)
+  const cnt = { order_now:0, order_soon:0, overstock:0, stockout14:0 };
+  const catSet = {};
+  all.forEach(r => {
+    catSet[r.f.category] = 1;
+    if (cnt[r.f.status] != null) cnt[r.f.status]++;
+    if (_bcsStockout14(r.f, d.fc.as_of)) cnt.stockout14++;
+  });
+  const kp = (key, label, val, cls, tip) => `<button type="button" class="bcs-kpi ${cls}${key && _bcs.filt.status === key ? ' is-on' : ''}" ${key ? `data-bcs-kpi="${esc(key)}"` : 'disabled'} title="${esc(tip)}"><span class="bcs-kpi-val">${esc(_bcsNum(val, 0))}</span><span class="bcs-kpi-lbl">${esc(label)}</span></button>`;
+  const $k = document.getElementById('bcs-kpis');
+  if ($k) $k.innerHTML =
+    kp('', 'Items', all.length, 'is-plain', 'Active items in ' + _BCS_APP) +
+    kp('', 'Categories', Object.keys(catSet).length, 'is-plain', 'Material categories with active items (stock per item is in the table — hides, cones and rolls are not added together)') +
+    kp('order_now', 'Order now', cnt.order_now, 'is-now', 'Click to filter') +
+    kp('order_soon', 'Order soon', cnt.order_soon, 'is-soon', 'Click to filter') +
+    kp('stockout14', 'Stockout ≤ 14 days', cnt.stockout14, 'is-risk', 'Click to filter — items predicted to run out within 14 days') +
+    kp('overstock', 'Overstock', cnt.overstock, 'is-over', 'Click to filter');
+  // Category chips (mat_categories, KO + EN) with counts
+  const byCat = {}; all.forEach(r => { byCat[r.f.category] = (byCat[r.f.category] || 0) + 1; });
+  if (_bcs.filt.cat && !d.catMap[_bcs.filt.cat] && !byCat[_bcs.filt.cat]) _bcs.filt.cat = '';
+  const chips = [`<button type="button" class="bcs-chip${!_bcs.filt.cat ? ' is-on' : ''}" data-bcs-cat="">All <span class="bcs-chip-n">${esc(String(all.length))}</span></button>`];
+  d.cats.filter(c => c.active !== false || byCat[c.code]).forEach(c => {
+    chips.push(`<button type="button" class="bcs-chip${_bcs.filt.cat === c.code ? ' is-on' : ''}" data-bcs-cat="${esc(c.code)}" title="${esc(c.code)}"><span class="bcs-chip-code">${esc(c.code)}</span>${esc(c.name || '')}${c.name_en ? ` <span class="bcs-chip-en">${esc(c.name_en)}</span>` : ''} <span class="bcs-chip-n">${esc(String(byCat[c.code] || 0))}</span></button>`);
+  });
+  const $c = document.getElementById('bcs-chips'); if ($c) $c.innerHTML = chips.join('');
+  // Filter + sort (urgency)
+  const q = String(_bcs.filt.q || '').toLowerCase().trim();
+  const st = _bcs.filt.status;
+  const rows = _bcsSortRows(all.filter(r =>
+    (!_bcs.filt.cat || r.f.category === _bcs.filt.cat) &&
+    (!st || (st === 'stockout14' ? _bcsStockout14(r.f, d.fc.as_of) : r.f.status === st)) &&
+    _bcsMatches(r, q)));
+  const asOfY = String(d.fc.as_of || '').slice(0, 4);
+  const html = rows.map(r => {
+    const f = r.f, it = r.it || {}, cat = r.cat;
+    const s = _BCS_STATUS[f.status] || { label:String(f.status || '—'), cls:'is-idle', tip:'' };
+    const amtTxt = _bcsStockAmt(f, cat);
+    const amt = amtTxt ? `<div class="bcs-sub"${(+f.in_unmeasured || 0) > 0 ? ` data-bcs-unmeasured="1" title="${esc('Some units have no ' + f.measure_uom + ' recorded, so this item is forecast by count.')}"` : ''}>${esc(amtTxt)}</div>` : '';
+    const daily = f.basis === 'amount' ? f.daily_amount : f.daily_count;
+    const use30 = f.basis === 'amount' ? f.use30_amount : f.use30_count;
+    let trend = '';
+    if (_bcsIsNum(f.trend_pct)){
+      const tp = +f.trend_pct;
+      trend = `<div class="bcs-sub ${tp > 0 ? 'bcs-up' : (tp < 0 ? 'bcs-down' : '')}" title="vs previous 30 days">${tp > 0 ? '▲' : (tp < 0 ? '▼' : '■')} ${esc(_bcsNum(Math.abs(tp), 0))}%</div>`;
+    }
+    let sug = '—';
+    if ((+f.suggest_count || 0) > 0 || (+f.suggest_amount || 0) > 0){
+      const later = f.status !== 'order_now' && f.status !== 'order_soon';
+      const sAmt = _bcsSugAmt(f);
+      const tip = later ? 'No need to order yet — this is the quantity for the next order.' : 'Order this quantity now.';
+      sug = `<span class="${later ? 'bcs-later' : ''}" data-bcs-later="${later ? 1 : 0}" title="${esc(tip)}">${later ? esc(_bcsUnits(cat, f.suggest_count || 0)) : `<strong>${esc(_bcsUnits(cat, f.suggest_count || 0))}</strong>`}` +
+        (sAmt != null ? `<div class="bcs-sub">~${esc(_bcsAmt(f, sAmt, 1))}</div>` : '') +
+        (f.moq_applied === true ? `<div class="bcs-sub" data-bcs-moq="1" title="${esc('Raised to the minimum order quantity' + (f.basis === 'amount' && _bcsIsNum(f.suggest_amount) ? ' (actual need ~' + _bcsAmt(f, f.suggest_amount, 1) + ')' : ''))}">MOQ</div>` : '') + `</span>`;
+    }
+    const low = f.confidence === 'low' && f.status !== 'no_data'
+      ? `<span class="bcs-lowconf" title="Low confidence: under 14 days of history or fewer than 3 issues in the last 30 days.">◔ low</span>` : '';
+    const minTxt = _bcsIsNum(f.min_qty) ? _bcsNum(f.min_qty, 1) : '—';
+    return `<tr data-bcs-row="${esc(String(f.item_id))}" tabindex="0" title="Click for details">
+      <td class="cat"><span class="bcs-code">${esc(f.category || '')}</span><div class="bcs-sub">${esc(cat ? (cat.name_en || cat.name) : '')}</div></td>
+      <td><div class="bcs-name">${esc(it.name || ('Item #' + f.item_id))}</div>${it.sku ? `<div class="bcs-sub bcs-mono">${esc(it.sku)}</div>` : ''}</td>
+      <td class="num"><div>${esc(_bcsUnits(cat, f.in_count || 0))}</div>${amt}</td>
+      <td class="num">${esc(minTxt)}</td>
+      <td class="num">${(+daily || 0) > 0 ? esc(_bcsBasisQty(f, cat, daily, 2)) : '—'}</td>
+      <td class="num"><div>${_bcsIsNum(use30) ? esc(_bcsBasisQty(f, cat, use30, 1)) : '—'}</div>${trend}</td>
+      <td class="num">${_bcsIsNum(f.days_cover) ? esc(_bcsNum(f.days_cover, 1)) + ' d' : '—'}</td>
+      <td class="num">${f.stockout_on ? esc(_bcsDay(f.stockout_on, asOfY)) : '—'}</td>
+      <td class="num">${(+daily || 0) > 0 || (+f.reorder_point || 0) > 0 ? esc(_bcsBasisQty(f, cat, f.reorder_point, 1)) : '—'}</td>
+      <td class="num">${sug}</td>
+      <td class="num">${_bcsIsNum(f.lead_days) ? esc(String(f.lead_days)) + ' d' : '—'}${f.lead_set ? '' : '<div class="bcs-sub" title="Using the KSM Materials default lead time">default</div>'}</td>
+      <td class="bcs-st"><span class="bcs-pill ${s.cls}" title="${esc(s.tip)}">${esc(s.label)}</span>${low}</td>
+    </tr>`;
+  }).join('');
+  const $tb = document.getElementById('bcs-tbody'); if ($tb) $tb.innerHTML = html;
+  const $nm = document.getElementById('bcs-nomatch'); if ($nm) $nm.hidden = rows.length > 0;
+  const $h = document.getElementById('bcs-hint');
+  if ($h) $h.textContent = rows.length === all.length ? `${all.length} item${all.length === 1 ? '' : 's'}` : `${rows.length} of ${all.length} items`;
+  const def = d.fc.defaults || {};
+  const $f = document.getElementById('bcs-foot');
+  if ($f) $f.innerHTML = `Sorted by urgency (Order now → Order soon → OK → Overstock → No usage → No data, then fewest days of cover). As of ${esc(_bcsDay(d.fc.as_of, ''))}${d.fc.as_of ? ', ' + esc(String(d.fc.as_of).slice(0, 4)) : ''} (${esc(d.fc.tz || _bcsTz())} dates) · default lead time ${esc(String(def.lead_days != null ? def.lead_days : '—'))} d, order covers ${esc(String(def.cover_days != null ? def.cover_days : '—'))} d · read-only — edit items in <a href="${esc(_BCS_URL)}" target="_blank" rel="noopener">${esc(_BCS_APP)} ↗</a>.`;
+  _invPaintHeaderCount();
+}
+
+/* ---------- detail modal ---------- */
+function _bcsCloseDetail(){
+  _bcs.detailId = null; _bcs.detailGen++;
+  const m = document.getElementById('bcs-modal');
+  if (m) m.remove();
+  if (_bcs.escH){ document.removeEventListener('keydown', _bcs.escH); _bcs.escH = null; }
+}
+function _bcsOpenDetail(id){
+  if (!_bcs.data) return;
+  _bcsCloseDetail();
+  _bcs.detailId = String(id);
+  const m = document.createElement('div');
+  m.id = 'bcs-modal'; m.className = 'bcs-modal-bg';
+  m.innerHTML = `<div class="bcs-modal" role="dialog" aria-modal="true" aria-labelledby="bcs-m-title"><div id="bcs-m-inner"></div></div>`;
+  m.addEventListener('click', e => {
+    if (e.target === m || (e.target.closest && e.target.closest('[data-bcs-close]'))) _bcsCloseDetail();
+  });
+  document.body.appendChild(m);
+  _bcs.escH = e => { if (e.key === 'Escape') _bcsCloseDetail(); };
+  document.addEventListener('keydown', _bcs.escH);
+  _bcsRenderDetail(false);
+  const cl = m.querySelector('[data-bcs-close]'); if (cl) try { cl.focus(); } catch(_){}
+}
+
+async function _bcsRenderDetail(isRefresh){
+  const id = _bcs.detailId;
+  const d = _bcs.data;
+  const inner = document.getElementById('bcs-m-inner');
+  if (id == null || !d || !inner) return;
+  const row = d.rows.filter(r => String(r.f.item_id) === id)[0];
+  if (!row){ inner.innerHTML = `<div class="bcs-m-head"><div class="bcs-m-title" id="bcs-m-title">Item no longer active</div><button type="button" class="bcs-x" data-bcs-close="1" aria-label="Close">×</button></div><div class="bcs-m-body"><p>This item was deactivated or removed in ${esc(_BCS_APP)}.</p></div>`; return; }
+  const gen = ++_bcs.detailGen;
+  const box = inner.parentNode;
+  const keepScroll = isRefresh && box ? box.scrollTop : 0;
+  if (!isRefresh) inner.innerHTML = _bcsDetailHtml(row, null);
+  const tz = _bcsTz();
+  let ex;
+  try {
+    const iid = +id;
+    const [u, lots, ls, mv] = await Promise.all([
+      Sb.rpc('mat_usage_series', { p:{ item_id:iid, days:90, tz } }),
+      Sb.from('mat_lots').select('*').eq('item_id', iid).order('received_on', { ascending:false }).order('id', { ascending:false }).limit(100),
+      Sb.from('mat_lot_stock').select('*').eq('item_id', iid),
+      Sb.from('mat_moves').select('*').eq('item_id', iid).order('at', { ascending:false }).order('id', { ascending:false }).limit(20),
+    ]);
+    ex = { u, lots, ls, mv };
+  } catch(e){ ex = { fatal:e }; }
+  if (gen !== _bcs.detailGen || _bcs.detailId !== id) return;
+  const fresh = d === _bcs.data ? row : (_bcs.data && _bcs.data.rows.filter(r => String(r.f.item_id) === id)[0]) || row;
+  inner.innerHTML = _bcsDetailHtml(fresh, ex);
+  if (isRefresh && box) box.scrollTop = keepScroll;
+}
+
+function _bcsExplainHtml(f, it, cat){
+  const uw1 = _bcsUnitWord(cat, 1);
+  const amtB = f.basis === 'amount';
+  const daily = amtB ? f.daily_amount : f.daily_count;
+  const use30 = amtB ? f.use30_amount : f.use30_count;
+  const stock = amtB ? f.in_amount : f.in_count;
+  const out = [];
+  const stockAmt = _bcsStockAmt(f, cat);
+  const stockTxt = _bcsUnits(cat, f.in_count || 0) + (stockAmt ? ` (${(+f.in_unmeasured || 0) > 0 ? '' : '~'}${stockAmt})` : '');
+  if (f.status === 'no_data'){
+    out.push(`Nothing has been received for this item yet, so there is no stock or usage history. Receive a lot in ${_BCS_APP} to start tracking.`);
+    return out.map(s => `<p>${esc(s)}</p>`).join('');
+  }
+  if (!(+daily > 0)){
+    out.push(`No net usage in the last 30 days, so no stockout is predicted. Currently ${stockTxt} in stock.`);
+    if (_bcsIsNum(f.min_qty)) out.push(`Safety stock is ${_bcsUnits(cat, f.min_qty, 1)}${+f.in_count < +f.min_qty ? ' — stock is below it' : ''}.`);
+    if (f.last_out_at) out.push(`Last issued ${_bcsTs(f.last_out_at)}.`);
+    return out.map(s => `<p>${esc(s)}</p>`).join('');
+  }
+  if (f.measure_uom && !amtB && ((+f.in_unmeasured || 0) > 0 || (+f.unmeasured_moves60 || 0) > 0)){
+    out.push(`Some ${_bcsUnitWord(cat, 2)} have no ${f.measure_uom} recorded, so this forecast counts ${_bcsUnitWord(cat, 2)} instead of ${f.measure_uom} (the ${f.measure_uom} totals would be too low). Record the ${f.measure_uom} on receipt for a measure-based forecast.`);
+  }
+  const basisDays = Math.max(1, Math.min(30, +f.history_days || 0));
+  const trend = _bcsIsNum(f.trend_pct) ? (+f.trend_pct === 0 ? ', same as the 30 days before' : `, ${+f.trend_pct > 0 ? 'up' : 'down'} ${_bcsNum(Math.abs(+f.trend_pct), 0)}% vs the 30 days before`) : '';
+  out.push(`Uses about ${_bcsBasisQty(f, cat, daily, 2)}/day over the last ${basisDays} day${basisDays === 1 ? '' : 's'} (${_bcsBasisQty(f, cat, use30, 1)} net in 30 days${trend}).` +
+    (basisDays < 30 ? ` Only ${basisDays} day${basisDays === 1 ? '' : 's'} of history so far, so the rate is averaged over that period.` : ''));
+  out.push(`At that rate the current ${stockTxt} lasts about ${_bcsNum(f.days_cover, 1)} days` + (f.stockout_on ? ` — until around ${_bcsDay(f.stockout_on, '')}, ${String(f.stockout_on).slice(0, 4)}.` : '.'));
+  const lead = _bcsIsNum(f.lead_days) ? +f.lead_days : 0;
+  let safety = '';
+  if (_bcsIsNum(f.min_qty) && +f.min_qty > 0){
+    safety = ` plus a safety stock of ${_bcsUnits(cat, f.min_qty, 1)}` + (amtB && _bcsIsNum(f.avg_unit_amount) ? ` (~${_bcsAmt(f, +f.min_qty * +f.avg_unit_amount)})` : '');
+  }
+  out.push(`With a ${lead}-day lead time${f.lead_set ? '' : ' (default)'}${safety}, the reorder point is ${_bcsBasisQty(f, cat, f.reorder_point, 1)}.`);
+  const byRop = _bcsIsNum(f.reorder_point) && _bcsIsNum(amtB ? f.in_amount : f.in_count) && +(amtB ? f.in_amount : f.in_count) <= +f.reorder_point;
+  const verdict = {
+    order_now: byRop ? 'Stock is at or below the reorder point — order now.'
+      : `Stock is still above the reorder point, but at this rate it runs out within the ${lead}-day lead time — order now.`,
+    order_soon: 'Stock will reach the reorder point within about a week — plan the order soon.',
+    ok: 'Stock is above the reorder point.',
+    overstock: 'There is much more stock than needed for the lead time and cover period.',
+  }[f.status];
+  if (verdict) out.push(verdict);
+  const cover = _bcsIsNum(f.cover_days) ? +f.cover_days : 0;
+  if ((+f.suggest_count || 0) > 0){
+    const later = f.status !== 'order_now' && f.status !== 'order_soon';
+    const sAmt = _bcsSugAmt(f);
+    const moqA = f.moq_applied === true;
+    out.push((later ? `No need to order yet. Next order: ${_bcsUnits(cat, f.suggest_count)}` : `Suggested order: ${_bcsUnits(cat, f.suggest_count)}`) +
+      (sAmt != null ? ` (~${_bcsAmt(f, sAmt, 1)})` : '') +
+      (moqA
+        ? ` — raised to the minimum order quantity` +
+          (amtB && _bcsIsNum(f.suggest_amount) ? `; the ${lead}-day lead time plus ${cover} days of use and the safety stock need only ~${_bcsAmt(f, f.suggest_amount, 1)}`
+            : ` (the ${lead}-day lead time plus ${cover} days of use and the safety stock need fewer)`)
+        : ` — enough for the ${lead}-day lead time plus ${cover} days of use and the safety stock` +
+          (_bcsIsNum(f.moq) && +f.moq > 0 ? `, minimum order ${_bcsUnits(cat, f.moq, 1)}` : '')) +
+      (amtB && _bcsIsNum(f.avg_unit_amount) ? `; one ${uw1} averages ${_bcsAmt(f, f.avg_unit_amount)}` : '') + '.');
+  } else {
+    out.push(`No order needed right now — stock already covers the lead time plus ${cover} days of use.`);
+  }
+  let html = out.map(s => `<p>${esc(s)}</p>`).join('');
+  if (f.confidence === 'low'){
+    html += `<p class="bcs-warn">◔ Low confidence: fewer than 14 days of history or fewer than 3 issues in the last 30 days — treat this as a rough guide.</p>`;
+  }
+  return html;
+}
+
+function _bcsChartSvg(f, cat, series){
+  const rows = (series && Array.isArray(series.rows)) ? series.rows : [];
+  if (!rows.length) return `<div class="bcs-muted">No usage data.</div>`;
+  const amtB = f.basis === 'amount';
+  const outV = rows.map(r => +(amtB ? r.out_amount : r.out_count) || 0);
+  const retV = rows.map(r => +(amtB ? r.ret_amount : r.ret_count) || 0);
+  const maxO = Math.max.apply(null, outV.concat([0])), maxR = Math.max.apply(null, retV.concat([0]));
+  const W = 720, H = 190, padL = 44, padR = 8, padT = 10, padB = 34;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const tot = (maxO + maxR) || 1;
+  const base = padT + plotH * (maxO > 0 || maxR === 0 ? (maxO / tot || 1) : 0);
+  const scale = plotH / tot;
+  const n = rows.length, bw = plotW / n, gap = Math.min(1.2, bw * 0.25);
+  const unitName = amtB ? (f.measure_uom || '') : _bcsUnitWord(cat, 2);
+  let bars = '';
+  rows.forEach((r, k) => {
+    const x = (padL + k * bw + gap / 2).toFixed(2), w = Math.max(0.6, bw - gap).toFixed(2);
+    const o = outV[k], rt = retV[k];
+    const tip = `${_bcsDay(r.day, '')}: out ${_bcsNum(o, 2)} ${unitName}` + (rt ? `, returned ${_bcsNum(rt, 2)}` : '') + ((+r.in_count || 0) ? `, received ${r.in_count}` : '') + ((+r.adj_count || 0) ? `, adjusted ${r.adj_count}` : '');
+    if (o > 0) bars += `<rect class="bcs-b-out" x="${x}" y="${(base - o * scale).toFixed(2)}" width="${w}" height="${Math.max(0.8, o * scale).toFixed(2)}"><title>${esc(tip)}</title></rect>`;
+    if (rt > 0) bars += `<rect class="bcs-b-ret" x="${x}" y="${base.toFixed(2)}" width="${w}" height="${Math.max(0.8, rt * scale).toFixed(2)}"><title>${esc(tip)}</title></rect>`;
+    if ((+r.in_count || 0) > 0) bars += `<circle class="bcs-b-in" cx="${(padL + k * bw + bw / 2).toFixed(2)}" cy="${(H - padB + 7).toFixed(2)}" r="2.6"><title>${esc(tip)}</title></circle>`;
+    if (o <= 0 && rt <= 0 && !(+r.in_count > 0)) bars += `<rect class="bcs-b-hit" x="${x}" y="${padT}" width="${w}" height="${plotH}"><title>${esc(tip)}</title></rect>`;
+  });
+  // 30-day average daily use (dashed), over the last 30 bars
+  const daily = +(amtB ? f.daily_amount : f.daily_count) || 0;
+  let avg = '';
+  if (daily > 0 && daily * scale < plotH){
+    const x0 = padL + Math.max(0, n - 30) * bw, y = (base - daily * scale).toFixed(2);
+    avg = `<line class="bcs-avg" x1="${x0.toFixed(2)}" x2="${(padL + plotW).toFixed(2)}" y1="${y}" y2="${y}"><title>30-day average ${esc(_bcsNum(daily, 2))} ${esc(unitName)}/day</title></line>`;
+  }
+  const mid = Math.floor((n - 1) / 2);
+  const lbl = (k, anchor) => `<text class="bcs-ax" x="${(padL + k * bw + bw / 2).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}">${esc(_bcsDay(rows[k].day, ''))}</text>`;
+  const yl = (v, y) => `<text class="bcs-ax" x="${padL - 6}" y="${(y + 3).toFixed(1)}" text-anchor="end">${esc((v < 0 ? '−' : '') + _bcsNum(Math.abs(v), Math.abs(v) < 10 ? 1 : 0))}</text>`;
+  return `<svg class="bcs-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Daily usage, last ${n} days">
+    <line class="bcs-grid" x1="${padL}" x2="${padL + plotW}" y1="${padT}" y2="${padT}"/>
+    <line class="bcs-base" x1="${padL}" x2="${padL + plotW}" y1="${base.toFixed(2)}" y2="${base.toFixed(2)}"/>
+    ${maxO > 0 ? yl(maxO, padT) : ''}${yl(0, base)}${maxR > 0 ? yl(-maxR, padT + plotH) : ''}
+    ${bars}${avg}
+    ${lbl(0, 'start')}${n > 2 ? lbl(mid, 'middle') : ''}${lbl(n - 1, 'end')}
+  </svg>
+  <div class="bcs-legend"><span><i class="bcs-lg-out"></i>Issued (OUT)</span><span><i class="bcs-lg-ret"></i>Returned (RETURN, below the line)</span><span><i class="bcs-lg-in"></i>Received (IN)</span>${daily > 0 ? `<span><i class="bcs-lg-avg"></i>30-day avg</span>` : ''}<span class="bcs-muted">in ${esc(unitName)}</span></div>`;
+}
+
+function _bcsDetailHtml(row, ex){
+  const f = row.f, it = row.it || {}, cat = row.cat;
+  const s = _BCS_STATUS[f.status] || { label:String(f.status || '—'), cls:'is-idle', tip:'' };
+  const editUrl = _BCS_URL + '#item/' + encodeURIComponent(String(f.item_id));
+  const loading = `<div class="bcs-muted">Loading…</div>`;
+  const exErr = (r) => r && r.error ? `<div class="bcs-state-err">${esc(_bcsErrText(r.error))}</div>` : '';
+  // item info + spec defaults
+  const kv = [];
+  const add = (k, v) => { if (v != null && v !== '') kv.push(`<div class="bcs-kv"><span>${esc(k)}</span><b>${esc(String(v))}</b></div>`); };
+  add('Category', (f.category || '') + ' · ' + _bcsCatName(cat, f.category));
+  add('SKU', it.sku);
+  add('Supplier', it.supplier);
+  add('Location', it.location);
+  add('Unit', cat ? (cat.unit_label_en || cat.unit_label) + (f.measure_uom ? ' (measured in ' + f.measure_uom + ')' : '') : '');
+  add('Safety stock (min)', _bcsIsNum(f.min_qty) ? _bcsUnits(cat, f.min_qty, 1) : '—');
+  add('Lead time', (_bcsIsNum(f.lead_days) ? f.lead_days + ' days' : '—') + (f.lead_set ? '' : ' (default)'));
+  add('Order covers', _bcsIsNum(f.cover_days) ? f.cover_days + ' days' : '—');
+  add('Min order qty', _bcsIsNum(f.moq) ? _bcsUnits(cat, f.moq, 1) : '—');
+  if (f.measure_uom) add('Avg per ' + _bcsUnitWord(cat, 1), _bcsIsNum(f.avg_unit_amount) ? _bcsAmt(f, f.avg_unit_amount, 2) : '—');
+  const spec = it.spec && typeof it.spec === 'object' ? it.spec : {};
+  const fields = cat && Array.isArray(cat.fields) ? cat.fields : [];
+  const seen = {};
+  fields.forEach(fd => {
+    if (!fd || !fd.key) return; seen[fd.key] = 1;
+    const v = spec[fd.key];
+    if (v == null || v === '') return;
+    add((fd.label_en || fd.label || fd.key), String(v) + (fd.unit ? ' ' + fd.unit : ''));
+  });
+  Object.keys(spec).forEach(k => { if (!seen[k] && spec[k] != null && spec[k] !== '' && typeof spec[k] !== 'object') add(k, spec[k]); });
+  if (it.memo) add('Memo', it.memo);
+  // usage stats
+  const amtB = f.basis === 'amount';
+  const st = (lbl, v) => `<div class="bcs-stat"><span>${esc(lbl)}</span><b>${v}</b></div>`;
+  const useW = (w) => {
+    const c = f['use' + w + '_count'], a = f['use' + w + '_amount'];
+    return esc(_bcsUnits(cat, c || 0)) + (f.measure_uom && _bcsIsNum(a) ? ` <small>${esc(_bcsAmt(f, a))}</small>` : '');
+  };
+  const stats =
+    st('Last 7 days', useW(7)) + st('Last 30 days', useW(30)) + st('Last 90 days', useW(90)) +
+    st('Previous 30 days', esc(_bcsUnits(cat, f.prev30_count || 0)) + (f.measure_uom && _bcsIsNum(f.prev30_amount) ? ` <small>${esc(_bcsAmt(f, f.prev30_amount))}</small>` : '')) +
+    st('Received (90 d)', esc(_bcsUnits(cat, f.recv90_count || 0)) + (f.measure_uom && _bcsIsNum(f.recv90_amount) ? ` <small>${esc(_bcsAmt(f, f.recv90_amount))}</small>` : '') + ` <small>${esc(String(f.lots90 || 0))} lot${+f.lots90 === 1 ? '' : 's'}</small>`) +
+    st('Losses (90 d)', esc(_bcsUnits(cat, f.loss90_count || 0))) +
+    st('Last received', esc(_bcsTs(f.last_in_at))) + st('Last issued', esc(_bcsTs(f.last_out_at))) +
+    st('History', esc(_bcsNum(f.history_days || 0, 0)) + ' days' + (f.first_in_on ? ` <small>since ${esc(f.first_in_on)}</small>` : '')) +
+    st('Forecast basis', esc(amtB ? 'measure (' + (f.measure_uom || '') + ')' : 'units') + (f.measure_uom && !amtB && ((+f.in_unmeasured || 0) > 0 || (+f.unmeasured_moves60 || 0) > 0) ? ` <small>some units lack ${esc(f.measure_uom)}</small>` : ''));
+  // top destinations
+  const dests = Array.isArray(f.top_dests90) ? f.top_dests90 : [];
+  const destHtml = dests.length
+    ? `<table class="bcs-mini"><thead><tr><th>Destination</th><th class="num">Units</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}</tr></thead><tbody>${dests.map(x => `<tr><td>${esc(x.dest || '(none)')}</td><td class="num">${esc(_bcsNum(x.count, 0))}</td>${f.measure_uom ? `<td class="num">${esc(_bcsNum(x.amount, 1))}</td>` : ''}</tr>`).join('')}</tbody></table>`
+    : `<div class="bcs-muted">No issues in the last 90 days.</div>`;
+  // chart / lots / moves (async)
+  let chart = loading, lotsHtml = loading, movesHtml = loading;
+  if (ex && ex.fatal){
+    const m = `<div class="bcs-state-err">${esc(_bcsErrText(ex.fatal))}</div>`;
+    chart = lotsHtml = movesHtml = m;
+  } else if (ex){
+    chart = ex.u.error ? exErr(ex.u) : _bcsChartSvg(f, cat, ex.u.data);
+    if (ex.lots.error) lotsHtml = exErr(ex.lots);
+    else {
+      const lsMap = {}; (ex.ls.data || []).forEach(x => { lsMap[String(x.lot_id)] = x; });
+      const lots = (ex.lots.data || []).slice().sort((a, b) => {
+        const ia = (lsMap[String(a.id)] || {}).in_count > 0 ? 0 : 1, ib = (lsMap[String(b.id)] || {}).in_count > 0 ? 0 : 1;
+        if (ia !== ib) return ia - ib;
+        return String(b.received_on || '').localeCompare(String(a.received_on || '')) || (+b.id - +a.id);
+      });
+      const inLots = lots.filter(l => (lsMap[String(l.id)] || {}).in_count > 0).length;
+      lotsHtml = lots.length ? `<div class="bcs-muted" style="margin-bottom:6px">${esc(String(inLots))} of ${esc(String(lots.length))} lot${lots.length === 1 ? '' : 's'} still have stock${ex.ls.error ? ' · stock per lot unavailable' : ''}</div>
+        <div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>Received</th><th>Ref / PO</th><th>Supplier</th><th class="num">Units</th><th class="num">In stock</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)} left</th>` : ''}<th class="num">Out</th><th class="num">Void</th></tr></thead><tbody>${lots.map(l => {
+          const x = lsMap[String(l.id)] || {};
+          return `<tr class="${(+x.in_count || 0) > 0 ? '' : 'is-dim'}"><td>${esc(l.received_on || '')}</td><td>${esc(l.ref_no || '—')}</td><td>${esc(l.supplier || '—')}</td><td class="num">${esc(_bcsNum(l.unit_count, 0))}</td><td class="num">${esc(_bcsNum(x.in_count || 0, 0))}</td>${f.measure_uom ? `<td class="num">${esc(_bcsNum(x.in_amount || 0, 1))}</td>` : ''}<td class="num">${esc(_bcsNum(x.out_count || 0, 0))}</td><td class="num">${esc(_bcsNum(x.void_count || 0, 0))}</td></tr>`;
+        }).join('')}</tbody></table></div>` : `<div class="bcs-muted">No lots received yet.</div>`;
+    }
+    if (ex.mv.error) movesHtml = exErr(ex.mv);
+    else {
+      const mv = ex.mv.data || [];
+      movesHtml = mv.length ? `<div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>When</th><th>Type</th><th>Barcode</th><th class="num">Qty</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}<th>To / person / purpose</th><th>By</th></tr></thead><tbody>${mv.map(x => {
+        const det = [x.dest, x.person, x.purpose, x.memo].filter(v => v != null && v !== '').join(' · ');
+        const cd = +x.count_delta || 0;
+        return `<tr><td class="bcs-nowrap">${esc(_bcsTs(x.at))}</td><td><span class="bcs-mv bcs-mv-${esc(String(x.type || '').toLowerCase())}">${esc(x.type || '')}</span></td><td class="bcs-mono">${esc(x.code || '—')}</td><td class="num">${cd ? esc((cd > 0 ? '+' : '') + cd) : '0'}</td>${f.measure_uom ? `<td class="num">${_bcsIsNum(x.amount) ? esc(_bcsNum(x.amount, 2)) : '—'}</td>` : ''}<td>${esc(det || '—')}</td><td>${esc(x.by_name || x.by_email || '')}</td></tr>`;
+      }).join('')}</tbody></table></div>` : `<div class="bcs-muted">No moves yet.</div>`;
+    }
+  }
+  const stockAmtD = _bcsStockAmt(f, cat);
+  const stockLine = esc(_bcsUnits(cat, f.in_count || 0)) + (stockAmtD ? ` · ${esc(stockAmtD)}` : '');
+  return `
+    <div class="bcs-m-head">
+      <div>
+        <div class="bcs-m-eyebrow"><span class="bcs-code">${esc(f.category || '')}</span> ${esc(_bcsCatName(cat, f.category))}</div>
+        <div class="bcs-m-title" id="bcs-m-title">${esc(it.name || ('Item #' + f.item_id))}${it.sku ? ` <span class="bcs-mono bcs-muted">${esc(it.sku)}</span>` : ''}</div>
+        <div class="bcs-m-sub"><span class="bcs-pill ${s.cls}" title="${esc(s.tip)}">${esc(s.label)}</span> In stock: <b>${stockLine}</b>${_bcsIsNum(f.days_cover) ? ` · ${esc(_bcsNum(f.days_cover, 1))} days of cover` : ''}</div>
+      </div>
+      <div class="bcs-m-actions">
+        <a class="bcs-open is-primary" href="${esc(editUrl)}" target="_blank" rel="noopener">Edit in ${esc(_BCS_APP)} ↗</a>
+        <button type="button" class="bcs-x" data-bcs-close="1" aria-label="Close">×</button>
+      </div>
+    </div>
+    <div class="bcs-m-body">
+      <div class="bcs-sec"><div class="bcs-sec-t">Forecast</div><div class="bcs-explain">${_bcsExplainHtml(f, it, cat)}</div></div>
+      <div class="bcs-sec"><div class="bcs-sec-t">Daily usage — last 90 days</div>${chart}</div>
+      <div class="bcs-sec"><div class="bcs-sec-t">Usage summary</div><div class="bcs-stats">${stats}</div></div>
+      <div class="bcs-grid2">
+        <div class="bcs-sec"><div class="bcs-sec-t">Item info &amp; spec defaults</div><div class="bcs-kvs">${kv.join('')}</div></div>
+        <div class="bcs-sec"><div class="bcs-sec-t">Top destinations (90 days)</div>${destHtml}</div>
+      </div>
+      <div class="bcs-sec"><div class="bcs-sec-t">Lots</div>${lotsHtml}</div>
+      <div class="bcs-sec"><div class="bcs-sec-t">Last 20 moves</div>${movesHtml}</div>
+      <div class="bcs-muted">Read-only view. To change quantities, specs, lead time or minimum stock, use <a href="${esc(editUrl)}" target="_blank" rel="noopener">${esc(_BCS_APP)} ↗</a>.</div>
+    </div>`;
 }
 
 
@@ -59387,6 +60373,7 @@ navBtns.forEach(b => {
     if (t === 'vehicle' && typeof renderVehicle === 'function') renderVehicle();
     // Re-render Inventory page on entry (refresh table + chart data)
     if (t === 'inventory' && typeof renderInventory === 'function') renderInventory();
+    if (t !== 'inventory' && typeof _bcsStop === 'function') _bcsStop();   // v301 — leave Inventory → drop Barcode Stock channel/poll
     // Leaving HR or entering Org standalone: ensure canvas is back in
     // its standalone home (read-only) before that view is shown.
     if (t !== 'hr' && typeof _hrUnmountOrgCanvas === 'function') _hrUnmountOrgCanvas();
