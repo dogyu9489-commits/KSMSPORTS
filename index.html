@@ -411,55 +411,6 @@
   }
   .submit .arr svg{ width:10px; height:10px; }
 
-  /* OAuth divider — neat horizontal line with "OR" label between the
-     primary submit button and alternative sign-in methods. */
-  .oauth-divider{
-    display:flex; align-items:center; gap:12px;
-    margin:18px 0 2px;
-  }
-  .oauth-divider-line{
-    flex:1; height:1px;
-    background:rgba(255,255,255,.12);
-  }
-  .oauth-divider-text{
-    font-family:var(--mono); font-size:10px; letter-spacing:.22em;
-    color:rgba(255,255,255,.45); text-transform:uppercase; font-weight:600;
-  }
-
-  /* Google "Sign in with Google" button — follows Google's brand
-     guidelines (white bg, dark text, full-color G icon) but adapted
-     to the dark-themed auth page with a soft border + subtle hover. */
-  .oauth-btn{
-    width:100%;
-    padding:13px 22px;
-    background:#fff;
-    color:#3c4043;
-    border:1px solid rgba(255,255,255,.18);
-    border-radius:12px;
-    font-family:var(--sans);
-    font-size:13.5px; font-weight:600; letter-spacing:.01em;
-    display:inline-flex; align-items:center; justify-content:center;
-    gap:12px;
-    cursor:pointer;
-    box-shadow:
-      0 4px 14px rgba(0,0,0,.18),
-      inset 0 1px 0 rgba(255,255,255,.6);
-    transition:transform .2s cubic-bezier(.2,.8,.2,1),
-               box-shadow .2s, opacity .25s, background .2s;
-  }
-  .oauth-btn:hover{
-    transform:translateY(-1px);
-    background:#f8f9fa;
-    box-shadow:
-      0 6px 18px rgba(0,0,0,.25),
-      inset 0 1px 0 rgba(255,255,255,.7);
-  }
-  .oauth-btn:active{ transform:translateY(0); }
-  .oauth-btn:disabled{ opacity:.55; cursor:wait; transform:none; }
-  .oauth-btn .oauth-icon{
-    width:18px; height:18px; flex:none;
-  }
-
   .err{
     font-family:var(--sans); font-size:13px; font-weight:500;
     color:#FCA5A5; min-height:1.4em; text-align:left;
@@ -2806,6 +2757,38 @@
   .hr-mem-filter button:hover{ background:var(--bg-main); color:var(--ink); }
 
   .hr-mem-section{ margin-bottom:22px; }
+  /* v299 — 🔑 Password reset (admin-issued one-time codes). .pwr-only = per-member
+     "issue code" buttons, visible only once the server confirmed issuer status. */
+  body:not(.pwr-issuer) .pwr-only{ display:none !important; }
+  .side-nav .pwr-badge{
+    position:absolute; bottom:5px; right:5px; min-width:16px; height:16px; padding:0 4px;
+    border-radius:8px; background:#D97706; color:#fff; font:700 10px/16px var(--sans);
+    text-align:center; pointer-events:none;
+  }
+  .pwr-body{ padding-top:12px; }
+  .pwr-help{ font-family:var(--sans); font-size:12px; line-height:1.55; color:var(--ink-soft); margin-bottom:10px; }
+  .pwr-issue-any{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }
+  .pwr-issue-any input{
+    flex:1 1 220px; min-width:0; padding:8px 10px; border:1px solid var(--card-border);
+    border-radius:8px; background:var(--card); color:var(--ink); font-family:var(--sans); font-size:13px;
+  }
+  .pwr-list{ display:flex; flex-direction:column; gap:6px; }
+  .pwr-row{
+    display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:10px 12px;
+    border:1px solid var(--hair); border-radius:8px; background:var(--paper);
+  }
+  .pwr-who{ flex:1 1 220px; min-width:0; }
+  .pwr-name{ font-family:var(--sans); font-size:13.5px; font-weight:600; color:var(--ink); }
+  .pwr-info{ font-family:var(--sans); font-size:11.5px; color:var(--ink-mute); margin-top:2px; overflow-wrap:anywhere; }
+  .pwr-acts{ display:flex; gap:6px; flex:none; }
+  .pwr-pill{
+    display:inline-block; margin-left:6px; padding:2px 8px; border-radius:10px; font-size:10.5px;
+    font-weight:700; background:#F3F4F6; color:var(--ink-mute); vertical-align:middle;
+  }
+  .pwr-pill.is-pending{ background:#FEF3C7; color:#92400E; }
+  .pwr-pill.is-active{ background:#DBEAFE; color:#1E40AF; }
+  .pwr-empty{ font-family:var(--sans); font-size:12.5px; color:var(--ink-mute); padding:10px 2px; }
+  .pwr-err{ font-family:var(--sans); font-size:12px; color:#991B1B; margin-bottom:8px; }
   .hr-mem-section-head{
     display:flex; align-items:center; gap:10px;
     padding:8px 4px;
@@ -18129,7 +18112,7 @@
         Shared exclusively by leads — <em>small but solid</em> space.
       </p><form class="pane active" id="pane-login" autocomplete="on" novalidate><div class="field"><label for="li-email">Email</label><input id="li-email" type="email" name="email" placeholder="your@email.com" autocomplete="username" required /></div><div class="field"><label for="li-pw">Password</label><input id="li-pw" type="password" name="password" placeholder="••••••••" autocomplete="current-password" required /></div><div class="err" id="li-err"></div><div style="display:flex;justify-content:center;align-items:center;gap:10px;margin:-2px 0 14px;font-size:12.5px"><button type="button" id="li-find-id" style="background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-family:var(--sans);font-weight:600">Forgot ID?</button><span style="color:var(--ink-mute)">&middot;</span><button type="button" id="li-forgot" style="background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-family:var(--sans);font-weight:600">Forgot password?</button></div><button type="submit" class="submit">
           Sign In
-          <span class="arr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6h8M7 2l4 4-4 4"/></svg></span></button><div class="oauth-divider" aria-hidden="true"><span class="oauth-divider-line"></span><span class="oauth-divider-text">OR</span><span class="oauth-divider-line"></span></div><button type="button" class="oauth-btn oauth-btn-google" id="li-google" aria-label="Sign in with Google"><svg class="oauth-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Sign in with Google</span></button><div class="alt-link"><span>Do not have an account?</span><button type="button" data-go="signup">Request Access →</button></div></form><form class="pane" id="pane-signup" autocomplete="on" novalidate><div class="field"><label for="su-name">Name</label><input id="su-name" type="text" name="name" placeholder="Jane Doe" autocomplete="name" required /></div><div class="field"><label for="su-email">Email Address</label><input id="su-email" type="email" name="email" placeholder="your@email.com" autocomplete="email" required /></div><div class="field"><label for="su-pw">Password (10+ chars)</label><input id="su-pw" type="password" name="password" placeholder="••••••••••" autocomplete="new-password" minlength="10" required /></div><div class="field"><label for="su-phone">Phone</label><input id="su-phone" type="tel" name="phone" placeholder="010-1234-5678" autocomplete="tel" inputmode="tel" required /></div><div class="field"><label for="su-dob-y">Date of Birth</label><div id="su-dob-wrap"></div></div><!-- Department field removed from signup — HR assigns the department after approval via Personnel Orders (§09 Approvals → HR Personnel Orders). Hidden input kept so the existing signup() signature still receives a value (empty → falls back to '__unassigned__' in HR view). --><input type="hidden" id="su-dept" name="department" value="" /><div class="field"><label for="su-factory">Factory</label><select id="su-factory" name="factory" required><option value="" disabled selected>Please select</option><option value="A">Main</option><option value="B">Annex</option></select></div><div class="field"><label for="su-sig-wrap">Signature</label><div class="sig-pad" id="su-sig-pad"><div class="sig-pad-canvas-wrap is-empty" id="su-sig-wrap"></div><div class="sig-pad-actions"><button type="button" class="sig-pad-btn" id="su-sig-clear">Clear</button><span class="sig-pad-hint">Draw your signature — used on approval documents you draft or approve.</span></div></div></div><div class="err" id="su-err"></div><button type="submit" class="submit">
+          <span class="arr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6h8M7 2l4 4-4 4"/></svg></span></button><div class="alt-link"><span>Do not have an account?</span><button type="button" data-go="signup">Request Access →</button></div></form><form class="pane" id="pane-signup" autocomplete="on" novalidate><div class="field"><label for="su-name">Name</label><input id="su-name" type="text" name="name" placeholder="Jane Doe" autocomplete="name" required /></div><div class="field"><label for="su-email">Email Address</label><input id="su-email" type="email" name="email" placeholder="your@email.com" autocomplete="email" required /></div><div class="field"><label for="su-pw">Password (10+ chars)</label><input id="su-pw" type="password" name="password" placeholder="••••••••••" autocomplete="new-password" minlength="10" required /></div><div class="field"><label for="su-phone">Phone</label><input id="su-phone" type="tel" name="phone" placeholder="010-1234-5678" autocomplete="tel" inputmode="tel" required /></div><div class="field"><label for="su-dob-y">Date of Birth</label><div id="su-dob-wrap"></div></div><!-- Department field removed from signup — HR assigns the department after approval via Personnel Orders (§09 Approvals → HR Personnel Orders). Hidden input kept so the existing signup() signature still receives a value (empty → falls back to '__unassigned__' in HR view). --><input type="hidden" id="su-dept" name="department" value="" /><div class="field"><label for="su-factory">Factory</label><select id="su-factory" name="factory" required><option value="" disabled selected>Please select</option><option value="A">Main</option><option value="B">Annex</option></select></div><div class="field"><label for="su-sig-wrap">Signature</label><div class="sig-pad" id="su-sig-pad"><div class="sig-pad-canvas-wrap is-empty" id="su-sig-wrap"></div><div class="sig-pad-actions"><button type="button" class="sig-pad-btn" id="su-sig-clear">Clear</button><span class="sig-pad-hint">Draw your signature — used on approval documents you draft or approve.</span></div></div></div><div class="err" id="su-err"></div><button type="submit" class="submit">
           Request Access
           <span class="arr"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 6h8M7 2l4 4-4 4"/></svg></span></button><div class="alt-link"><span>Already have an account?</span><button type="button" data-go="login">Sign In →</button></div><div class="demo-hint">
           Request Access <b>Administrator Approve</b> must be completed to sign in.<br />
@@ -19286,7 +19269,7 @@ Lets a user request a mix across multiple production stations in one form (e.g. 
   <div id="acc-payroll-host"></div>
 </div>
 
-</section><section class="view" data-view="hr"><div class="sec-head"><h1 class="title">HR<em>.</em><span class="kr">Org chart · Member info · Company schedule</span></h1><div class="meta"><span class="now" id="hr-meta">—</span><span>Admin · HR Chief / Deputy only</span></div></div><div class="hr-shell"><aside class="hr-sidenav"><div class="hr-sidenav-head">👥 HR</div><button type="button" class="hr-snav-btn" data-hr-tab="schedule"><span class="hr-snav-label">Company Schedule</span></button><button type="button" class="hr-snav-btn is-active" data-hr-tab="org"><span class="hr-snav-label">Org Chart</span></button><button type="button" class="hr-snav-btn" data-hr-tab="members"><span class="hr-snav-label">People &amp; Org</span><span class="hr-snav-count" id="hr-cnt-members">0</span></button><button type="button" class="hr-snav-btn" data-hr-tab="attendance"><span class="hr-snav-label">Daily Attendance</span></button><button type="button" class="hr-snav-btn" data-hr-tab="payroll"><span class="hr-snav-label">Payroll</span></button><div class="hr-sidenav-section">🛡 Safety & Health</div><button type="button" class="hr-snav-btn" data-hr-tab="safety"><span class="hr-snav-label">Safety Incidents</span><span class="hr-snav-count" id="hr-cnt-safety">0</span></button><div class="hr-sidenav-section">📘 Knowledge</div><button type="button" class="hr-snav-btn" data-hr-tab="policies"><span class="hr-snav-label">Company Policies</span></button><button type="button" class="hr-snav-btn" data-hr-tab="forms"><span class="hr-snav-label">Forms & Requests</span></button></aside><div class="hr-main"><div class="hr-pane" data-hr-pane="org"><div id="hr-org-pane"></div></div><div class="hr-pane" data-hr-pane="members" hidden><div id="hr-members-pane"></div></div><div class="hr-pane" data-hr-pane="schedule" hidden><div id="hr-schedule-pane"></div></div><div class="hr-pane" data-hr-pane="attendance" hidden><div id="hr-dailyatt-pane"></div></div><div class="hr-pane" data-hr-pane="payroll" hidden><div id="hr-payroll-pane"></div></div><div class="hr-pane" data-hr-pane="safety" hidden><div id="hr-safety-pane"></div></div><div class="hr-pane" data-hr-pane="policies" hidden><div id="hr-policies-pane"></div></div><div class="hr-pane" data-hr-pane="forms" hidden><div id="hr-forms-pane"></div></div></div></div></section><section class="view" data-view="admin"><div class="sec-head"><h1 class="title">Admin<em>.</em><span class="kr">Member · Department · Permission Management</span></h1><div class="meta"><span class="now" id="admin-now">—</span><span>Administrator Only</span></div></div><div class="stat-row" id="admin-stats"></div><div class="admin-block"><h3>Pending <em>requests</em><span class="count" id="pending-count">— pending</span></h3><div id="pending-list"></div></div><div class="admin-block"><div class="h-row"><h3>Approved <em>members</em><span class="count" id="approved-count">— members</span></h3><div class="h-actions"><button class="btn-add" data-add="member"><span class="plus">+</span>Add Member</button></div></div><div id="approved-list"></div></div><div class="admin-block"><h3>Rejected<span class="count" id="rejected-count">— rejected</span></h3><div id="rejected-list"></div></div><div class="admin-block"><h3>🛡 Roles &amp; <em>Permissions</em><span class="count">consolidated</span></h3><div class="admin-block-help">Department catalog (Chief / Deputy approval line) and operations permissions (Vehicle / Material / Brand Manager / Schedule) in one place. Admins always have every permission. Changes here are mirrored on the HR page Organization tab so HR managers see the same picture in real time.</div><div id="roles-perms-block"></div><!-- Hidden compatibility hooks — the original ids are still queried by ‘renderUnifiedDeptBlock’ + ‘renderOpsPermissionsBlock’ + the existing add-dept handler. Keep them in the DOM (display:none) so any background re-renders or programmatic clicks don't error out. --><div style="display:none"><span id="dept-mgmt-count"></span><span id="dept-roles-count"></span><button id="dept-mgmt-add"><span class="plus">+</span>Add Dept.</button><div id="dept-unified-list"></div><span id="ops-perms-count"></span><div id="ops-perms-list"></div></div></div></section></main><footer class="app-foot"><div data-brand="copyright">© 2026 KSM SPORTS / Dogyu Jang</div><div data-brand="productFoot">KSM SPORTS INTRANET · Internal use only</div><div id="now-foot">—</div></footer></div><!-- /.app-column --></section><!-- Pres panel moved into the topnav. See `data-topnav` element below. --><!-- ============== MODAL ============== --><div class="modal" id="modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true"><div class="modal-head"><div style="flex:1"><span class="modal-eyebrow" id="modal-eyebrow">—</span><h2 id="modal-title">—</h2></div><button class="modal-close" id="modal-close" aria-label="Close">×</button></div><form class="modal-body" id="modal-form" autocomplete="off"></form><div class="modal-foot"><button type="button" class="btn-pill revert" id="modal-cancel">Cancel</button><button type="button" class="btn-pill approve" id="modal-submit">Save</button></div></div></div><!-- ============== RICH POST/THREAD EDITOR ============== --><div class="modal" id="rich-modal" aria-hidden="true"><div class="modal-card modal-rich" role="dialog" aria-modal="true"><button class="modal-close" id="rich-close" aria-label="Close" style="position:absolute;top:14px;right:18px;z-index:5">×</button><div class="modal-body"><div class="rich-eyebrow" id="rich-eyebrow">—</div><div class="rich-head"><input type="text" class="rich-title" id="rich-title" placeholder="Enter a title…" /><label class="rich-pin-box" id="rich-pin-box" style="display:none"><input type="checkbox" id="rich-pin" /><span>Pin to top</span></label></div><div class="rich-meta" id="rich-meta"><span id="rich-meta-label">Type</span><select id="rich-meta-select"></select><div class="rich-meta-extra" id="rich-meta-extra-wrap"><span>Role</span><input type="text" id="rich-meta-extra" placeholder="e.g., Marketing PL" /></div></div><div class="rich-meeting-meta" id="rich-meeting-meta" hidden><div class="rmm-row"><div class="rmm-field"><span class="rmm-label">Department</span><select id="rmm-dept"></select></div><div class="rmm-field"><span class="rmm-label">Date</span><input type="date" id="rmm-date" /></div><div class="rmm-field"><span class="rmm-label">Time (24h)</span><input type="text" id="rmm-start" inputmode="numeric"
+</section><section class="view" data-view="hr"><div class="sec-head"><h1 class="title">HR<em>.</em><span class="kr">Org chart · Member info · Company schedule</span></h1><div class="meta"><span class="now" id="hr-meta">—</span><span>Admin · HR Chief / Deputy only</span></div></div><div class="hr-shell"><aside class="hr-sidenav"><div class="hr-sidenav-head">👥 HR</div><button type="button" class="hr-snav-btn" data-hr-tab="schedule"><span class="hr-snav-label">Company Schedule</span></button><button type="button" class="hr-snav-btn is-active" data-hr-tab="org"><span class="hr-snav-label">Org Chart</span></button><button type="button" class="hr-snav-btn" data-hr-tab="members"><span class="hr-snav-label">People &amp; Org</span><span class="hr-snav-count" id="hr-cnt-members">0</span></button><button type="button" class="hr-snav-btn" data-hr-tab="attendance"><span class="hr-snav-label">Daily Attendance</span></button><button type="button" class="hr-snav-btn" data-hr-tab="payroll"><span class="hr-snav-label">Payroll</span></button><div class="hr-sidenav-section">🛡 Safety & Health</div><button type="button" class="hr-snav-btn" data-hr-tab="safety"><span class="hr-snav-label">Safety Incidents</span><span class="hr-snav-count" id="hr-cnt-safety">0</span></button><div class="hr-sidenav-section">📘 Knowledge</div><button type="button" class="hr-snav-btn" data-hr-tab="policies"><span class="hr-snav-label">Company Policies</span></button><button type="button" class="hr-snav-btn" data-hr-tab="forms"><span class="hr-snav-label">Forms & Requests</span></button></aside><div class="hr-main"><div class="hr-pane" data-hr-pane="org"><div id="hr-org-pane"></div></div><div class="hr-pane" data-hr-pane="members" hidden><div id="hr-members-pane"></div></div><div class="hr-pane" data-hr-pane="schedule" hidden><div id="hr-schedule-pane"></div></div><div class="hr-pane" data-hr-pane="attendance" hidden><div id="hr-dailyatt-pane"></div></div><div class="hr-pane" data-hr-pane="payroll" hidden><div id="hr-payroll-pane"></div></div><div class="hr-pane" data-hr-pane="safety" hidden><div id="hr-safety-pane"></div></div><div class="hr-pane" data-hr-pane="policies" hidden><div id="hr-policies-pane"></div></div><div class="hr-pane" data-hr-pane="forms" hidden><div id="hr-forms-pane"></div></div></div></div></section><section class="view" data-view="admin"><div class="sec-head"><h1 class="title">Admin<em>.</em><span class="kr">Member · Department · Permission Management</span></h1><div class="meta"><span class="now" id="admin-now">—</span><span>Administrator Only</span></div></div><div class="stat-row" id="admin-stats"></div><div class="admin-block"><h3>Pending <em>requests</em><span class="count" id="pending-count">— pending</span></h3><div id="pending-list"></div></div><div class="admin-block pwr-admin-block" data-pwr-host="admin" style="display:none"></div><div class="admin-block"><div class="h-row"><h3>Approved <em>members</em><span class="count" id="approved-count">— members</span></h3><div class="h-actions"><button class="btn-add" data-add="member"><span class="plus">+</span>Add Member</button></div></div><div id="approved-list"></div></div><div class="admin-block"><h3>Rejected<span class="count" id="rejected-count">— rejected</span></h3><div id="rejected-list"></div></div><div class="admin-block"><h3>🛡 Roles &amp; <em>Permissions</em><span class="count">consolidated</span></h3><div class="admin-block-help">Department catalog (Chief / Deputy approval line) and operations permissions (Vehicle / Material / Brand Manager / Schedule) in one place. Admins always have every permission. Changes here are mirrored on the HR page Organization tab so HR managers see the same picture in real time.</div><div id="roles-perms-block"></div><!-- Hidden compatibility hooks — the original ids are still queried by ‘renderUnifiedDeptBlock’ + ‘renderOpsPermissionsBlock’ + the existing add-dept handler. Keep them in the DOM (display:none) so any background re-renders or programmatic clicks don't error out. --><div style="display:none"><span id="dept-mgmt-count"></span><span id="dept-roles-count"></span><button id="dept-mgmt-add"><span class="plus">+</span>Add Dept.</button><div id="dept-unified-list"></div><span id="ops-perms-count"></span><div id="ops-perms-list"></div></div></div></section></main><footer class="app-foot"><div data-brand="copyright">© 2026 KSM SPORTS / Dogyu Jang</div><div data-brand="productFoot">KSM SPORTS INTRANET · Internal use only</div><div id="now-foot">—</div></footer></div><!-- /.app-column --></section><!-- Pres panel moved into the topnav. See `data-topnav` element below. --><!-- ============== MODAL ============== --><div class="modal" id="modal" aria-hidden="true"><div class="modal-card" role="dialog" aria-modal="true"><div class="modal-head"><div style="flex:1"><span class="modal-eyebrow" id="modal-eyebrow">—</span><h2 id="modal-title">—</h2></div><button class="modal-close" id="modal-close" aria-label="Close">×</button></div><form class="modal-body" id="modal-form" autocomplete="off"></form><div class="modal-foot"><button type="button" class="btn-pill revert" id="modal-cancel">Cancel</button><button type="button" class="btn-pill approve" id="modal-submit">Save</button></div></div></div><!-- ============== RICH POST/THREAD EDITOR ============== --><div class="modal" id="rich-modal" aria-hidden="true"><div class="modal-card modal-rich" role="dialog" aria-modal="true"><button class="modal-close" id="rich-close" aria-label="Close" style="position:absolute;top:14px;right:18px;z-index:5">×</button><div class="modal-body"><div class="rich-eyebrow" id="rich-eyebrow">—</div><div class="rich-head"><input type="text" class="rich-title" id="rich-title" placeholder="Enter a title…" /><label class="rich-pin-box" id="rich-pin-box" style="display:none"><input type="checkbox" id="rich-pin" /><span>Pin to top</span></label></div><div class="rich-meta" id="rich-meta"><span id="rich-meta-label">Type</span><select id="rich-meta-select"></select><div class="rich-meta-extra" id="rich-meta-extra-wrap"><span>Role</span><input type="text" id="rich-meta-extra" placeholder="e.g., Marketing PL" /></div></div><div class="rich-meeting-meta" id="rich-meeting-meta" hidden><div class="rmm-row"><div class="rmm-field"><span class="rmm-label">Department</span><select id="rmm-dept"></select></div><div class="rmm-field"><span class="rmm-label">Date</span><input type="date" id="rmm-date" /></div><div class="rmm-field"><span class="rmm-label">Time (24h)</span><input type="text" id="rmm-start" inputmode="numeric"
                    pattern="^([01][0-9]|2[0-4]):[0-5][0-9]$"
                    placeholder="00:00" maxlength="5"
                    class="rmm-time-input" /><span class="rmm-dash">—</span><input type="text" id="rmm-end" inputmode="numeric"
@@ -19798,7 +19781,7 @@ const state = { users:[], session:null };
         with the page open see the banner within ~3-5 seconds of
         the admin's first load of the new version.
 ============================================================ */
-const APP_VERSION = '2026.05.22.296';
+const APP_VERSION = '2026.05.22.299';
 
 /* ============================================================
    Supabase client (singleton)
@@ -19829,11 +19812,11 @@ const Sb = (() => {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
-        // detectSessionInUrl must be true so the Supabase client automatically
-        // parses the OAuth callback hash (e.g. #access_token=...&...) and
-        // saves the session. This was previously false (when only email +
-        // password auth was used); enabling it is what lets Google OAuth
-        // return-trip work without any manual code exchange.
+        // detectSessionInUrl stays true so the Supabase client parses
+        // email-link callbacks (#access_token=...&type=signup) and saves the
+        // session. v299: Google OAuth sign-in was removed — any OAuth session
+        // that still arrives this way is signed out at boot
+        // (_authSessionIsOAuth).
         detectSessionInUrl: true,
         flowType: 'implicit',
         storage: window.sessionStorage
@@ -19952,33 +19935,437 @@ async function deleteCurrentUserAccount(){
   return { ok: true };
 }
 
-/* Forgot password — send a Supabase password-reset email. Always shows the same
-   success message (don't reveal whether the email is registered). The reset link
-   returns to the app with #type=recovery, handled at boot → set-new-password. */
-async function _authForgotPassword(){
+/* Forgot password — v299: NO EMAIL. Admin-issued one-time code, all on this page.
+   Step 1 "Request a reset code": email → RPC pw_reset_request (always the same
+   reply — never reveals whether the email is registered); the request shows up
+   in the administrator's 🔑 Password reset panel (Admin / HR → Member Info).
+   Step 2 "I have a code": email + 6-digit code + new password → RPC
+   pw_reset_complete (server checks code hash, expiry, 5-try lock, password
+   policy, then sets the password and signs out other sessions).
+   SQL: ksm-sql/password-reset.sql. If it hasn't been run yet the RPCs are
+   missing (PGRST202 / 42883) and the modal says so instead of failing. */
+function _pwrIsMissingRpc(err){
+  if (!err) return false;
+  const code = String(err.code || '');
+  const msg  = String(err.message || err || '');
+  return code === 'PGRST202' || code === '42883' ||
+    /could not find the function|function [^ ]* does not exist/i.test(msg);
+}
+function _pwrErrCode(err){
+  const m = String((err && (err.message || err.details || err.hint)) || err || '').match(/PWR_[A-Z_]+/);
+  return m ? m[0] : '';
+}
+function _pwrNormEmail(v){ return String(v || '').trim().toLowerCase(); }
+function _pwrValidEmail(v){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v); }
+function _pwrBox(kind, html){
+  const pal = kind === 'ok'   ? 'background:#ECFDF5;border:1px solid #A7F3D0;color:#065F46'
+            : kind === 'warn' ? 'background:#FFFBEB;border:1px solid #FDE68A;color:#92400E'
+            :                   'background:#FEF2F2;border:1px solid #FECACA;color:#991B1B';
+  return `<div style="padding:10px 12px;${pal};border-radius:6px;line-height:1.5">${html}</div>`;
+}
+const _PWR_NOT_SETUP_MSG = 'Password reset is not set up yet — contact the administrator.';
+/* v299 — Google sign-in removed. True when a Supabase session came from an OAuth
+   provider: the access token's `amr` claim lists method "oauth", or the session
+   carries a provider_token (implicit-flow OAuth callback). Password, email-link
+   (signup/recovery) and reset-code logins are never OAuth. */
+function _authSessionIsOAuth(session){
+  if (!session) return false;
+  if (session.provider_token) return true;
+  try {
+    const part = String(session.access_token || '').split('.')[1] || '';
+    if (!part) return false;
+    let b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    while (b64.length % 4) b64 += '=';
+    const claims = JSON.parse(atob(b64));
+    const amr = Array.isArray(claims && claims.amr) ? claims.amr : [];
+    return amr.some(a => a && (a.method === 'oauth' || a === 'oauth'));
+  } catch(_){ return false; }
+}
+async function _authForgotPassword(startStep){
   if (!Sb){ toast('Service unavailable. Please reload.'); return; }
   if (typeof openModal !== 'function') return;
   const pre = (document.getElementById('li-email')?.value || '').trim();
+  let step = startStep === 'code' ? 'code' : 'request';
+  const tabCss = 'flex:1;padding:8px 10px;border-radius:6px;cursor:pointer;font-family:var(--sans);font-size:12.5px;font-weight:600;border:1px solid var(--card-border,#E5E7EB)';
+  const linkCss = 'background:none;border:none;color:#1E40AF;cursor:pointer;padding:0;font-family:var(--sans);font-size:12.5px;font-weight:600';
   openModal({
     eyebrow: 'PASSWORD',
     title: 'Reset your password',
     fields: [{ type:'rawHtml', html:`
-      <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px">Enter your registered email and we'll send you a link to set a new password.</div>
-      <div class="mf"><label for="fp-email">Email</label><input id="fp-email" type="email" autocomplete="username" placeholder="your@email.com" value="${esc(pre)}" /></div>
+      <div style="display:flex;gap:6px;margin-bottom:12px" role="tablist">
+        <button type="button" id="fp-tab-request" data-fp-step="request" role="tab" style="${tabCss}">1 · Request a reset code</button>
+        <button type="button" id="fp-tab-code" data-fp-step="code" role="tab" style="${tabCss}">2 · I have a code</button>
+      </div>
+      <div id="fp-step-request">
+        <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px">Enter your registered email. Your request goes to the administrator, who will give you a <b>6-digit reset code</b> (in person or by message). No email is sent.</div>
+        <div class="mf"><label for="fp-email">Email</label><input id="fp-email" type="email" autocomplete="username" placeholder="your@email.com" value="${esc(pre)}" /></div>
+        <div style="margin-top:6px"><button type="button" id="fp-go-code" data-fp-step="code" style="${linkCss}">Already have a code? Enter it here →</button></div>
+      </div>
+      <div id="fp-step-code" style="display:none">
+        <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;margin-bottom:12px">Enter the 6-digit code from the administrator and choose a new password (10+ characters). Codes expire after 30 minutes.</div>
+        <div class="mf"><label for="fp-email2">Email</label><input id="fp-email2" type="email" autocomplete="username" placeholder="your@email.com" value="${esc(pre)}" /></div>
+        <div class="mf"><label for="fp-code">6-digit code</label><input id="fp-code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="11" placeholder="123456" style="letter-spacing:.3em;font-family:var(--mono)" /></div>
+        <div class="mf"><label for="fp-pw1">New password</label><input id="fp-pw1" type="password" autocomplete="new-password" placeholder="••••••••••" /></div>
+        <div class="mf"><label for="fp-pw2">Confirm new password</label><input id="fp-pw2" type="password" autocomplete="new-password" placeholder="••••••••••" /></div>
+        <div style="margin-top:6px"><button type="button" id="fp-go-request" data-fp-step="request" style="${linkCss}">← Don't have a code? Request one</button></div>
+      </div>
       <div id="fp-result" style="margin-top:10px;font-size:12.5px"></div>
     ` }],
-    submitLabel: 'Send reset link',
-    onSubmit: async () => {
-      const email = (document.getElementById('fp-email')?.value || '').trim().toLowerCase();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('Please enter a valid email address.'); return false; }
-      try { await Sb.auth.resetPasswordForEmail(email, { redirectTo: window.location.origin + window.location.pathname }); }
-      catch(e){ console.warn('[reset]', e); }
-      const r = document.getElementById('fp-result');
-      if (r) r.innerHTML = `<div style="padding:10px 12px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:6px;color:#065F46">📧 If <strong>${esc(email)}</strong> is registered, a reset link has been sent.<br><span style="font-size:11.5px">Check your inbox (and spam), then open the link to set a new password.</span></div>`;
-      return false;  // keep modal open to show the confirmation
-    },
+    submitLabel: step === 'code' ? 'Set new password' : 'Send request',
+    onSubmit: async () => (step === 'code' ? _fpSubmitCode() : _fpSubmitRequest()),
+  });
+  const setStep = (s) => {
+    // Don't switch while a request is in flight — the generic modal handler
+    // restores the old button label when it settles (R3).
+    const $busy = document.getElementById('modal-submit');
+    if ($busy && $busy.disabled) return;
+    step = s === 'code' ? 'code' : 'request';
+    const $r = document.getElementById('fp-step-request'), $c = document.getElementById('fp-step-code');
+    if ($r) $r.style.display = step === 'request' ? '' : 'none';
+    if ($c) $c.style.display = step === 'code' ? '' : 'none';
+    [['fp-tab-request','request'],['fp-tab-code','code']].forEach(([id, k]) => {
+      const $t = document.getElementById(id); if (!$t) return;
+      const on = k === step;
+      $t.setAttribute('aria-selected', on ? 'true' : 'false');
+      $t.style.background = on ? '#1E40AF' : 'var(--card,#fff)';
+      $t.style.color = on ? '#fff' : 'var(--ink-soft,#374151)';
+    });
+    const $sb = document.getElementById('modal-submit');
+    if ($sb && !$sb.disabled) $sb.textContent = step === 'code' ? 'Set new password' : 'Send request';
+    const $res = document.getElementById('fp-result'); if ($res) $res.innerHTML = '';
+    // Carry the email across so the user never retypes it.
+    const $e1 = document.getElementById('fp-email'), $e2 = document.getElementById('fp-email2');
+    if ($e1 && $e2){
+      if (step === 'code' && $e1.value.trim() && !$e2.value.trim()) $e2.value = $e1.value.trim();
+      if (step === 'request' && $e2.value.trim() && !$e1.value.trim()) $e1.value = $e2.value.trim();
+    }
+    setTimeout(() => {
+      const $f = step === 'code'
+        ? (($e2 && !$e2.value.trim()) ? $e2 : document.getElementById('fp-code'))
+        : $e1;
+      try { $f && $f.focus(); } catch(_){}
+    }, 70);
+  };
+  document.querySelectorAll('#modal [data-fp-step]').forEach(b => {
+    b.addEventListener('click', (e) => { e.preventDefault(); setStep(b.getAttribute('data-fp-step')); });
+  });
+  setStep(step);
+}
+async function _fpSubmitRequest(){
+  const $res = document.getElementById('fp-result');
+  const email = _pwrNormEmail(document.getElementById('fp-email')?.value);
+  if (!_pwrValidEmail(email)){ toast('Please enter a valid email address.'); return false; }
+  try {
+    const { error } = await Sb.rpc('pw_reset_request', { p_email: email });
+    if (error){
+      if (_pwrIsMissingRpc(error)){ if ($res) $res.innerHTML = _pwrBox('warn', esc(_PWR_NOT_SETUP_MSG)); return false; }
+      console.warn('[pw-reset] request', error);
+      if ($res) $res.innerHTML = _pwrBox('err', "Couldn't send the request right now. Please try again, or contact the administrator.");
+      return false;
+    }
+  } catch(e){
+    console.warn('[pw-reset] request', e);
+    if ($res) $res.innerHTML = _pwrBox('err', "Couldn't send the request right now. Please try again, or contact the administrator.");
+    return false;
+  }
+  // Same reply for every email — never reveals whether an account exists.
+  if ($res) $res.innerHTML = _pwrBox('ok', `✓ If this email is registered, your request was sent to the administrator. Ask them for your 6-digit code.<br><span style="font-size:11.5px">Then choose <b>“2 · I have a code”</b> above. Not sure of your login email? Tell the administrator your name — the code message includes your login email.</span>`);
+  return false;  // keep the modal open — the user continues with step 2
+}
+async function _fpSubmitCode(){
+  const $res = document.getElementById('fp-result');
+  const show = (kind, html) => { if ($res) $res.innerHTML = _pwrBox(kind, html); };
+  const email = _pwrNormEmail(document.getElementById('fp-email2')?.value);
+  const code  = String(document.getElementById('fp-code')?.value || '').replace(/[\s-]/g, '');
+  const p1 = document.getElementById('fp-pw1')?.value || '';
+  const p2 = document.getElementById('fp-pw2')?.value || '';
+  if (!_pwrValidEmail(email)){ toast('Please enter a valid email address.'); return false; }
+  if (!/^\d{6}$/.test(code)){ show('err', 'Enter the 6-digit code from the administrator (numbers only).'); return false; }
+  let bytes = p1.length;
+  try { bytes = new TextEncoder().encode(p1).length; } catch(_){}
+  if (p1.length < 10 || !p1.trim()){ show('err', 'Password must be at least 10 characters.'); return false; }
+  if (bytes > 72){ show('err', 'Password is too long (max 72 bytes).'); return false; }
+  if (p1 !== p2){ show('err', 'Passwords do not match.'); return false; }
+  let data = null;
+  try {
+    const r = await Sb.rpc('pw_reset_complete', { p_email: email, p_code: code, p_new_password: p1 });
+    if (r.error){
+      if (_pwrIsMissingRpc(r.error)){ show('warn', esc(_PWR_NOT_SETUP_MSG)); return false; }
+      console.warn('[pw-reset] complete', r.error);
+      show('err', "Couldn't reset the password right now. Please try again, or contact the administrator.");
+      return false;
+    }
+    data = r.data;
+  } catch(e){
+    console.warn('[pw-reset] complete', e);
+    show('err', "Couldn't reset the password right now. Please try again, or contact the administrator.");
+    return false;
+  }
+  if (data && data.ok === true){
+    toast('✓ Password updated — sign in with your new password.');
+    setTimeout(() => {
+      const $le = document.getElementById('li-email'), $lp = document.getElementById('li-pw');
+      const $err = document.getElementById('li-err');
+      if ($err) $err.textContent = '';
+      if ($le) $le.value = email;
+      if ($lp){ $lp.value = ''; try { $lp.focus(); } catch(_){} }
+    }, 80);
+    return true;   // close the modal
+  }
+  const err = (data && data.error) || '';
+  if (err === 'weak_password')      show('err', 'Password is too weak — use at least 10 characters (max 72 bytes), not only spaces.');
+  else if (err === 'locked')        show('err', 'Too many wrong codes. Ask the administrator for a new code.');
+  else                              show('err', 'The code is wrong, expired, or locked after too many wrong tries. Check the email and code, or ask the administrator for a new code.');
+  return false;
+}
+
+/* 🔑 Password reset — ISSUER side (v299). Shown ONLY when the server says so:
+   RPC pw_reset_is_issuer() (caller's JWT email in pw_reset_issuers + own
+   profile role='admin' + approved).
+   profiles.role is NOT the gate — every pw_reset_* admin RPC re-checks on the
+   server. Panels render into [data-pwr-host] containers (Admin view + HR →
+   Member Info); per-member "🔑" buttons carry .pwr-only and are hidden by CSS
+   unless <body> has .pwr-issuer. Polls pw_reset_list every 60 s + on window
+   focus while signed in; _pwrStop() on logout / auth screen. */
+const _pwr = { issuer:false, rows:[], loaded:false, err:'', timer:null, onFocus:null, gen:0, busy:false };
+function _pwrStop(){
+  _pwr.gen++;
+  if (_pwr.timer){ clearInterval(_pwr.timer); _pwr.timer = null; }
+  if (_pwr.onFocus){ window.removeEventListener('focus', _pwr.onFocus); _pwr.onFocus = null; }
+  _pwr.issuer = false; _pwr.rows = []; _pwr.loaded = false; _pwr.err = ''; _pwr.busy = false;
+  try { document.body.classList.remove('pwr-issuer'); } catch(_){}
+  try { _pwrPaintHosts(); } catch(_){}
+}
+async function _pwrInit(){
+  _pwrStop();
+  if (!Sb || !state.session) return;
+  // Issuers must be approved admins (the server also requires role='admin'),
+  // so only admin sessions — which have the Admin tab + panel — even ask (R4).
+  if (state.session.role !== 'admin') return;
+  const gen = _pwr.gen;
+  let ok = false;
+  try {
+    const { data, error } = await Sb.rpc('pw_reset_is_issuer');
+    if (error){ if (!_pwrIsMissingRpc(error)) console.warn('[pw-reset] is_issuer', error); }
+    else ok = data === true;
+  } catch(e){ console.warn('[pw-reset] is_issuer', e); }
+  if (gen !== _pwr.gen || !state.session || !ok) return;
+  _pwr.issuer = true;
+  document.body.classList.add('pwr-issuer');
+  _pwrPaintHosts();
+  await _pwrRefresh();
+  if (gen !== _pwr.gen || !_pwr.issuer) return;
+  _pwr.timer = setInterval(() => { _pwrRefresh(); }, 60000);
+  _pwr.onFocus = () => { _pwrRefresh(); };
+  window.addEventListener('focus', _pwr.onFocus);
+}
+async function _pwrRefresh(){
+  if (!_pwr.issuer || !Sb || !state.session || _pwr.busy) return;
+  const gen = _pwr.gen;
+  _pwr.busy = true;
+  try {
+    const { data, error } = await Sb.rpc('pw_reset_list');
+    if (gen !== _pwr.gen) return;
+    if (error){
+      if (_pwrIsMissingRpc(error) || _pwrErrCode(error) === 'PWR_FORBIDDEN'){ _pwrStop(); return; }
+      console.warn('[pw-reset] list', error);
+      _pwr.err = 'Could not load reset requests — will retry.';
+    } else {
+      _pwr.rows = Array.isArray(data) ? data : [];
+      _pwr.loaded = true; _pwr.err = '';
+    }
+  } catch(e){
+    if (gen !== _pwr.gen) return;
+    console.warn('[pw-reset] list', e);
+    _pwr.err = 'Could not load reset requests — will retry.';
+  } finally {
+    if (gen === _pwr.gen) _pwr.busy = false;
+  }
+  _pwrPaintHosts();
+}
+function _pwrFmtTs(v){
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+function _pwrPendingCount(){
+  return _pwr.issuer ? _pwr.rows.filter(r => r && r.status === 'pending').length : 0;
+}
+function _pwrPanelHtml(kind){
+  const rows = _pwr.rows.slice().sort((a, b) => {
+    const pa = a.status === 'pending' ? 0 : 1, pb = b.status === 'pending' ? 0 : 1;
+    if (pa !== pb) return pa - pb;
+    return String(b.requested_at || '').localeCompare(String(a.requested_at || ''));
+  });
+  const pend = _pwrPendingCount();
+  const listId = 'pwr-dl-' + kind;
+  const emails = (state.users || [])
+    .filter(u => u && u.email && u.status === 'approved' && u.role !== 'admin')
+    .map(u => `<option value="${esc(String(u.email).toLowerCase())}">${esc(u.name || '')}</option>`).join('');
+  const head = kind === 'admin'
+    ? `<h3>🔑 Password <em>reset</em><span class="count">${pend} pending</span></h3>`
+    : `<div class="hr-mem-section-head"><span class="hr-mem-section-title">🔑 Password reset</span><span class="hr-mem-section-count">${pend} pending</span><span class="hr-mem-section-note">one-time codes · no email</span></div>`;
+  const rowHtml = (r) => {
+    const st = String(r.status || '');
+    let pill, acts = '';
+    if (st === 'pending'){
+      pill = `<span class="pwr-pill is-pending">Pending</span>`;
+      acts = `<button type="button" class="btn-pill approve" data-pwr-act="issue" data-em="${esc(r.email)}">Issue code</button>
+              <button type="button" class="btn-pill reject" data-pwr-act="dismiss" data-id="${esc(r.id)}" data-em="${esc(r.email)}">Dismiss</button>`;
+    } else if (st === 'issued'){
+      pill = r.has_active_code
+        ? `<span class="pwr-pill is-active">Code active · until ${esc(_pwrFmtTs(r.code_expires_at).slice(11))}${r.attempts ? ` · ${esc(r.attempts)}/5 wrong` : ''}</span>`
+        : (Number(r.attempts) >= 5
+          ? `<span class="pwr-pill is-pending">Code locked · 5 wrong tries</span>`
+          : `<span class="pwr-pill">Code issued · used or expired</span>`);
+      acts = `<button type="button" class="btn-pill revert" data-pwr-act="issue" data-em="${esc(r.email)}">Re-issue</button>`;
+    } else {
+      pill = `<span class="pwr-pill">Dismissed</span>`;
+    }
+    const by = r.handled_by ? ` · by ${esc(r.handled_by)}${r.handled_at ? ' ' + esc(_pwrFmtTs(r.handled_at)) : ''}` : '';
+    return `<div class="pwr-row">
+      <div class="pwr-who"><div class="pwr-name">${esc(r.name || r.email)} ${pill}</div>
+        <div class="pwr-info">${esc(r.email)} · requested ${esc(_pwrFmtTs(r.requested_at))}${by}</div></div>
+      <div class="pwr-acts">${acts}</div></div>`;
+  };
+  const shown = rows.slice(0, 30);
+  return `${head}
+    <div class="pwr-body">
+      <div class="pwr-help">Members who forgot their password tap <b>Forgot password?</b> on the login page — requests appear here. Issue a one-time <b>6-digit code</b> (valid 30 min) and give it to them in person or by message; they enter it under <b>“I have a code”</b>. No email is sent. Admin accounts must be reset in the Supabase dashboard.</div>
+      <div class="pwr-issue-any">
+        <input type="email" list="${listId}" placeholder="Issue a code for any member — type their email" data-pwr-input="${esc(kind)}" autocomplete="off" />
+        <datalist id="${listId}">${emails}</datalist>
+        <button type="button" class="btn-pill approve" data-pwr-act="issue-input" data-pwr-kind="${esc(kind)}">Issue code</button>
+        <button type="button" class="btn-pill revert" data-pwr-act="refresh" title="Reload requests">↻</button>
+      </div>
+      ${_pwr.err ? `<div class="pwr-err">${esc(_pwr.err)}</div>` : ''}
+      ${!_pwr.loaded && !_pwr.err ? `<div class="pwr-empty">Loading…</div>`
+        : shown.length === 0 ? `<div class="pwr-empty">No reset requests in the last 30 days.</div>`
+        : `<div class="pwr-list">${shown.map(rowHtml).join('')}</div>${rows.length > shown.length
+            ? `<div class="pwr-empty">+${esc(rows.length - shown.length)} more (older or handled) not shown — pending requests are listed first.</div>` : ''}`}
+    </div>`;
+}
+function _pwrPaintHosts(){
+  const n = _pwrPendingCount();
+  // Pending-count badge on the sidebar tab the issuer actually has.
+  const isAdm = !!(state.session && state.session.role === 'admin');
+  [['adminTab', isAdm], ['hrTab', !isAdm]].forEach(([id, want]) => {
+    const $t = document.getElementById(id); if (!$t) return;
+    let $b = $t.querySelector('.pwr-badge');
+    if (!(want && n > 0)){ if ($b) $b.remove(); return; }
+    if (!$b){ $b = document.createElement('span'); $b.className = 'pwr-badge'; $t.appendChild($b); }
+    $b.textContent = n > 99 ? '99+' : String(n);
+    $b.title = n + ' password reset request' + (n === 1 ? '' : 's');
+  });
+  document.querySelectorAll('[data-pwr-host]').forEach($h => {
+    if (!_pwr.issuer){ $h.innerHTML = ''; $h.style.display = 'none'; return; }
+    // Don't wipe what the issuer is typing in the "any member" box.
+    const $in = $h.querySelector('[data-pwr-input]');
+    const typed = $in ? $in.value : '';
+    const hadFocus = $in && document.activeElement === $in;
+    $h.style.display = '';
+    $h.innerHTML = _pwrPanelHtml($h.getAttribute('data-pwr-host') || 'hr');
+    const $in2 = $h.querySelector('[data-pwr-input]');
+    if ($in2 && typed){ $in2.value = typed; }
+    if ($in2 && hadFocus){ try { $in2.focus(); } catch(_){} }
   });
 }
+async function _pwrIssue(email){
+  email = _pwrNormEmail(email);
+  if (!_pwr.issuer || !Sb){ toast('Not authorized.'); return; }
+  if (!_pwrValidEmail(email)){ toast('Enter a valid member email.'); return; }
+  const u = (state.users || []).find(x => String(x.email || '').toLowerCase() === email);
+  if (u && u.role === 'admin'){ toast('Admin accounts must be reset in the Supabase dashboard.'); return; }
+  if (!window.confirm(`Issue a one-time password reset code for ${email}?\n\nAny earlier code for this account stops working.`)) return;
+  let data = null;
+  try {
+    const r = await Sb.rpc('pw_reset_issue', { p_email: email });
+    if (r.error){
+      const c = _pwrErrCode(r.error);
+      if (_pwrIsMissingRpc(r.error)) toast('Password reset is not set up yet (run ksm-sql/password-reset.sql).');
+      else if (c === 'PWR_ADMIN_TARGET') toast('Admin accounts must be reset in the Supabase dashboard.');
+      else if (c === 'PWR_NOT_FOUND')   toast('No login account exists for ' + email + '.');
+      else if (c === 'PWR_FORBIDDEN'){ toast('You are not allowed to issue reset codes.'); _pwrStop(); }
+      else if (c === 'PWR_BAD_INPUT')   toast('Invalid email.');
+      else { console.warn('[pw-reset] issue', r.error); toast('Could not issue a code: ' + (r.error.message || 'unknown error')); }
+      return;
+    }
+    data = r.data;
+  } catch(e){ console.warn('[pw-reset] issue', e); toast('Could not issue a code. Please try again.'); return; }
+  if (!data || data.ok !== true || !/^\d{6}$/.test(String(data.code || ''))){ toast('Could not issue a code. Please try again.'); return; }
+  _pwrShowCode(email, String(data.code), data.expires_at);
+  _pwrRefresh();
+}
+function _pwrShowCode(email, code, expiresAt){
+  if (typeof openModal !== 'function') return;
+  const until = _pwrFmtTs(expiresAt) || '30 minutes from now';
+  const msg = `Your KSM intranet reset code is ${code} for login ${email} (valid 30 min). Open the login page → Forgot password? → I have a code.`;
+  openModal({
+    eyebrow: 'PASSWORD RESET',
+    title: 'One-time reset code',
+    fields: [{ type:'rawHtml', html:`
+      <div style="font-size:12.5px;color:var(--ink-soft);margin-bottom:8px">For <b>${esc(email)}</b></div>
+      <div id="pwr-code-big" style="font-family:var(--mono);font-size:44px;font-weight:700;letter-spacing:.32em;text-align:center;padding:14px 0 14px .32em;background:#F8FAFC;border:1px dashed #94A3B8;border-radius:10px;color:#0F172A;user-select:all">${esc(code)}</div>
+      <div style="font-size:12px;color:#92400E;margin:8px 0 12px">Valid until <b>${esc(until)}</b> · shown once only — it can't be displayed again (issue a new one if lost).</div>
+      <div class="mf"><label for="pwr-msg">Message to send</label><textarea id="pwr-msg" readonly style="min-height:70px">${esc(msg)}</textarea></div>
+      <div style="display:flex;gap:8px;margin-top:6px">
+        <button type="button" class="btn-pill revert" data-pwr-act="copy" data-pwr-copy="${esc(code)}">Copy code</button>
+        <button type="button" class="btn-pill revert" data-pwr-act="copy" data-pwr-copy="${esc(msg)}">Copy message</button>
+      </div>
+    ` }],
+    submitLabel: 'Done',
+    onSubmit: () => true,
+  });
+}
+function _pwrCopy(text){
+  const fallback = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand('copy'); ta.remove();
+      toast(ok ? '✓ Copied' : 'Copy failed — select and copy manually.');
+    } catch(_){ toast('Copy failed — select and copy manually.'); }
+  };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(() => toast('✓ Copied'), fallback);
+      return;
+    }
+  } catch(_){}
+  fallback();
+}
+async function _pwrDismiss(id, email){
+  if (!_pwr.issuer || !Sb) return;
+  if (!window.confirm(`Dismiss the password reset request from ${email || 'this member'}?`)) return;
+  try {
+    const { error } = await Sb.rpc('pw_reset_dismiss', { p_id: Number(id) });
+    if (error){
+      if (_pwrErrCode(error) === 'PWR_FORBIDDEN'){ toast('Not authorized.'); _pwrStop(); return; }
+      console.warn('[pw-reset] dismiss', error); toast('Could not dismiss: ' + (error.message || 'unknown error')); return;
+    }
+  } catch(e){ console.warn('[pw-reset] dismiss', e); toast('Could not dismiss. Please try again.'); return; }
+  toast('Request dismissed.');
+  _pwrRefresh();
+}
+document.addEventListener('click', (e) => {
+  const b = e.target && e.target.closest ? e.target.closest('[data-pwr-act]') : null;
+  if (!b) return;
+  const act = b.getAttribute('data-pwr-act');
+  if (act === 'copy'){ e.preventDefault(); _pwrCopy(b.getAttribute('data-pwr-copy') || ''); return; }
+  if (!_pwr.issuer) return;
+  e.preventDefault();
+  if (act === 'issue') _pwrIssue(b.getAttribute('data-em'));
+  else if (act === 'dismiss') _pwrDismiss(b.getAttribute('data-id'), b.getAttribute('data-em'));
+  else if (act === 'refresh') _pwrRefresh();
+  else if (act === 'issue-input'){
+    const $host = b.closest('[data-pwr-host]');
+    const $in = $host ? $host.querySelector('[data-pwr-input]') : null;
+    _pwrIssue($in ? $in.value : '');
+  }
+});
 
 /* Find your login email (ID). Korean-site style: enter name + registered phone,
    and we reveal a masked hint of the matching email. profiles SELECT is open to
@@ -20769,6 +21156,7 @@ async function logout(){
   stopPresence();
   if (typeof stopOpsRealtime === 'function') stopOpsRealtime();
   if (typeof stopLeatherRealtime === 'function') stopLeatherRealtime();   // Phase 29
+  try { _pwrStop(); } catch(_){}   // v299 — stop password-reset polling
   if (Sb){ try { await Sb.auth.signOut(); } catch(_){} }
   state.session = null;
   if (typeof _monitorTimer !== 'undefined' && _monitorTimer){
@@ -46997,6 +47385,7 @@ function showAuth(){
   if (execTab) execTab.style.display = 'none';
   const empSearchWrap = document.getElementById('empSearchWrap');
   if (empSearchWrap) empSearchWrap.style.display = 'none';
+  try { _pwrStop(); } catch(_){}   // v299 — hide 🔑 reset panel + stop polling
 }
 
 async function showApp(){
@@ -47045,6 +47434,7 @@ async function showApp(){
       console.warn('[showApp] renderApprovals failed (non-fatal):', e);
     }
   }).catch(e => console.warn('[showApp] bootContent failed:', e));
+  try { _pwrInit(); } catch(_){}   // v299 — 🔑 password-reset issuer panel (server-gated)
 }
 
 function paintMe(){
@@ -50563,6 +50953,7 @@ function renderAdmin(){
       const renderRow = (u, idx) => `
         <div class="approval-row"><span class="rno">№ ${String(idx+1).padStart(2,'0')}</span><div class="who-r"><div class="name">${esc(u.name)}${deptRoleBadge(u)} <span class="status-tag ${u.role==='admin'?'admin':'approved'}">${u.role==='admin'?'Admin':'Member'}</span></div><div class="info"><span>${esc(u.email)}</span><span class="sep"></span><span>Sign up ${fmtAgo(u.createdAt)}</span>${(u.department||u.team)?`<span class="sep"></span><span>${esc(u.department||u.team)}</span>`:''}${u.birthdate?`<span class="sep"></span><span>🎂 ${esc(fmtDOB(u.birthdate))}</span>`:''}</div></div><div class="actions">
             <button class="btn-pill ghost" data-act="edit-email" data-em="${esc(u.email)}" title="Change this member's email / login ID">✉ Edit Email</button>
+            ${u.role === 'admin' ? '' : `<button class="btn-pill ghost pwr-only" data-act="pwr-issue" data-em="${esc(u.email)}" title="Issue a one-time password reset code">🔑 Reset code</button>`}
             ${u.role === 'admin' ? '' : `<button class="btn-pill revert" data-act="revert" data-em="${esc(u.email)}">Revoke</button>`}
           </div></div>`;
       const buckets = {
@@ -50600,8 +50991,10 @@ function renderAdmin(){
       else if (act === 'revert') setStatus(em, 'pending');
       else if (act === 'remove') removeUserFromList(em);
       else if (act === 'edit-email') openEditEmailModal(em);
+      else if (act === 'pwr-issue') _pwrIssue(em);   // v299
     });
   });
+  try { _pwrPaintHosts(); } catch(_){}   // v299 — keep the 🔑 panel painted after re-renders
 
   // Note: the inline Chief/Deputy/— toggle buttons that used to live in each
   // approved-list row have been removed. All Chief/Deputy assignment now flows
@@ -53600,21 +53993,10 @@ document.getElementById('pane-login').addEventListener('submit', async (e) => {
   showApp();
 });
 
-/* ============ GOOGLE OAUTH SIGN-IN ============
-   When the user clicks "Sign in with Google", we hand off to Supabase
-   Auth's OAuth flow. Supabase redirects the browser to Google's
-   consent screen, then back to our app's origin with the access tokens
-   in the URL fragment. The boot loader (at the very bottom of this
-   script) detects that hash, restores the Supabase session, looks up
-   the profile, and either logs the user in or shows a friendly error
-   if their email isn't registered.
-
-   Important: Google OAuth only works if the user's Google email is
-   already in our `profiles` table with status='approved'. This is a
-   deliberate security choice — admins approve who can access the app,
-   and Google sign-in is just a convenient alternative to typing a
-   password for those already approved. Users without an account will
-   see a clear error message and a link to Request Access. */
+/* ============ LOGIN HELPERS — Forgot ID / Forgot password ============
+   v299 — "Sign in with Google" was removed (email + password only). Forgot
+   password no longer sends an email: it opens the admin-issued one-time-code
+   flow (_authForgotPassword). */
 document.getElementById('li-forgot')?.addEventListener('click', (e) => {
   e.preventDefault();
   _authForgotPassword();
@@ -53622,46 +54004,6 @@ document.getElementById('li-forgot')?.addEventListener('click', (e) => {
 document.getElementById('li-find-id')?.addEventListener('click', (e) => {
   e.preventDefault();
   _authFindId();
-});
-document.getElementById('li-google')?.addEventListener('click', async () => {
-  const btn = document.getElementById('li-google');
-  const errEl = document.getElementById('li-err');
-  errEl.textContent = '';
-  if (!Sb){
-    errEl.textContent = 'Service unavailable. Please reload.';
-    return;
-  }
-  btn.disabled = true;
-  // Show inline progress so users know the redirect is coming.
-  const origLabel = btn.querySelector('span').textContent;
-  btn.querySelector('span').textContent = 'Redirecting to Google…';
-  try {
-    const { error } = await Sb.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        // Redirect back to the same origin the user is on now. The
-        // boot loader will pick up the tokens from the URL fragment
-        // and finish signing them in.
-        redirectTo: window.location.origin + window.location.pathname,
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'select_account',  // always let user pick which Google account
-        },
-      },
-    });
-    if (error){
-      errEl.textContent = 'Google sign-in failed: ' + (error.message || 'unknown error');
-      btn.disabled = false;
-      btn.querySelector('span').textContent = origLabel;
-    }
-    // On success, the page redirects to Google and this code doesn't
-    // continue. No need to reset the button.
-  } catch(err){
-    console.error('[google-oauth]', err);
-    errEl.textContent = 'Google sign-in failed. Please try again or use email + password.';
-    btn.disabled = false;
-    btn.querySelector('span').textContent = origLabel;
-  }
 });
 
 document.getElementById('pane-signup').addEventListener('submit', async (e) => {
@@ -64570,8 +64912,25 @@ function _apOpenDetailModal(req){
   const selfFooter = canSelfEdit ? `
     <div class="ap-admin-tools" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-top:1px dashed var(--card-border); margin-top:8px; padding-top:10px">
       <span class="ap-admin-tools-note" style="color:#1E40AF; flex:1">Your request — not approved yet, so you can fix or withdraw it.</span>
-      ${req._category === 'time_off' ? `<button type="button" id="ap-self-edit" style="${_sbCss}; border:1px solid #1E40AF; background:#fff; color:#1E40AF">✎ Edit</button>` : ''}
+      ${req._category === 'time_off' && req.kind !== 'overtime_change' ? `<button type="button" id="ap-self-edit" style="${_sbCss}; border:1px solid #1E40AF; background:#fff; color:#1E40AF">✎ Edit</button>` : ''}
       <button type="button" id="ap-self-cancel" style="${_sbCss}; border:1px solid #DC2626; background:#fff; color:#B91C1C">🗑 Cancel / Withdraw</button>
+    </div>` : '';
+
+  // v297 — Overtime CHANGE entry point (single surface). The OWNER of an
+  // APPROVED overtime files a change request here; while a change is in
+  // flight the same slot shows the ⏳ pending badge instead (and the
+  // original stays untouched until final approval).
+  const _otcMineApproved = isMine && req._category === 'time_off'
+    && req.kind === 'overtime' && req.status === 'approved';
+  const _otcActive = (_otcMineApproved && typeof _otcActiveChangeFor === 'function')
+    ? _otcActiveChangeFor(req.id) : null;
+  const canReqChange = _otcMineApproved && !_otcActive;
+  const otcFooter = _otcMineApproved ? `
+    <div class="ap-admin-tools" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; border-top:1px dashed var(--card-border); margin-top:8px; padding-top:10px">
+      ${_otcActive
+        ? `<span class="ap-admin-tools-note" style="color:#92400E; flex:1">⏳ Change pending — a change request for this overtime is awaiting approval (Department Head → Administrator). The original stands until final approval.</span>`
+        : `<span class="ap-admin-tools-note" style="color:#1E40AF; flex:1">Approved overtime — changes require Department Head → Administrator approval.</span>
+           <button type="button" id="ap-otc-request" style="${_sbCss}; border:1px solid #1E40AF; background:#fff; color:#1E40AF">✎ Request Change</button>`}
     </div>` : '';
 
   openModal({
@@ -64590,6 +64949,7 @@ function _apOpenDetailModal(req){
           }</div>
           ${decisionHtml}
           ${selfFooter}
+          ${otcFooter}
           ${adminFooter}
         </div>`,
     }],
@@ -64724,6 +65084,16 @@ function _apOpenDetailModal(req){
       });
     }
   }
+  // v297 — ✎ Request Change wiring (owner + approved overtime + no active change)
+  if (canReqChange){
+    const $otc = document.getElementById('ap-otc-request');
+    if ($otc) $otc.addEventListener('click', () => {
+      const raw = ((content.ops && content.ops.timeOffRequests) || []).find(x => x.id === req.id) || req;
+      if (typeof closeModal === 'function') closeModal();
+      else { const $m = document.getElementById('modal'); if ($m){ $m.classList.remove('show'); $m.setAttribute('aria-hidden','true'); } }
+      if (typeof _otcOpenChangeModal === 'function') _otcOpenChangeModal(raw);
+    });
+  }
   // Requester self-edit / withdraw wiring (v256)
   if (canSelfEdit){
     const _close = () => { if (typeof closeModal === 'function') closeModal(); else { const $m = document.getElementById('modal'); if ($m){ $m.classList.remove('show'); $m.setAttribute('aria-hidden','true'); } } };
@@ -64852,7 +65222,24 @@ function _apBuildMetaRows(req){
     `<dt>Type</dt><dd>${esc(_apTypeLabelKorean(req))}</dd>`,
   ];
   // Category-specific rows
-  if (req._category === 'time_off'){
+  if (req._category === 'time_off' && req.kind === 'overtime_change'){
+    // v297 — OT change: show the original, the snapshot at filing, and the
+    // proposed new values so every approver sees exactly what will change.
+    const orig = ((content.ops && content.ops.timeOffRequests) || []).find(x => x.id === req.targetId && x.kind === 'overtime');
+    rows.push(`<dt>Original OT</dt><dd>${orig
+      ? `<code>${esc(orig.startDate || orig.date || '—')}</code> · <code>${esc((orig.startTime || '—') + ' ~ ' + (orig.endTime || '—'))}</code>`
+      : '<span style="color:#dc2626">not found — withdrawn or deleted</span>'}</dd>`);
+    rows.push(`<dt>Current</dt><dd><code>${esc(req.prevDate || '—')}</code> · <code>${esc((req.prevStartTime || '—') + ' ~ ' + (req.prevEndTime || '—'))}</code></dd>`);
+    rows.push(`<dt>Proposed</dt><dd><code style="color:#1D4ED8;font-weight:700">${esc(req.startDate || '—')}</code> · <code style="color:#1D4ED8;font-weight:700">${esc((req.startTime || '—') + ' ~ ' + (req.endTime || '—'))}</code></dd>`);
+    const staleNow = !orig
+      || orig.status !== 'approved'
+      || (orig.startDate || orig.date || null) !== (req.prevDate      || null)
+      || (orig.startTime || null)             !== (req.prevStartTime || null)
+      || (orig.endTime   || null)             !== (req.prevEndTime   || null);
+    if (staleNow && req.status !== 'approved' && req.status !== 'rejected'){
+      rows.push(`<dt>⚠ Stale</dt><dd style="color:#B45309">The original overtime ${orig ? 'has changed since this was filed' : 'no longer exists'} — final approval will auto-reject this change.</dd>`);
+    }
+  } else if (req._category === 'time_off'){
     const range = (req.endDate && req.endDate !== req.startDate)
       ? `${req.startDate} → ${req.endDate}` : req.startDate;
     rows.push(`<dt>Date</dt><dd><code>${esc(range || '—')}</code></dd>`);
@@ -65310,6 +65697,10 @@ const TIME_OFF_KIND_META = {
   half_day:  { label:'Half-day',     icon:'🕐', cls:'k-half_day'  },
   overtime:  { label:'Overtime Request', icon:'⏰', cls:'k-overtime'  },
   outside:   { label:'Off-site',     icon:'🚶', cls:'k-outside'   },
+  // v297 — change request against an APPROVED overtime (kind:'overtime').
+  // Filed only via _otcOpenChangeModal (never from the generic filing grid —
+  // it is excluded there because it needs a targetId + prev* snapshot).
+  overtime_change: { label:'OT Change', icon:'🔁', cls:'k-overtime' },
 };
 
 async function _apActTimeOff(id, act, next, stage, comment){
@@ -65327,7 +65718,50 @@ async function _apActTimeOff(id, act, next, stage, comment){
   // "approved" while the leave never appeared on the schedule — an
   // unrecoverable limbo (the retry path was unreachable). Now the next
   // approval click retries cleanly (per-date dedupe skips rows already landed).
-  if (next === 'approved' && act === 'approve'){
+  if (next === 'approved' && act === 'approve' && r.kind === 'overtime_change'){
+    // v297 — OT CHANGE final approval: apply the new date/times onto the
+    // ORIGINAL overtime row (no schedule materialization — consumers read the
+    // request row). STALE GUARD: if the original vanished, is no longer
+    // 'approved', or its values differ from the prev* snapshot taken at
+    // filing, the change is AUTO-REJECTED (stamped + notified + saved via the
+    // normal flow) instead of blocked — a blocked stale change could NEVER
+    // become approvable again (the snapshot cannot re-match) and would sit in
+    // the queue forever. The requester re-files against the current values.
+    const orig = arr.find(x => x.id === r.targetId && x.kind === 'overtime');
+    const stale = !orig
+      || orig.status !== 'approved'
+      || (orig.startDate || orig.date || null) !== (r.prevDate      || null)
+      || (orig.startTime || null)             !== (r.prevStartTime || null)
+      || (orig.endTime   || null)             !== (r.prevEndTime   || null);
+    if (stale){
+      act = 'reject'; next = 'rejected';
+      comment = ((comment ? comment + ' · ' : '') +
+        (orig ? 'AUTO-REJECTED: the original overtime changed after this request was filed — please re-file against the current values.'
+              : 'AUTO-REJECTED: the original overtime request no longer exists.'));
+      r.staleAutoRejected = true;
+      toast(orig
+        ? '⚠ Stale change request — the original overtime changed since filing. Auto-rejected; the requester should re-file.'
+        : '⚠ The original overtime no longer exists — change request auto-rejected.');
+    } else {
+      const from = { date: orig.startDate || orig.date || null, start: orig.startTime || null, end: orig.endTime || null };
+      orig.startDate = r.startDate;
+      orig.endDate   = r.startDate;                  // non-vacation rows keep endDate === startDate
+      if ('date' in orig) orig.date = r.startDate;   // keep the legacy field in sync where present
+      orig.startTime = r.startTime || null;
+      orig.endTime   = r.endTime   || null;
+      orig.changeHistory = Array.isArray(orig.changeHistory) ? orig.changeHistory : [];
+      orig.changeHistory.push({
+        at: Date.now(),
+        by: state.session?.email || '',
+        from,
+        to: { date: r.startDate, start: r.startTime || null, end: r.endTime || null },
+        changeRequestId: r.id,
+      });
+      // orig.status stays 'approved' — week-hours, schedule strip, calendar,
+      // and _findApprovedOvertimeFor all read this row and pick up the new
+      // values immediately. orig.materialized stays true (no re-run).
+    }
+  } else if (next === 'approved' && act === 'approve'){
     const ok = await _materializeTimeOff(r);
     if (!ok) return false;
     // Auto-sync into HR Leave Management for vacation requests.
@@ -66232,6 +66666,143 @@ async function _cascadeDeleteTimeOffSchedules(r){
 // content.ops.timeOffRequests and surface in the Approvals  for
 // admins.
 
+// ── OVERTIME CHANGE REQUESTS (v297) ────────────────────────────────────────
+// An APPROVED overtime (kind:'overtime') may only be modified through a
+// change request (kind:'overtime_change') that routes ① the requester's
+// Department Head → ② the Administrators. This chain is intentionally FIXED
+// (it does NOT honor the admin-configured _arRouteForDept override): the
+// policy for changing an already-approved overtime is explicit per company
+// rule. Until FINAL approval the original row is untouched everywhere —
+// week-hours, schedule strip, calendar, and auto-reconcile all read the
+// original request row and filter kind === 'overtime' exactly.
+
+// The active (non-terminal) change request targeting a given original OT row,
+// or null. Active = pending / first_approved (any non-terminal status).
+function _otcActiveChangeFor(targetId){
+  const reqs = (content.ops && content.ops.timeOffRequests) || [];
+  return reqs.find(r =>
+    r && r.kind === 'overtime_change' && r.targetId === targetId &&
+    r.status !== 'approved' && r.status !== 'rejected'
+  ) || null;
+}
+
+// FIXED 2-entry chain: [Department Head, Administrator]. The requester is
+// never their own stage-1 approver (chief files → deputy takes stage 1). If
+// there is no eligible chief/deputy — or the head is themselves an admin —
+// the chain collapses to admin-only (1 entry → _apStagesForReq → ['final']).
+// A requester who IS an admin is covered by the v201 self-approval override.
+function _otcApprovalChainFor(requesterEmail){
+  const reqEmail = String(requesterEmail || '').toLowerCase();
+  const approved = (state.users || []).filter(u => u.status === 'approved');
+  const admins = [...new Set(approved.filter(u => u.role === 'admin').map(u => String(u.email || '').toLowerCase()).filter(Boolean))];
+  const requester = approved.find(u => String(u.email || '').toLowerCase() === reqEmail);
+  const dept = requester && requester.department;
+  let head = null;
+  if (dept){
+    head = approved.find(u => u.department === dept && u.deptRole === 'chief'  && String(u.email || '').toLowerCase() !== reqEmail)
+        || approved.find(u => u.department === dept && u.deptRole === 'deputy' && String(u.email || '').toLowerCase() !== reqEmail)
+        || null;
+  }
+  const chain = [];
+  const headEmail = head ? String(head.email || '').toLowerCase() : '';
+  if (headEmail && !admins.includes(headEmail)){
+    chain.push({ label:'Department Head', emails:[headEmail], deptCode: dept });
+  }
+  chain.push({ label:'Administrator', emails: admins, isAdmin: true });
+  return chain;
+}
+
+// Filing modal — pre-filled with the original's current values; requires a
+// reason; snapshots prev* so final approval can detect a stale change.
+function _otcOpenChangeModal(orig){
+  if (!state.session){ toast('Please sign in.'); return; }
+  const myEmail = String(state.session.email || '').toLowerCase();
+  if (!orig || String(orig.userEmail || '').toLowerCase() !== myEmail){ toast('Only the requester can file a change.'); return; }
+  if (orig.kind !== 'overtime' || orig.status !== 'approved'){ toast('Only an approved overtime request can be changed.'); return; }
+  if (_otcActiveChangeFor(orig.id)){ toast('⏳ A change request for this overtime is already in progress.'); return; }
+  openModal({
+    eyebrow: 'OVERTIME CHANGE',
+    title: '🔁 Request Overtime Change',
+    fields: [{ type:'rawHtml', html: `
+      <div style="font-family:var(--sans);font-size:11.5px;color:var(--ink-mute);line-height:1.5;padding:8px 12px;border:1px dashed var(--card-border);border-radius:6px;margin-bottom:10px">
+        Current approved overtime: <code>${esc(orig.startDate || orig.date || '—')}</code> · <code>${esc((orig.startTime || '—') + ' ~ ' + (orig.endTime || '—'))}</code><br>
+        The change takes effect ONLY after Department Head → Administrator approval. Until then the original stands.
+      </div>
+      <div class="mf">
+        <label for="otc-date">New date</label>
+        <input id="otc-date" type="date" value="${esc(orig.startDate || orig.date || '')}" />
+      </div>
+      <div class="mf">
+        <label>New time range</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="otc-start" type="time" value="${esc(orig.startTime || '')}" style="flex:1" />
+          <span style="color:var(--ink-mute)">to</span>
+          <input id="otc-end" type="time" value="${esc(orig.endTime || '')}" style="flex:1" />
+        </div>
+      </div>
+      <div class="mf">
+        <label for="otc-reason">Reason for the change</label>
+        <textarea id="otc-reason" rows="3" placeholder="Why does the approved overtime need to change?"></textarea>
+      </div>` }],
+    submitLabel: 'Send change request',
+    onSubmit: async () => {
+      const date      = document.getElementById('otc-date')?.value || '';
+      const startTime = document.getElementById('otc-start')?.value || '';
+      const endTime   = document.getElementById('otc-end')?.value || '';
+      const reason    = (document.getElementById('otc-reason')?.value || '').trim();
+      if (!date){ toast('Pick a date.'); return false; }
+      if (!startTime || !endTime){ toast('Pick a time range.'); return false; }
+      if (!reason){ toast('Enter the reason for the change.'); return false; }
+      if (date === (orig.startDate || orig.date || '') && startTime === (orig.startTime || '') && endTime === (orig.endTime || '')){
+        toast('Nothing changed — adjust the date or times.'); return false;
+      }
+      if (_otcActiveChangeFor(orig.id)){ toast('⏳ A change request for this overtime is already in progress.'); return false; }
+      const chain = _otcApprovalChainFor(myEmail);
+      const req = {
+        id: 'toc_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+        kind: 'overtime_change',
+        targetId: orig.id,
+        userEmail: myEmail,
+        userName:  state.session.name || state.session.email.split('@')[0],
+        // NEW proposed values. startDate/endDate mirror `date` so _docDate,
+        // _apDocTitle, and the org-chain notification bodies work unchanged.
+        date, startDate: date, endDate: date,
+        startTime, endTime,
+        // Snapshot of the original AT FILING — final approval compares these
+        // against the live original and auto-rejects a stale change.
+        prevDate:      orig.startDate || orig.date || null,
+        prevStartTime: orig.startTime || null,
+        prevEndTime:   orig.endTime   || null,
+        reason,
+        status: 'pending',
+        createdAt: Date.now(),
+        approvalChain: chain,   // FIXED 2-stage: Department Head → Administrator
+      };
+      content.ops = content.ops || {};
+      content.ops.timeOffRequests = content.ops.timeOffRequests || [];
+      content.ops.timeOffRequests.push(req);
+      try {
+        await saveOpsDataAwait();
+      } catch (e){
+        const idx = content.ops.timeOffRequests.indexOf(req);
+        if (idx >= 0) content.ops.timeOffRequests.splice(idx, 1);
+        console.error('[ot-change submit] cloud save failed:', e);
+        toast('✗ Could not save request — please retry. (' + (e?.message || e) + ')');
+        return false;
+      }
+      const firstEmails = (chain[0] && chain[0].emails) || [];
+      _opsNotifyEmails(firstEmails, {
+        type: 'time_off',
+        title: '📋 Approval needed — OT Change',
+        body: `${req.userName}: ${req.prevDate || '—'} ${req.prevStartTime || '—'}~${req.prevEndTime || '—'} → ${date} ${startTime}~${endTime} (${reason})`,
+      }).catch(() => {});
+      if (typeof renderApprovals === 'function') renderApprovals();
+      toast('✓ Change request sent for approval.');
+      return true;
+    },
+  });
+}
+
 function _openTimeOffModal(presetKind, existing){
   if (!state.session){ toast('Please sign in.'); return; }
   const ex = existing || null;   // edit mode when a request is passed in (v256)
@@ -66254,7 +66825,7 @@ function _openTimeOffModal(presetKind, existing){
       : '';
     return `
       <div class="to-type-grid">
-        ${Object.entries(TIME_OFF_KIND_META).map(([k, m]) => `
+        ${Object.entries(TIME_OFF_KIND_META).filter(([k]) => k !== 'overtime_change').map(([k, m]) => `
           <button type="button" class="to-type-card${k === kind ? ' is-selected' : ''}" data-to-kind="${k}">
             <span class="to-type-icon">${m.icon}</span>
             <span class="to-type-name">${m.label}</span>
@@ -74525,13 +75096,24 @@ async function _hrDaSetStatus(emp, iso, status, reason, leaveKind, tardyMin){
   // / holiday / special-holiday / night-diff), this mark will supersede it in
   // payroll (last-recordedAt-wins dedup in _hrPaySumAttendance) and those
   // hours would be silently ignored. Plain regular-hours rows don't warn.
+  // v-next FIX #5 — absence marks get their own broader guard: an unpaid
+  // absence now makes payroll skip this date's surviving clock/manual hours
+  // entirely (see _hrPaySumAttendance), so marking absent/leave/quarantine/
+  // suspended over ANY clock/manual row (plain regular hours included)
+  // confirms first. Cancel = complete no-op (returns before any mutation).
   if (status !== 'nowork'){
-    const _clk = att.dailyRecords.find(r => r.personKey === key && r.date === iso
-      && (r.source === 'clock' || r.source === 'manual')
-      && ((Number(r.overtimeHours) || 0) > 0 || (Number(r.restDayHours) || 0) > 0
-       || (Number(r.holidayHours) || 0) > 0 || (Number(r.specialHolidayHours) || 0) > 0
-       || (Number(r.nightDiffHours) || 0) > 0));
-    if (_clk && !confirm('This date already has clock-synced hours (incl. OT/night). Your mark will take precedence for payroll and those hours will be ignored. Continue?')) return;
+    if (_hrDaStatusIsAbsence(status)){
+      const _anyClk = att.dailyRecords.find(r => r.personKey === key && r.date === iso
+        && (r.source === 'clock' || r.source === 'manual'));
+      if (_anyClk && !confirm('This date has clocked hours — an unpaid absence will make payroll ignore those hours for this date. Continue?')) return;
+    } else {
+      const _clk = att.dailyRecords.find(r => r.personKey === key && r.date === iso
+        && (r.source === 'clock' || r.source === 'manual')
+        && ((Number(r.overtimeHours) || 0) > 0 || (Number(r.restDayHours) || 0) > 0
+         || (Number(r.holidayHours) || 0) > 0 || (Number(r.specialHolidayHours) || 0) > 0
+         || (Number(r.nightDiffHours) || 0) > 0));
+      if (_clk && !confirm('This date already has clock-synced hours (incl. OT/night). Your mark will take precedence for payroll and those hours will be ignored. Continue?')) return;
+    }
   }
   // idempotent: drop any prior daily-attendance record for this person+date
   att.dailyRecords   = att.dailyRecords.filter(r => !(r.personKey===key && r.date===iso && r.source==='daily-attendance'));
@@ -76055,6 +76637,9 @@ function _renderHrPayrollWorkspace(){
   const _pwStaffOnly = (typeof _isHrStaffSession === 'function') && _isHrStaffSession();
   if (_pwStaffOnly) _hrPwStep = 'attendance';
   if (typeof _hrPayrollEnsureStore === 'function' && !_pwStaffOnly) _hrPayrollEnsureStore();
+  // FIX #7 — one-time stored holiday-formula correction offer (admin only;
+  // deferred so the workspace paints before the blocking confirm()).
+  if (!_pwStaffOnly && typeof _hrOfferHolidayFormulaFix === 'function') setTimeout(_hrOfferHolidayFormulaFix, 400);
 
   const stepsHtml = _HR_PW_STEPS.filter(s => !_pwStaffOnly || s.code === 'attendance').map((s, i, arr) => `
     <button type="button" class="hrpw-step ${s.code === _hrPwStep ? 'is-active' : ''}" data-hrpw-go="${s.code}">
@@ -78361,6 +78946,7 @@ function _hrRenderPersonalInfoSubPane(){
         const actions = canMgr ? `
           <span class="hr-member-actions" style="opacity:.5">
             <button type="button" class="hr-mem-act-btn" data-pi-row-act="edit" data-em="${esc(u.email)}" title="Edit detailed profile below">⚙</button>
+            ${!isUserAdmin ? `<button type="button" class="hr-mem-act-btn pwr-only" data-pi-row-act="pwr-issue" data-em="${esc(u.email)}" title="Issue a one-time password reset code">🔑</button>` : ''}
             ${isAdmin && !isUserAdmin ? `<button type="button" class="hr-mem-act-btn" data-pi-row-act="set-admin"    data-em="${esc(u.email)}" title="Promote to administrator">⭐</button>` : ''}
             ${isAdmin &&  isUserAdmin ? `<button type="button" class="hr-mem-act-btn" data-pi-row-act="revoke-admin" data-em="${esc(u.email)}" title="Revoke admin role">↩</button>` : ''}
             ${!isUserAdmin || isAdmin ? `<button type="button" class="hr-mem-act-btn is-danger" data-pi-row-act="remove" data-em="${esc(u.email)}" title="Remove from intranet">🗑</button>` : ''}
@@ -78466,6 +79052,7 @@ function _hrRenderPersonalInfoSubPane(){
     ${kpiHtml}
     ${pendingHtml}
     ${rejectedHtml}
+    <div class="hr-mem-section" data-pwr-host="hr" style="display:none;margin-bottom:18px"></div>
 
     <!-- ① New Employee Registration -->
     <div class="khris-section">
@@ -78691,6 +79278,8 @@ function _hrRenderPersonalInfoSubPane(){
         if (!_canHrManage()){ toast('Not authorized.'); return; }
         await removeUserFromList(em);
         _hrRenderPersonalInfoSubPane();
+      } else if (act === 'pwr-issue'){
+        _pwrIssue(em);   // v299 — server re-checks issuer + admin-target
       }
     });
   });
@@ -78774,6 +79363,7 @@ function _hrRenderPersonalInfoSubPane(){
 
   // ── Wire tab content interactions (add/del rows, etc.) ──
   if (selectedMember) _hrWireTabContent(selectedMember);
+  try { _pwrPaintHosts(); } catch(_){}   // v299 — 🔑 password-reset panel (issuers only)
 }
 
 // Collect basic-info form values from the bottom section into the
@@ -84464,8 +85054,8 @@ const _PH_PAYROLL_DEFAULTS = {
     { id:'pi07', code:'OT_REG',   name:'OT Pay (Regular Day)',     kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:7,  disabled:false, note:'Hourly rate × 1.25' },
     { id:'pi08', code:'OT_REST',  name:'OT Pay (Rest Day)',        kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:8,  disabled:false, note:'Hourly rate × 1.30 for first 8h, × 1.69 beyond' },
     { id:'pi09', code:'ND',       name:'Night Differential',       kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:9,  disabled:false, note:'+10% for hours 10PM–6AM' },
-    { id:'pi10', code:'HOL_REG',  name:'Holiday Pay (Regular)',    kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:10, disabled:false, note:'Daily rate × 2.00' },
-    { id:'pi11', code:'HOL_SPC',  name:'Holiday Pay (Special)',    kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:11, disabled:false, note:'Daily rate × 1.30' },
+    { id:'pi10', code:'HOL_REG',  name:'Holiday Pay (Regular)',    kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:10, disabled:false, note:'Daily rate × 1.00 premium (200% total incl. BASIC)' },
+    { id:'pi11', code:'HOL_SPC',  name:'Holiday Pay (Special)',    kind:'payment', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'attendance', order:11, disabled:false, note:'Daily rate × 0.30 premium (130% total incl. BASIC)' },
     { id:'pi12', code:'13TH',     name:'13th Month Pay',           kind:'payment', taxClass:'non_taxable', isMonthlyTaxExempt:false, calcPosition:'centavo',   rounding:'round_nearest', applyMethod:'individual', order:12, disabled:false, note:'Mandatory · up to ₱90,000/yr non-taxable' },
     // ── Deduction items (공제항목) ──
     { id:'pi20', code:'SSS_EE',   name:'SSS Employee Share',       kind:'deduction', taxClass:'taxable',     isMonthlyTaxExempt:false, calcPosition:'centavo', rounding:'round_nearest', applyMethod:'auto',       order:20, disabled:false, note:'4.5% capped at ₱1,125/mo (2024)' },
@@ -84525,7 +85115,9 @@ const _PH_PAYROLL_DEFAULTS = {
       { name:'h',    kind:'attendance', targetId:'ai06' },
       { name:'rate', kind:'computed',   targetId:'HOURLY_RATE' },
     ]},
-    { id:'pf04', payItemId:'pi10', payrollTypeId:'pt1', applyMethod:'attendance', formula:'d * daily * 2.00', variables:[
+    // FIX (v-next) — HOL_REG is an ADDITIONAL premium: monthly BASIC already
+    // pays the base day of a regular holiday, so the extra is ×1.00 (200% total).
+    { id:'pf04', payItemId:'pi10', payrollTypeId:'pt1', applyMethod:'attendance', formula:'d * daily * 1.00', variables:[
       { name:'d',     kind:'attendance', targetId:'ai14' },
       { name:'daily', kind:'computed',   targetId:'DAILY_RATE' },
     ]},
@@ -84544,11 +85136,12 @@ const _PH_PAYROLL_DEFAULTS = {
       { name:'m',    kind:'attendance', targetId:'ai07' },
       { name:'rate', kind:'computed',   targetId:'HOURLY_RATE' },
     ]},
-    // Phase 36 — Special (non-working) holiday pay: daily rate × 1.30 per
+    // Phase 36 — Special (non-working) holiday premium: daily rate × 0.30 per
+    // (BASIC already pays the base day → 130% total per DOLE.)
     // special-holiday day worked. Uses ai15 (SPC_HOL_DAYS), a field
     // distinct from regular-holiday hours, so it no longer collides with
     // HOL_REG / pf04 and can finally pay out.
-    { id:'pf07', payItemId:'pi11', payrollTypeId:'pt1', applyMethod:'attendance', formula:'d * daily * 1.30', variables:[
+    { id:'pf07', payItemId:'pi11', payrollTypeId:'pt1', applyMethod:'attendance', formula:'d * daily * 0.30', variables:[
       { name:'d',     kind:'attendance', targetId:'ai15' },
       { name:'daily', kind:'computed',   targetId:'DAILY_RATE' },
     ]},
@@ -84571,6 +85164,42 @@ const _PH_PAYROLL_DEFAULTS = {
   ordinaryWageItems: ['pi01', 'pi02'],     // Basic + COLA count toward "ordinary daily wage"
   standardItems:     ['pi01', 'pi02', 'pi03', 'pi04'],
 };
+
+// ─── One-time holiday-formula correction (admin-offered, FIX #7) ──────
+// pf04/pf07 rows seeded before the fix pay the holiday multiplier ON TOP of
+// monthly BASIC (which already covers the base day) → 300%/230% total instead
+// of the legal 200%/130%. On payroll-workspace load an ADMIN gets ONE confirm
+// per session offering to rewrite stored rows whose formula still EXACTLY
+// equals the old default ('d * daily * 2.00' / 'd * daily * 1.30'). Any other
+// text = admin-customized → never touched. Idempotent: once corrected the
+// detector finds nothing and the offer never re-appears.
+let _hrHolFixOfferedThisSession = false;
+function _hrOfferHolidayFormulaFix(){
+  if (_hrHolFixOfferedThisSession) return;
+  if (state.session?.role !== 'admin') return;
+  const s = content.ops?.hrPayrollSetup;
+  if (!s || !Array.isArray(s.payFormulas)) return;
+  const fixes = [];
+  const f4 = s.payFormulas.find(f => f && f.id === 'pf04' && f.payItemId === 'pi10');
+  if (f4 && f4.formula === 'd * daily * 2.00') fixes.push({ row:f4, next:'d * daily * 1.00', label:'Regular Holiday (HOL_REG): d * daily * 2.00 → d * daily * 1.00' });
+  const f7 = s.payFormulas.find(f => f && f.id === 'pf07' && f.payItemId === 'pi11');
+  if (f7 && f7.formula === 'd * daily * 1.30') fixes.push({ row:f7, next:'d * daily * 0.30', label:'Special Holiday (HOL_SPC): d * daily * 1.30 → d * daily * 0.30' });
+  if (!fixes.length) return;
+  _hrHolFixOfferedThisSession = true;   // one ask per session (OK or Cancel)
+  const ok = confirm(
+    'Holiday pay formula correction\n\n' +
+    'Monthly BASIC already pays the base day of a holiday, so the current formulas ' +
+    'OVER-PAY: 300% (regular) / 230% (special) of the daily rate instead of the ' +
+    'legal 200% / 130% totals.\n\nApply the corrected ADDITIONAL premiums?\n' +
+    fixes.map(f => '  • ' + f.label).join('\n') +
+    '\n\nNote: open (not yet approved) periods will pay LESS holiday pay when re-processed. ' +
+    'Cancel keeps the current formulas (you will be asked again next session).'
+  );
+  if (!ok) return;
+  fixes.forEach(f => { f.row.formula = f.next; });
+  _opsSaveOrWarn('Holiday formula correction not saved — check connection.');
+  toast('✓ Holiday formulas corrected (' + fixes.length + ') — 200% / 130% totals');
+}
 
 function _hrPayrollEnsureStore(){
   content.ops = content.ops || {};
@@ -86089,8 +86718,8 @@ function _hrPs08PayFormulas($m){
         <strong>OT Rest Day:</strong> hours × hourlyRate × 1.30 (first 8h)<br>
         <strong>OT Rest Day OT:</strong> hours × hourlyRate × 1.69 (beyond 8h)<br>
         <strong>Night Differential:</strong> hours × hourlyRate × 0.10 (10PM–6AM)<br>
-        <strong>Regular Holiday Pay:</strong> daysWorked × dailyRate × 2.00<br>
-        <strong>Special Holiday Pay:</strong> daysWorked × dailyRate × 1.30<br>
+        <strong>Regular Holiday Pay:</strong> daysWorked × dailyRate × 1.00 premium (BASIC already pays the base day → 200% total)<br>
+        <strong>Special Holiday Pay:</strong> daysWorked × dailyRate × 0.30 premium (130% total)<br>
         <strong>Absence Deduction:</strong> absentDays × dailyRate (AWOL · Unpaid leave · Suspended — max 1 day per date; Quarantine is paid)
       </div>
     </div>`;
@@ -86613,9 +87242,6 @@ function _hrPaySumAttendance(personKey, from, to){
   if (_hire && /^\d{4}-\d{2}-\d{2}$/.test(_hire) && _hire > _from) _from = _hire;
   const att = content.ops.hrAttendance?.dailyRecords || [];
   const inRange = _dedupRecent(att.filter(r => r.personKey === personKey && r.date >= _from && r.date <= to), r => r.date);
-  const holidayHours = inRange.reduce((s, r) => s + (Number(r.holidayHours) || 0), 0);
-  const specialHolidayHours = inRange.reduce((s, r) => s + (Number(r.specialHolidayHours) || 0), 0);
-
   // Phase 36 — absence/leave day counts. ABSENT_DAYS / VL_DAYS / SL_DAYS
   // were mapped in _HR_ATT_CODE_FIELDS but never produced here, so the
   // default Holiday Pay + Absence Deduction formulas always computed ₱0
@@ -86646,15 +87272,41 @@ function _hrPaySumAttendance(personKey, from, to){
   const unpaidAbsentDays = Object.values(_unpaidByDate)
     .reduce((s, d) => s + (d.full ? 1 : Math.min(1, d.halves.size * 0.5)), 0);
 
+  // v-next FIX #5 — DA absence ↔ clock hours double-effect. Marking a date
+  // absent/suspended (or Section-3 UNPAID/AWOL) only purges the
+  // 'daily-attendance' row; a clock/manual dailyRecord on the SAME date
+  // survived, so payroll paid its hours (OT / night / holiday / rest
+  // premiums included) WHILE ALSO deducting the unpaid absence. Fix is
+  // aggregation-only — clock audit rows are never touched. Per-date rule,
+  // driven by the SAME capped unpaid bucket as the deduction above (so the
+  // hours a date loses always mirror the fraction it is deducted):
+  //   • full-day unpaid (frac 1.0) → that date's dailyRecords contribute
+  //     NOTHING (all hour fields, tardy/undertime minutes, workDays);
+  //   • half-day unpaid (frac 0.5) → hour fields count ×0.5 and workDays
+  //     counts 0.5; tardy/undertime minutes stay whole (the lateness
+  //     happened in the worked half);
+  //   • PAID absences (VL / SL / QUARANTINE) never enter the bucket →
+  //     weight 1 — AM-VL + PM-work and split-leave semantics unchanged.
+  const _unpaidFrac = (date) => {
+    const d = _unpaidByDate[date];
+    return d ? (d.full ? 1 : Math.min(1, d.halves.size * 0.5)) : 0;
+  };
+  const paidRows = inRange
+    .map(r => ({ r, w: 1 - _unpaidFrac(r.date) }))
+    .filter(x => x.w > 0);
+  const _wSum = (field) => paidRows.reduce((s, x) => s + (Number(x.r[field]) || 0) * x.w, 0);
+  const holidayHours = _wSum('holidayHours');
+  const specialHolidayHours = _wSum('specialHolidayHours');
+
   return {
-    regularHours:   inRange.reduce((s, r) => s + (Number(r.regularHours)   || 0), 0),
-    overtimeHours:  inRange.reduce((s, r) => s + (Number(r.overtimeHours)  || 0), 0),
-    restDayHours:   inRange.reduce((s, r) => s + (Number(r.restDayHours)   || 0), 0),
+    regularHours:   _wSum('regularHours'),
+    overtimeHours:  _wSum('overtimeHours'),
+    restDayHours:   _wSum('restDayHours'),
     holidayHours,
-    nightDiffHours: inRange.reduce((s, r) => s + (Number(r.nightDiffHours) || 0), 0),
-    tardyMinutes:   inRange.reduce((s, r) => s + (Number(r.tardyMinutes)   || 0), 0),
-    underMinutes:   inRange.reduce((s, r) => s + (Number(r.undertimeMinutes) || 0), 0),
-    workDays:       inRange.filter(r => (Number(r.regularHours) || 0) > 0).length,
+    nightDiffHours: _wSum('nightDiffHours'),
+    tardyMinutes:   paidRows.reduce((s, x) => s + (Number(x.r.tardyMinutes)     || 0), 0),
+    underMinutes:   paidRows.reduce((s, x) => s + (Number(x.r.undertimeMinutes) || 0), 0),
+    workDays:       paidRows.reduce((s, x) => s + (((Number(x.r.regularHours) || 0) > 0) ? x.w : 0), 0),
     specialHolidayHours,
     // Derived day counts for formula variables (Phase 36):
     absentDays:     unpaidAbsentDays,   // AWOL/UNPAID/ABSENT/SUSPENDED, ≤1.0 per date (v296)
@@ -86792,11 +87444,32 @@ function _hrPayAutoStatutory(code, monthlyRate, runningPayments, runningDeductio
       return monthlyContribution / soDiv;   // per-run portion (half ÷2 / full as-is)
     }
     case 'BIR_WHT': {
+      // FIX #6 — withholding base from the run's ACTUAL items, not a flat
+      // monthlyRate/2 (which over-withheld absent/new-hire runs and ignored
+      // OT / holiday / taxable allowances).
+      //   base = Σ taxable payments computed THIS run (prorated BASIC, OT,
+      //          holiday, taxable allowances — taxClass looked up on the
+      //          pay-item master; non_taxable / de_minimis excluded)
+      //        − Σ attendance-method deductions (TARDY / ABSENT: unpaid-time
+      //          wage docking reduces taxable compensation; 'individual'
+      //          deductions — loans / HMO / COOP / cash advance — are
+      //          post-tax recoveries and do NOT reduce the base)
+      //        − (SSS_EE + PHIL_EE + PAG_EE)
+      //        + signed taxable one-time RUN adjustments (adjTaxableSemi).
+      // ORDER NOTE: the engine loop calls this at order 23, BEFORE TARDY(26)/
+      // ABSENT(27) exist in runningDeductions — _hrPayComputeForEmployee
+      // re-runs this item once AFTER the loop with the final arrays (BIR_WHT
+      // finalize pass), so the stored amount reflects the complete run.
+      const _pmMaster = content.ops?.hrPayrollSetup?.payItems || [];
+      const taxablePay = (runningPayments || [])
+        .filter(pm => pm && ((_pmMaster.find(x => x.code === pm.code) || {}).taxClass === 'taxable'))
+        .reduce((s, pm) => s + (Number(pm.amount) || 0), 0);
+      const attDock = (runningDeductions || [])
+        .filter(d => d && d.applyMethod === 'attendance')
+        .reduce((s, d) => s + (Number(d.amount) || 0), 0);
       const stat = (runningDeductions || []).filter(d => ['SSS_EE','PHIL_EE','PAG_EE'].includes(d.code))
         .reduce((s, d) => s + d.amount, 0);
-      // One-time RUN adjustments flagged taxable shift the withholding base
-      // by their SIGNED sum (0 when the run has none → identical to before).
-      return _hrComputeBIRSemi(grossSemi - stat + (Number(adjTaxableSemi) || 0));
+      return _hrComputeBIRSemi(Math.max(0, taxablePay - attDock - stat + (Number(adjTaxableSemi) || 0)));
     }
   }
   return 0;
@@ -87065,6 +87738,20 @@ function _hrPayComputeForEmployee(u, period, salaryTypeCode){
     amount = _hrPayRound(amount, item.calcPosition, item.rounding);
     if (item.kind === 'payment') payments.push({ code:item.code, name:item.name, amount, applyMethod:item.applyMethod });
     else deductions.push({ code:item.code, name:item.name, amount, applyMethod:item.applyMethod });
+  }
+  // FIX #6 — BIR_WHT finalize pass. Inside the loop BIR_WHT (order 23) ran
+  // BEFORE the attendance deductions TARDY (26) / ABSENT (27), so its
+  // item-based taxable base missed them. Recompute once with the FINAL
+  // payments/deductions arrays (still BEFORE the one-time-adjustment fold —
+  // adjTaxableSemi rides separately, so ADJ rows must not be in the arrays
+  // yet) and patch the row in place. Same statOpts ('skip' → stays ₱0) and
+  // same per-item rounding as the loop. No-op when the salary type has no
+  // BIR_WHT item (13th month / bonus runs).
+  const _whtRow = deductions.find(d => d.code === 'BIR_WHT');
+  if (_whtRow){
+    const _whtItem = items.find(x => x.code === 'BIR_WHT');
+    const _whtAmt = _hrPayAutoStatutory('BIR_WHT', monthlyRate, payments, deductions, rates, u, period && period.statOpts, adjTaxableSemi);
+    _whtRow.amount = _hrPayRound(_whtAmt, _whtItem ? _whtItem.calcPosition : 'centavo', _whtItem ? _whtItem.rounding : 'round_nearest');
   }
   // Fold one-time run adjustments into the itemized arrays. Aggregated to a
   // single ADJ (payments) / ADJ_DED (deductions) line so the per-code column
@@ -88499,8 +89186,8 @@ async function _hrPayrollDeletePeriod(periodId){
      • OT rest day     → hours × hourlyRate × 1.30 (first 8h)
      • OT rest+8       → hours × hourlyRate × 1.69
      • Night Diff      → +10% for 10PM–6AM hours
-     • Holiday regular → daily × 2.00
-     • Holiday special → daily × 1.30
+     • Holiday regular → daily × 1.00 premium (BASIC pays the base day → 200% total)
+     • Holiday special → daily × 0.30 premium (130% total)
    ════════════════════════════════════════════════════════════════════ */
 
 function _hrAttEnsureStore(){
@@ -90426,7 +91113,12 @@ function _hrPpSection1Process($m){
   const pp = periods.find(p => p.id === _hrPpPeriodId) || periods[periods.length - 1];
   const stypes = content.ops.hrPayrollSetup?.salaryTypes || [];
   const deptList = Array.from(new Set(_hrPpEmployeePool().map(e => e.dept))).filter(Boolean).sort();
-  const pool = _hrPpEmployeePool().filter(e => {
+  // A track-tagged period shows/selects ONLY its own cohort (same rule as
+  // the Payroll Runs modal); legacy track-less periods keep everyone.
+  const poolTrack = (pp?.track && typeof _hrEmpPayTrack === 'function')
+    ? _hrPpEmployeePool().filter(e => _hrEmpPayTrack(e) === pp.track)
+    : _hrPpEmployeePool();
+  const pool = poolTrack.filter(e => {
     if (_hrPpFilterDept && e.dept !== _hrPpFilterDept) return false;
     if (_hrPpFilterSearch){
       const q = _hrPpFilterSearch.toLowerCase();
@@ -90442,6 +91134,9 @@ function _hrPpSection1Process($m){
   if (!_hrPpSelectedEmp && pool.length) _hrPpSelectedEmp = pool[0].key;
   const selEmp = pool.find(e => e.key === _hrPpSelectedEmp) || pool[0];
   const selRun = selEmp ? runByKey[selEmp.key] : null;
+  // 🔒 Processing lock (closed / in approval / approved) — disables ▶ Process
+  const ppLock = _hrPpProcessLockReason(pp);
+  const ppLockShort = ppLock ? (pp.status === 'closed' ? 'Period closed' : (pp.approvalStatus === 'approved' ? 'Approved' : 'Awaiting approval')) : '';
 
   $m.innerHTML = `
     <div class="hrpp-help">
@@ -90466,8 +91161,9 @@ function _hrPpSection1Process($m){
       <label>🔍 <input type="text" id="hrpp-f-search" placeholder="name / ID" value="${esc(_hrPpFilterSearch)}" /></label>
       <button id="hrpp-search">Search Employees</button>
       <span style="flex:1"></span>
-      <button id="hrpp-process-sel" class="is-action">▶ Process Selected</button>
-      <button id="hrpp-process-all">▶▶ Process All (${pool.length})</button>
+      <button id="hrpp-process-sel" class="is-action" ${ppLock ? `disabled title="🔒 ${esc(ppLock)}"` : ''}>▶ Process Selected</button>
+      <button id="hrpp-process-all" ${ppLock ? `disabled title="🔒 ${esc(ppLock)}"` : ''}>▶▶ Process All (${pool.length})</button>
+      ${ppLock ? `<span title="${esc(ppLock)}" style="color:#B45309;white-space:nowrap">🔒 ${esc(ppLockShort)}</span>` : ''}
       <button id="hrpp-undo-sel" title="Remove processed results for the checked employees">↩ Undo Selected</button>
       <button id="hrpp-clear-all" title="Remove every processed result in this period" style="color:#B91C1C">🗑 Clear All Runs (${(pp?.runs||[]).length})</button>
       <button id="hrpp-adjustments" title="One-time earnings / deductions that apply ONLY to this run (e.g. referral bonus, damage charge)">± Adjustments (${(pp?.adjustments||[]).length})</button>
@@ -90595,6 +91291,22 @@ function _hrPpUndoLockReason(pp){
   return null;
 }
 
+// Why PROCESSING may be blocked: a closed period, or one already submitted
+// into the approval chain (or approved), must not have its runs overwritten —
+// that would desync what the approvers signed off on. Mirrors
+// _hrPpUndoLockReason above + the Payroll Runs tab's closed-block.
+function _hrPpProcessLockReason(pp){
+  if (!pp) return null;
+  if (pp.status === 'closed')
+    return 'This period is closed — reopen it in Payroll Runs first.';
+  const st = pp.approvalStatus;
+  if (st === 'pending_1st' || st === 'pending_2nd' || st === 'pending_final')
+    return 'This period is submitted for approval — reject or recall it in the Approvals page first, then you can re-process.';
+  if (st === 'approved')
+    return 'This period is already approved — revert / unlock it via the approval flow before re-processing.';
+  return null;
+}
+
 // Undo (remove) processed results for a set of employee keys in a period.
 async function _hrPpUndoForKeys(pp, keys){
   const lock = _hrPpUndoLockReason(pp);
@@ -90632,21 +91344,45 @@ async function _hrPpRunForKeys(pp, keys, salaryTypeCode){
   // 💳 Loan ledger — abort while secured payslips are stripped (balances are
   // summed from stored runs; the guard kicks a hydrate + toasts).
   if (typeof _hrLoanStripGuard === 'function' && _hrLoanStripGuard()) return;
-  const pool = _hrPpEmployeePool();
+  // 🔒 Closed / submitted-for-approval / approved periods cannot be
+  // (re)processed — same lock Undo & Clear All already enforce here, plus
+  // the Payroll Runs tab's closed-block.
+  const lock = _hrPpProcessLockReason(pp);
+  if (lock){ toast('🔒 ' + lock); return; }
+  // A track-tagged period runs ONLY its own cohort — mirror of the Payroll
+  // Runs modal filter (legacy track-less periods keep the whole-company pool).
+  const pool0 = _hrPpEmployeePool();
+  const pool = (pp.track && typeof _hrEmpPayTrack === 'function')
+    ? pool0.filter(e => _hrEmpPayTrack(e) === pp.track)
+    : pool0;
   // Per-run statutory options: keep the choice already stamped on this
   // period (stable across incremental batches / recomputes); else seed from
   // the company statSchedule for this half (all-'half' = current behavior).
   if (!pp.statOpts || typeof pp.statOpts !== 'object'){
     pp.statOpts = _hrStatScheduleFor(pp.half);
   }
+  const processedKeys = new Set();
+  let skippedTrack = 0;
   const newRuns = keys.map(k => {
     const emp = pool.find(e => e.key === k);
-    if (!emp) return null;
+    if (!emp){
+      // Excluded by pay track (exists in the full pool but not this cohort):
+      // count it so the completion toast can say why it was not processed.
+      if (pp.track && pool0.some(e => e.key === k)) skippedTrack++;
+      return null;
+    }
+    processedKeys.add(k);
     return _hrPpComputeAny(emp, { startDate: pp.startDate, endDate: pp.endDate, statOpts: pp.statOpts, adjustments: pp.adjustments || [] }, salaryTypeCode);
   }).filter(Boolean);
-  // Merge with existing runs: drop existing rows for these keys, then push new
-  const keySet = new Set(keys);
-  pp.runs = (pp.runs || []).filter(r => !keySet.has(r.email));
+  if (!newRuns.length){
+    toast(skippedTrack
+      ? `Nothing processed — ${skippedTrack} employee(s) are on another pay track for this period.`
+      : 'No employees to process.');
+    return;
+  }
+  // Merge with existing runs: drop existing rows ONLY for the keys actually
+  // processed (skipped employees keep any prior result), then push new
+  pp.runs = (pp.runs || []).filter(r => !processedKeys.has(r.email));
   pp.runs.push(...newRuns);
   pp.status = 'processing';
   pp.salaryTypeCode = salaryTypeCode;
@@ -90654,7 +91390,7 @@ async function _hrPpRunForKeys(pp, keys, salaryTypeCode){
   pp.lastRunBy = state.session?.email || '—';
   if (!(await _opsSaveOrWarn('Payroll run not saved'))){ _hrPpRenderActive(); return; }
   const totalNet = newRuns.reduce((s, r) => s + (r.netPay || 0), 0);
-  toast(`✓ Processed ${newRuns.length} employee(s) · Net total ₱${totalNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})}`);
+  toast(`✓ Processed ${newRuns.length} employee(s) · Net total ₱${totalNet.toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2})}${skippedTrack ? ` · ${skippedTrack} skipped (other pay track)` : ''}`);
   _hrPpRenderActive();
 }
 
@@ -98665,6 +99401,7 @@ function _todoTimeOffEntriesForUser(){
   return reqs.filter(r =>
     r.status === 'approved'
     && (r.userEmail || '').toLowerCase() === me
+    && r.kind !== 'overtime_change'   // v297 — an approved CHANGE request is not its own calendar entry; the ORIGINAL renders with the updated times
   ).map(r => {
     // Pick an icon + label per kind. These mirror the TIME_OFF_KIND_META
     // metadata that the rest of the app uses but are inlined here so we
@@ -100987,7 +101724,12 @@ async function bootContent(){
   if (Sb){
     try {
       const { data } = await Sb.auth.getSession();
-      if (data?.session?.user?.email){
+      if (data?.session?.user?.email && _authSessionIsOAuth(data.session)){
+        // v299 — Google sign-in removed: never accept an OAuth session (e.g. via a
+        // direct Supabase /authorize?provider=google URL or an old open tab).
+        try { await Sb.auth.signOut(); } catch(_){}
+        oauthError = 'Google sign-in has been turned off. Sign in with your email and password. If you never set a password, use “Forgot password?” to get a reset code from the administrator.';
+      } else if (data?.session?.user?.email){
         const sessionEmail = data.session.user.email;
         // Pull profile to populate UI session
         const { data: prof } = await Sb.from('profiles').select('*').eq('email', sessionEmail).maybeSingle();
@@ -101041,6 +101783,7 @@ async function bootContent(){
       renderAdmin();
     }
     bootContent();
+    try { _pwrInit(); } catch(_){}   // v299 — 🔑 password-reset issuer panel (server-gated)
     if (justVerifiedEmail){
       setTimeout(() => toast('Email verified — welcome!'), 600);
     }
@@ -101059,6 +101802,8 @@ async function bootContent(){
       setTimeout(() => toast(oauthError), 400);
     }
     showAuthPane('login');
+    // showAuthPane() clears #li-err — re-apply so the reason stays visible.
+    if (oauthError){ const $le = document.getElementById('li-err'); if ($le) $le.textContent = oauthError; }
   }
   // Came from a password-reset email link → prompt for a new password.
   if (isRecovery){
