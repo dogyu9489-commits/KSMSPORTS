@@ -5876,6 +5876,7 @@
   /* The class display:flex would otherwise override the `hidden` attribute
      (author rule beats the UA [hidden] rule) → panel was always open. */
   .pg-panel[hidden]{display:none}
+  .pg-badge[hidden]{display:none}   /* author .pg-badge{display:inline-flex} beat the UA [hidden] rule → badge never hid (stuck at last count) */
   .pg-head{padding:16px 18px 12px;border-bottom:1px solid var(--hair);display:flex;flex-direction:column;gap:3px}
   .pg-title{font-family:var(--sans);font-size:14px;font-weight:700;color:var(--ink)}
   .pg-sub{font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--ink-mute);text-transform:uppercase}
@@ -48028,7 +48029,7 @@ function _renderPaging(){
   const $count = document.getElementById('pg-list-count');
   const all = _pgState();
   const pendingN = all.filter(r => r.status !== 'done').length;
-  if ($badge){ if (pendingN > 0){ $badge.hidden = false; $badge.textContent = pendingN > 99 ? '99+' : String(pendingN); } else $badge.hidden = true; }
+  if ($badge){ if (pendingN > 0){ $badge.hidden = false; $badge.textContent = pendingN > 99 ? '99+' : String(pendingN); } else { $badge.hidden = true; $badge.textContent = '0'; } }
   // datalists (people + locations) — refreshed cheaply each render
   const $ppl = document.getElementById('pg-dl-people');
   if ($ppl){
