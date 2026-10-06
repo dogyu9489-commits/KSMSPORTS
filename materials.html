@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="light">
 <meta name="format-detection" content="telephone=no">
 <meta name="robots" content="noindex, nofollow">
-<meta name="ksm-mat-version" content="2026.10.04.11">
+<meta name="ksm-mat-version" content="2026.10.06.3">
 <link rel="icon" href="data:,">
 <title>KSM 자재관리</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
@@ -972,7 +972,9 @@ body.modal-open { overflow: hidden; }
         if (l) lines.push(l);
       }
     }
-    return { code: str(lb.code), title: str(lb.title), lines: lines, footer: str(lb.footer), company: str(lb.company) };
+    var out = { code: str(lb.code), title: str(lb.title), lines: lines, footer: str(lb.footer), company: str(lb.company) };
+    if (str(lb.qty)) out.qty = str(lb.qty);      // pack barcode: received quantity ("100 콘"), see layoutCompact
+    return out;
   }
 
   function expand(labels, copies) {
@@ -1188,6 +1190,8 @@ body.modal-open { overflow: hidden; }
     var innerH = Math.max(0.5, H - 2 * pad);
     var showTitle = content !== 'code' && !!lb.title;
     var lines = content === 'full' ? lb.lines.slice(0, 2) : [];
+    // 'name' prints no lines: a pack barcode's quantity goes in front of the title so it survives the ellipsis
+    var titleText = content === 'name' && lb.qty ? lb.qty + ' · ' + lb.title : lb.title;
     var codeH = lb.code ? AUTO.CODE_H : 0;
     var titleH = AUTO.TITLE_H, lineH = AUTO.LINE_H;
     function textH() { return (showTitle ? titleH : 0) + lines.length * lineH + codeH; }
@@ -1208,8 +1212,8 @@ body.modal-open { overflow: hidden; }
     var out = { compact: true, pad: pad, innerW: innerW, W: W, H: H, rows: [], bar: null, codeRow: null, lines: lines.length, footer: false };
     function rowFont(base, h) { return Math.min(base * fs, h * 0.9); }
     if (showTitle) {
-      out.rows.push({ kind: 'title', text: lb.title, left: pad, top: y, width: innerW, height: titleH,
-        font: fitFont(lb.title, rowFont(2.4, titleH), innerW, { bold: true }), bold: true });
+      out.rows.push({ kind: 'title', text: titleText, left: pad, top: y, width: innerW, height: titleH,
+        font: fitFont(titleText, rowFont(2.4, titleH), innerW, { bold: true }), bold: true });
       y += titleH;
     }
     for (var i = 0; i < lines.length; i++) {
@@ -2081,6 +2085,9 @@ body.modal-open { overflow: hidden; }
  * Test hook: createDemoAdapter({now: () => Date|ms}) replaces the clock used for every call (writes' timestamps and the
  * forecast's "today"); omit it in the app.
  * Forecast reads forecast(p) / usageSeries(p) mirror mat_forecast / mat_usage_series (local dates in an IANA tz via Intl).
+ * Pack barcodes (v3): category.barcode_mode 'unit' | 'lot'; lot units carry qty / qty_left (pieces), per-piece units have
+ * both null. Stock / count_delta are PIECES (per-piece unit 1, pack qty_left) — same rules as the SQL v3 RPCs.
+ * Demo seed: thread (TH) cones are received per piece, then TH and HW (trims) switch to 'lot' and get pack receipts.
  * The demo user's role is the setDemoRole() switch (not mat_members); the seed still lists it as an admin member so the
  * last-admin rule of mat_set_member (CONFLICT last_admin) behaves as in SQL.
  *
@@ -2470,6 +2477,13 @@ body.modal-open { overflow: hidden; }
     // blobs written by older versions (= re-running the SQL setup on an existing DB): new item columns default to null,
     // the 'forecast' setting is seeded only when missing
     function migrate(o) {
+      // v3 pack barcodes: existing categories are per-piece, existing units have no qty
+      o.categories.forEach(function (c) { if (isObj(c) && !hasOwn(c, 'barcode_mode')) c.barcode_mode = 'unit'; });
+      o.units.forEach(function (u) {
+        if (!isObj(u)) return;
+        if (!hasOwn(u, 'qty')) u.qty = null;
+        if (!hasOwn(u, 'qty_left')) u.qty_left = null;
+      });
       o.items.forEach(function (it) {
         if (!isObj(it)) return;
         if (!hasOwn(it, 'lead_days')) it.lead_days = null;
@@ -2600,6 +2614,18 @@ body.modal-open { overflow: hidden; }
       u.last_move_at = c.iso;
       emit(c, 'mat_units', 'UPDATE', u);
     }
+    // ---- pack barcodes (= mat__pieces / mat__lotinfo / mat__st / mat__line_qty)
+    function isLot(u) { return u.qty !== null && u.qty !== undefined; }
+    function pieces(status, qtyLeft) { return status !== 'in' ? 0 : (qtyLeft === null || qtyLeft === undefined ? 1 : qtyLeft); }
+    function lotinfo(o, u) { if (isLot(u)) { o.qty = u.qty; o.qty_left = u.qty_left; } return o; }
+    function stSnap(status, qtyLeft) { var o = { status: status }; if (qtyLeft !== null && qtyLeft !== undefined) o.qty_left = qtyLeft; return o; }
+    function lineQty(line, lo, hi) {
+      if (!isObj(line)) return { val: null, err: 'qty_required' };
+      var nr = jnum(line.qty);
+      if (nr.ok && nr.val === null) return { val: null, err: 'qty_required' };
+      if (!nr.ok || Math.floor(nr.val) !== nr.val || nr.val < lo || nr.val > hi) return { val: null, err: 'bad_qty' };
+      return { val: nr.val + 0, err: null };
+    }
     function itemHasLots(id) { for (var i = 0; i < S.lots.length; i++) if (S.lots[i].item_id === id) return true; return false; }
     function skuTaken(sku, exceptId) {
       var low = sku.toLowerCase();
@@ -2626,6 +2652,13 @@ body.modal-open { overflow: hidden; }
       var vFields = hasOwn(p, 'fields') ? pfields(p.fields) : null;
       var vSort = pint(p, 'sort', -1000000, 1000000);
       var vActive = hasOwn(p, 'active') ? pbool(p, 'active', true) : null;
+      // barcode mode 'unit' | 'lot' — affects future receipts only (fixed per unit row at receipt)
+      var vMode = null;
+      if (hasOwn(p, 'barcode_mode')) {
+        vMode = ptxt(p, 'barcode_mode', 10);
+        vMode = vMode === null ? null : vMode.toLowerCase();
+        if (vMode !== 'unit' && vMode !== 'lot') bad('barcode_mode');
+      }
       var cur = IX.cat.get(code) || null;
       var row;
       if (isNew) {
@@ -2634,7 +2667,7 @@ body.modal-open { overflow: hidden; }
         if (hasOwn(p, 'unit_label') && vUl === null) bad('unit_label');
         row = { code: code, name: vName, name_en: vNameEn, unit_label: vUl === null ? '개' : vUl, unit_label_en: vUlEn,
           measure_uom: vUom, fields: vFields || [], sort: vSort === null ? 0 : vSort, active: vActive === null ? true : vActive,
-          created_at: c.iso, updated_at: c.iso };
+          barcode_mode: vMode === null ? 'unit' : vMode, created_at: c.iso, updated_at: c.iso };
         S.categories.push(row); IX.cat.set(code, row);
         emit(c, 'mat_categories', 'INSERT', row);
         return { category: row };
@@ -2656,6 +2689,7 @@ body.modal-open { overflow: hidden; }
       if (vFields !== null) row.fields = vFields;
       if (vSort !== null) row.sort = vSort;
       if (vActive !== null) row.active = vActive;
+      if (vMode !== null) row.barcode_mode = vMode;
       row.updated_at = c.iso;
       emit(c, 'mat_categories', 'UPDATE', row);
       return { category: row };
@@ -2794,12 +2828,21 @@ body.modal-open { overflow: hidden; }
       if (!item.active) fail('CONFLICT', 'item_inactive');
       if (!cat.active) fail('CONFLICT', 'category_inactive');
       // per-unit validation: one bad unit rejects the whole receive (atomic)
+      // pack category: one entry = one received pack = one barcode with qty (integer 1..1,000,000); amount ignored
+      var lotMode = cat.barcode_mode === 'lot';
       var prepared = units.map(function (u) {
-        if (u === null || u === undefined) return { amount: null, spec: {}, note: null };
+        if (lotMode) {
+          if (u === null || u === undefined) bad('qty');
+          if (!isObj(u)) bad('units');
+          var q = pint(u, 'qty', 1, 1000000);
+          if (q === null) bad('qty');
+          return { amount: null, qty: q, spec: pspec(u.spec, 'units.spec'), note: ptxt(u, 'note', 1000) };
+        }
+        if (u === null || u === undefined) return { amount: null, qty: null, spec: {}, note: null };
         if (!isObj(u)) bad('units');
         var nr = jnum(u.amount);
         if (!nr.ok || (nr.val !== null && nr.val < 0)) bad('amount');
-        return { amount: cat.measure_uom === null || cat.measure_uom === undefined ? null : nr.val,
+        return { amount: cat.measure_uom === null || cat.measure_uom === undefined ? null : nr.val, qty: null,
           spec: pspec(u.spec, 'units.spec'), note: ptxt(u, 'note', 1000) };
       });
       var n = prepared.length;
@@ -2826,12 +2869,13 @@ body.modal-open { overflow: hidden; }
       prepared.forEach(function (u, idx) {
         var unit = { code: codes[idx], item_id: item.id, lot_id: lot.id, seq: idx + 1, status: 'in', amount: u.amount,
           amount_left: u.amount, spec: u.spec, location: location, note: u.note, last_dest: null, last_move_at: c.iso,
-          version: 1, created_at: c.iso, updated_at: c.iso };
+          version: 1, created_at: c.iso, updated_at: c.iso, qty: u.qty, qty_left: u.qty };
         S.units.push(unit); IX.unit.set(unit.code, unit);
         emit(c, 'mat_units', 'INSERT', unit);
-        // SQL: IN move carries dest = supplier, purpose = ref_no, memo = lot memo
+        // SQL: IN move carries dest = supplier, purpose = ref_no, memo = lot memo; count_delta = pieces (pack: +qty)
         addMove(c, { op_id: op, code: unit.code, lot_id: lot.id, item_id: item.id, type: 'IN', amount: u.amount,
-          count_delta: 1, dest: supplier, purpose: ref, memo: memo });
+          count_delta: u.qty === null ? 1 : u.qty, dest: supplier, purpose: ref, memo: memo,
+          after: u.qty === null ? null : stSnap('in', u.qty) });
       });
       return { lot_id: lot.id, codes: codes, dup: false };
     }
@@ -2855,12 +2899,28 @@ body.modal-open { overflow: hidden; }
         if (!u) return { code: code, ok: false, err: 'not_found' };
         var m = findMove(op, code, 'OUT');
         if (m) {
-          return { code: code, ok: true, dup: true, partial: m.count_delta === 0, status: u.status, amount_left: u.amount_left,
-            item_id: u.item_id };
+          // replay: per-piece → partial when count_delta 0; pack → partial when it stayed in stock
+          return lotinfo({ code: code, ok: true, dup: true,
+            partial: isLot(u) ? !!(m.after && m.after.status === 'in') : m.count_delta === 0,
+            status: u.status, amount_left: u.amount_left, item_id: u.item_id }, u);
         }
         if (u.status === 'void' || u.status === 'out') {
-          return { code: code, ok: false, err: u.status === 'void' ? 'void' : 'already_out', status: u.status,
-            amount_left: u.amount_left, item_id: u.item_id };
+          return lotinfo({ code: code, ok: false, err: u.status === 'void' ? 'void' : 'already_out', status: u.status,
+            amount_left: u.amount_left, item_id: u.item_id }, u);
+        }
+        if (isLot(u)) {
+          // pack: qty (1..qty_left) required, amount ignored; qty_left 0 → out
+          var lq = lineQty(line, 1, u.qty_left);
+          if (lq.err) return lotinfo({ code: code, ok: false, err: lq.err, status: u.status, amount_left: u.amount_left, item_id: u.item_id }, u);
+          var lb = { status: u.status, amount_left: u.amount_left, qty_left: u.qty_left };
+          u.qty_left = u.qty_left - lq.val;
+          u.status = u.qty_left > 0 ? 'in' : 'out';
+          u.last_dest = dest;
+          touchUnit(c, u);
+          addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'OUT', amount: null,
+            count_delta: -lq.val, dest: dest, person: person, purpose: purpose, memo: memo,
+            before: lb, after: { status: u.status, amount_left: u.amount_left, qty_left: u.qty_left } });
+          return lotinfo({ code: code, ok: true, partial: u.qty_left > 0, status: u.status, amount_left: u.amount_left, item_id: u.item_id }, u);
         }
         var nr = jnum(t === 'object' ? line.amount : undefined);
         if (!nr.ok || (nr.val !== null && nr.val <= 0)) {
@@ -2901,10 +2961,28 @@ body.modal-open { overflow: hidden; }
         seen.add(code);
         var u = IX.unit.get(code);
         if (!u) return { code: code, ok: false, err: 'not_found' };
-        var info = function (base) { base.status = u.status; base.amount_left = u.amount_left; base.item_id = u.item_id; return base; };
+        var info = function (base) { base.status = u.status; base.amount_left = u.amount_left; base.item_id = u.item_id; return lotinfo(base, u); };
         if (findMove(op, code, 'RETURN')) return info({ code: code, ok: true, dup: true });
-        if (u.status === 'void' || u.status === 'in') {
+        // a pack can be topped up while partly issued ('in', qty_left < qty); a full pack → already_in
+        if (u.status === 'void' || (u.status === 'in' && (!isLot(u) || u.qty_left >= u.qty))) {
           return info({ code: code, ok: false, err: u.status === 'void' ? 'void' : 'already_in' });
+        }
+        if (isLot(u)) {
+          // pack: qty required, (pieces in stock + qty) ≤ qty; pieces in stock = qty_left when in, 0 when out
+          var base = pieces(u.status, u.qty_left);
+          var rq = lineQty(line, 1, u.qty - base);
+          if (rq.err) return info({ code: code, ok: false, err: rq.err });
+          var rl = jtext(line.location, 200);
+          if (!rl.ok) return info({ code: code, ok: false, err: 'bad_input' });
+          var rb = { status: u.status, amount_left: u.amount_left, location: u.location, qty_left: u.qty_left };
+          u.status = 'in';
+          u.qty_left = base + rq.val;
+          if (rl.val !== null) u.location = rl.val;
+          touchUnit(c, u);
+          addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'RETURN', amount: null,
+            count_delta: rq.val, dest: from, person: person, memo: memo,
+            before: rb, after: { status: u.status, amount_left: u.amount_left, location: u.location, qty_left: u.qty_left } });
+          return info({ code: code, ok: true });
         }
         var nr = jnum(t === 'object' ? line.amount_left : undefined);
         if (!nr.ok || (nr.val !== null && (nr.val < 0 || (u.amount !== null && u.amount !== undefined && nr.val > u.amount)))) {
@@ -2928,7 +3006,8 @@ body.modal-open { overflow: hidden; }
     function opUpdateUnit(p, c) {
       need(c, 'staff');
       p = pobj(p);
-      if (rank(c.role) < ROLE_RANK.manager && (hasOwn(p, 'amount') || hasOwn(p, 'amount_left') || hasOwn(p, 'spec'))) {
+      if (rank(c.role) < ROLE_RANK.manager && (hasOwn(p, 'amount') || hasOwn(p, 'amount_left') || hasOwn(p, 'spec') ||
+          hasOwn(p, 'qty') || hasOwn(p, 'qty_left'))) {
         fail('FORBIDDEN', 'requires manager');
       }
       var op = puuid(p, 'op_id');
@@ -2941,6 +3020,10 @@ body.modal-open { overflow: hidden; }
       var vAmount = null, vLeft = null;
       if (hasOwn(p, 'amount')) { vAmount = pnum(p, 'amount'); if (vAmount !== null && vAmount < 0) bad('amount'); }
       if (hasOwn(p, 'amount_left')) { vLeft = pnum(p, 'amount_left'); if (vLeft !== null && vLeft < 0) bad('amount_left'); }
+      // pack correction (manager): qty 1..1e6, qty_left 0..1e6, integers, never null
+      var vQty = null, vQleft = null;
+      if (hasOwn(p, 'qty')) { vQty = pint(p, 'qty', 1, 1000000); if (vQty === null) bad('qty'); }
+      if (hasOwn(p, 'qty_left')) { vQleft = pint(p, 'qty_left', 0, 1000000); if (vQleft === null) bad('qty_left'); }
       var u = IX.unit.get(code);
       if (!u) fail('NOT_FOUND', 'unit');
       if (findMove(op, code, 'EDIT')) return { unit: u, dup: true };    // idempotent replay
@@ -2949,6 +3032,14 @@ body.modal-open { overflow: hidden; }
       var nLeft = hasOwn(p, 'amount_left') ? vLeft : u.amount_left;
       if ((hasOwn(p, 'amount') || hasOwn(p, 'amount_left')) && nAmount !== null && nAmount !== undefined &&
           nLeft !== null && nLeft !== undefined && nLeft > nAmount) bad('amount_left');
+      // per-piece units have no qty, packs have no amount
+      if ((hasOwn(p, 'qty') || hasOwn(p, 'qty_left')) && !isLot(u)) bad('qty');
+      if (isLot(u) && (vAmount !== null || vLeft !== null)) bad('amount');
+      var nQty = hasOwn(p, 'qty') ? vQty : u.qty;
+      var nQleft = hasOwn(p, 'qty_left') ? vQleft : u.qty_left;
+      if (isLot(u) && nQleft > nQty) bad('qty_left');
+      var nStatus = u.status;                                         // status follows qty_left (void stays void)
+      if (hasOwn(p, 'qty_left') && u.status !== 'void') nStatus = nQleft > 0 ? 'in' : 'out';
       var before = {}, after = {}, changed = false;
       function diff(k, val) {
         var old = u[k] === undefined ? null : u[k];
@@ -2959,10 +3050,14 @@ body.modal-open { overflow: hidden; }
       if (hasOwn(p, 'spec')) diff('spec', vSpec);
       if (hasOwn(p, 'amount')) diff('amount', vAmount);
       if (hasOwn(p, 'amount_left')) diff('amount_left', vLeft);
+      if (hasOwn(p, 'qty')) diff('qty', nQty);
+      if (hasOwn(p, 'qty_left')) diff('qty_left', nQleft);
+      diff('status', nStatus);
       if (!changed) return { unit: u };                                // no-op: no move, version unchanged
+      var eDelta = isLot(u) ? pieces(nStatus, nQleft) - pieces(u.status, u.qty_left) : 0;
       Object.keys(after).forEach(function (k) { u[k] = clone(after[k]); });
       touchUnit(c, u);
-      addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'EDIT', amount: null, count_delta: 0,
+      addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'EDIT', amount: null, count_delta: eDelta,
         before: before, after: after });
       return { unit: u };
     }
@@ -2984,24 +3079,26 @@ body.modal-open { overflow: hidden; }
         seen.add(code);
         var u = IX.unit.get(code);
         if (!u) return { code: code, ok: false, err: 'not_found' };
-        if (findMove(op, code, type)) return { code: code, ok: true, dup: true, status: u.status, item_id: u.item_id };
-        if (!restore && u.status === 'void') return { code: code, ok: false, err: 'already_void', status: u.status, item_id: u.item_id };
-        if (restore && u.status !== 'void') return { code: code, ok: false, err: 'not_void', status: u.status, item_id: u.item_id };
+        if (findMove(op, code, type)) return lotinfo({ code: code, ok: true, dup: true, status: u.status, item_id: u.item_id }, u);
+        if (!restore && u.status === 'void') return lotinfo({ code: code, ok: false, err: 'already_void', status: u.status, item_id: u.item_id }, u);
+        if (restore && u.status !== 'void') return lotinfo({ code: code, ok: false, err: 'not_void', status: u.status, item_id: u.item_id }, u);
         var prevStatus = u.status, delta;
         if (restore) {
-          // back to the pre-void state recorded by the latest VOID move: out → out (count 0), else in (+1)
+          // back to the pre-void state recorded by the latest VOID move: out → out (count 0), else in (+1 / pack +qty_left);
+          // a pack with nothing left goes back out
           var was = null;
           for (var i = S.moves.length - 1; i >= 0; i--) {
             var mv = S.moves[i];
             if (mv.code === code && mv.type === 'VOID') { was = mv.before ? mv.before.status : null; break; }
           }
-          if (was === 'out') { delta = 0; u.status = 'out'; } else { delta = 1; u.status = 'in'; }
+          u.status = was === 'out' || (isLot(u) && u.qty_left === 0) ? 'out' : 'in';
+          delta = pieces(u.status, u.qty_left);
         }
-        else { delta = u.status === 'in' ? -1 : 0; u.status = 'void'; }
+        else { delta = -pieces(u.status, u.qty_left) + 0; u.status = 'void'; }
         touchUnit(c, u);
         addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: type, amount: u.amount_left,
-          count_delta: delta, memo: reason, before: { status: prevStatus }, after: { status: u.status } });
-        return { code: code, ok: true, status: u.status, item_id: u.item_id };
+          count_delta: delta, memo: reason, before: stSnap(prevStatus, u.qty_left), after: stSnap(u.status, u.qty_left) });
+        return lotinfo({ code: code, ok: true, status: u.status, item_id: u.item_id }, u);
       });
       return { results: results };
     }
@@ -3051,11 +3148,13 @@ body.modal-open { overflow: hidden; }
       var memo = ptxt(p, 'memo', 2000);
       var missing = parr(p, 'missing', 0, 5000);
       var found = parr(p, 'found', 0, 5000);
-      var asOf = pts(p, 'as_of');   // when the expected list was loaded: units moved after that are not written off
-      if (missing.length + found.length < 1) bad('missing/found');
+      var counted = parr(p, 'counted', 0, 5000);   // packs: [{code, qty}] → qty_left := qty
+      var asOf = pts(p, 'as_of');   // when the expected list was loaded: units moved after that are not written off / recounted
+      if (missing.length + found.length + counted.length < 1) bad('missing/found');
       var seen = new Set();
       var todo = missing.map(function (x) { return { line: x, action: 'missing' }; })
-        .concat(found.map(function (x) { return { line: x, action: 'found' }; }));
+        .concat(found.map(function (x) { return { line: x, action: 'found' }; }))
+        .concat(counted.map(function (x) { return { line: x, action: 'counted' }; }));
       var results = todo.map(function (td) {
         var t = lineType(td.line), action = td.action;
         if (t !== 'object' && t !== 'string' && t !== 'number') return { code: null, ok: false, err: 'bad_input', action: action };
@@ -3064,26 +3163,42 @@ body.modal-open { overflow: hidden; }
         seen.add(code);
         var u = IX.unit.get(code);
         if (!u) return { code: code, ok: false, err: 'not_found', action: action };
-        if (findMove(op, code, 'ADJUST')) return { code: code, ok: true, dup: true, action: action, status: u.status, item_id: u.item_id };
-        var prevStatus = u.status;
+        function res(o) { o.action = action; o.status = u.status; o.item_id = u.item_id; return lotinfo(o, u); }
+        if (findMove(op, code, 'ADJUST')) return res({ code: code, ok: true, dup: true });
+        var prevStatus = u.status, prevLeft = u.qty_left;
+        function moved() { return asOf !== null && Date.parse(u.last_move_at) * 1000 > asOf; }
         if (action === 'missing') {
-          if (u.status !== 'in') return { code: code, ok: false, err: 'not_in', action: action, status: u.status, item_id: u.item_id };
-          if (asOf !== null && Date.parse(u.last_move_at) * 1000 > asOf) {
-            return { code: code, ok: false, err: 'moved_since_count', action: action, status: u.status, item_id: u.item_id };
-          }
+          if (u.status !== 'in') return res({ code: code, ok: false, err: 'not_in' });
+          if (moved()) return res({ code: code, ok: false, err: 'moved_since_count' });
+          var dm = -pieces(u.status, u.qty_left) + 0;
           u.status = 'out';
           u.last_dest = 'STOCKTAKE';
           touchUnit(c, u);
           addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'ADJUST', amount: u.amount_left,
-            count_delta: -1, dest: 'STOCKTAKE', memo: memo, before: { status: prevStatus }, after: { status: u.status } });
-        } else {
-          if (u.status === 'in') return { code: code, ok: false, err: 'already_in', action: action, status: u.status, item_id: u.item_id };
+            count_delta: dm, dest: 'STOCKTAKE', memo: memo, before: stSnap(prevStatus, prevLeft), after: stSnap(u.status, u.qty_left) });
+        } else if (action === 'found') {
+          if (u.status === 'in') return res({ code: code, ok: false, err: 'already_in' });
+          if (isLot(u) && u.qty_left === 0) return res({ code: code, ok: false, err: 'qty_required' });   // empty pack: send counted
           u.status = 'in';
           touchUnit(c, u);
           addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'ADJUST', amount: u.amount_left,
-            count_delta: 1, dest: 'STOCKTAKE', memo: memo, before: { status: prevStatus }, after: { status: u.status } });
+            count_delta: pieces('in', u.qty_left), dest: 'STOCKTAKE', memo: memo, before: stSnap(prevStatus, prevLeft), after: stSnap(u.status, u.qty_left) });
+        } else {
+          if (!isLot(u)) return { code: code, ok: false, err: 'not_lot', action: action, status: u.status, item_id: u.item_id };
+          var cq = lineQty(td.line, 0, u.qty);
+          if (cq.err) return res({ code: code, ok: false, err: cq.err });
+          if (moved()) return res({ code: code, ok: false, err: 'moved_since_count' });
+          var nst = cq.val > 0 ? 'in' : (u.status === 'void' ? 'void' : 'out');
+          if (nst === u.status && (nst === 'void' || cq.val === u.qty_left)) return res({ code: code, ok: true, unchanged: true });
+          var dc = pieces(nst, cq.val) - pieces(u.status, u.qty_left);
+          u.status = nst;
+          u.qty_left = cq.val;
+          if (nst === 'out') u.last_dest = 'STOCKTAKE';
+          touchUnit(c, u);
+          addMove(c, { op_id: op, code: code, lot_id: u.lot_id, item_id: u.item_id, type: 'ADJUST', amount: null,
+            count_delta: dc, dest: 'STOCKTAKE', memo: memo, before: stSnap(prevStatus, prevLeft), after: stSnap(u.status, u.qty_left) });
         }
-        return { code: code, ok: true, action: action, status: u.status, item_id: u.item_id };
+        return lotinfo({ code: code, ok: true, action: action, status: u.status, item_id: u.item_id }, u);
       });
       return { results: results };
     }
@@ -3173,12 +3288,13 @@ body.modal-open { overflow: hidden; }
       if (!canRead(c)) return [];
       var m = new Map();
       S.items.forEach(function (it) {
-        m.set(it.id, { item_id: it.id, in_count: 0, in_amount: 0, out_count: 0, void_count: 0, lot_count: 0, last_move_at: null });
+        m.set(it.id, { item_id: it.id, in_count: 0, in_amount: 0, out_count: 0, void_count: 0, lot_count: 0, last_move_at: null, in_codes: 0 });
       });
       S.lots.forEach(function (l) { var r = m.get(l.item_id); if (r) r.lot_count++; });
       S.units.forEach(function (u) {
         var r = m.get(u.item_id); if (!r) return;
-        if (u.status === 'in') { r.in_count++; if (isNum(u.amount_left)) r.in_amount = r6(r.in_amount + u.amount_left); }
+        // in_count = pieces (per-piece 1, pack qty_left), in_codes = barcodes in stock
+        if (u.status === 'in') { r.in_count += pieces('in', u.qty_left); r.in_codes++; if (isNum(u.amount_left)) r.in_amount = r6(r.in_amount + u.amount_left); }
         else if (u.status === 'out') r.out_count++;
         else if (u.status === 'void') r.void_count++;
         if (u.last_move_at && (!r.last_move_at || tsOf(u.last_move_at) > tsOf(r.last_move_at))) r.last_move_at = u.last_move_at;
@@ -3186,10 +3302,11 @@ body.modal-open { overflow: hidden; }
       return Array.from(m.values()).sort(function (a, b) { return a.item_id - b.item_id; });
     }
     function lotStock(lotId) {                                         // view mat_lot_stock
-      var r = { in_count: 0, in_amount: 0, out_count: 0, void_count: 0 };
+      var r = { in_count: 0, in_amount: 0, out_count: 0, void_count: 0, in_codes: 0, qty_total: null };
       S.units.forEach(function (u) {
         if (u.lot_id !== lotId) return;
-        if (u.status === 'in') { r.in_count++; if (isNum(u.amount_left)) r.in_amount = r6(r.in_amount + u.amount_left); }
+        if (isLot(u)) r.qty_total = (r.qty_total || 0) + Number(u.qty);   // pack lot: Σ qty (all statuses); per-piece → null
+        if (u.status === 'in') { r.in_count += pieces('in', u.qty_left); r.in_codes++; if (isNum(u.amount_left)) r.in_amount = r6(r.in_amount + u.amount_left); }
         else if (u.status === 'out') r.out_count++;
         else if (u.status === 'void') r.void_count++;
       });
@@ -3374,12 +3491,14 @@ body.modal-open { overflow: hidden; }
         A.set(it.id, { inCnt: 0, inAmt: 0, o7c: 0, o7a: 0, r7c: 0, r7a: 0, o30c: 0, o30a: 0, r30c: 0, r30a: 0, o90c: 0, o90a: 0,
           r90c: 0, r90a: 0, opc: 0, opa: 0, rpc: 0, rpa: 0, loss90: 0, recv90c: 0, recv90a: 0, lots90: new Set(), lastIn: null,
           lastOut: null, firstIn: null, avg180s: 0, avg180n: 0, avgAlls: 0, avgAlln: 0, outMoves30: 0, dests: new Map(),
-          inUnm: 0, unm60: 0 });
+          inUnm: 0, unm60: 0, hasLot: false });
       });
       S.units.forEach(function (u) {
         var g = A.get(u.item_id);
-        if (!g || u.status !== 'in') return;
-        g.inCnt++; g.inAmt = addAmt(g.inAmt, u.amount_left);
+        if (!g) return;
+        if (isLot(u)) g.hasLot = true;           // any pack barcode → count-only item
+        if (u.status !== 'in') return;
+        g.inCnt += pieces('in', u.qty_left); g.inAmt = addAmt(g.inAmt, u.amount_left);
         if (u.amount_left === null || u.amount_left === undefined) g.inUnm++;
       });
       S.moves.forEach(function (m) {
@@ -3389,27 +3508,28 @@ body.modal-open { overflow: hidden; }
         var in7 = d >= w7 && d <= today, in30 = d >= w30 && d <= today, in90 = d >= w90 && d <= today, inP = d >= wpa && d <= wpb;
         // whole-unit OUT / RETURN without an amount in the last 60 days (SQL: amount is null)
         if (((m.type === 'OUT' && m.count_delta === -1) || m.type === 'RETURN') && (amt === null || amt === undefined) && d >= wpa && d <= today) g.unm60++;
+        var cd = m.count_delta || 0;
         if (m.type === 'OUT') {
-          var full = m.count_delta === -1 ? 1 : 0;
+          var full = -cd + 0;                                          // pieces: per-piece full 1 / partial 0, pack qty
           if (in7) { g.o7c += full; g.o7a = addAmt(g.o7a, amt); }
           if (in30) { g.o30c += full; g.o30a = addAmt(g.o30a, amt); g.outMoves30++; }
           if (in90) {
             g.o90c += full; g.o90a = addAmt(g.o90a, amt);
             var key = m.dest === undefined ? null : m.dest;
-            var dd = g.dests.get(key) || { dest: key, n: 0, a: 0 };
-            dd.n++; dd.a = addAmt(dd.a, amt); g.dests.set(key, dd);
+            var dd = g.dests.get(key) || { dest: key, n: 0, np: 0, a: 0 };
+            dd.n++; dd.np += full; dd.a = addAmt(dd.a, amt); g.dests.set(key, dd);
           }
           if (inP) { g.opc += full; g.opa = addAmt(g.opa, amt); }
           if (g.lastOut === null || t > tsOf(g.lastOut)) g.lastOut = m.at;
         } else if (m.type === 'RETURN') {
-          if (in7) { g.r7c++; g.r7a = addAmt(g.r7a, amt); }
-          if (in30) { g.r30c++; g.r30a = addAmt(g.r30a, amt); }
-          if (in90) { g.r90c++; g.r90a = addAmt(g.r90a, amt); }
-          if (inP) { g.rpc++; g.rpa = addAmt(g.rpa, amt); }
+          if (in7) { g.r7c += cd; g.r7a = addAmt(g.r7a, amt); }
+          if (in30) { g.r30c += cd; g.r30a = addAmt(g.r30a, amt); }
+          if (in90) { g.r90c += cd; g.r90a = addAmt(g.r90a, amt); }
+          if (inP) { g.rpc += cd; g.rpa = addAmt(g.rpa, amt); }
         } else if (m.type === 'ADJUST') {
-          if (in90 && m.count_delta === -1) g.loss90++;
+          if (in90 && cd < 0) g.loss90 += -cd;
         } else {                                                        // IN
-          if (in90) { g.recv90c++; g.recv90a = addAmt(g.recv90a, amt); if (m.lot_id !== null && m.lot_id !== undefined) g.lots90.add(m.lot_id); }
+          if (in90) { g.recv90c += cd; g.recv90a = addAmt(g.recv90a, amt); if (m.lot_id !== null && m.lot_id !== undefined) g.lots90.add(m.lot_id); }
           if (g.lastIn === null || t > tsOf(g.lastIn)) g.lastIn = m.at;
           if (g.firstIn === null || d < g.firstIn) g.firstIn = d;
           if (isNum(amt)) {
@@ -3420,7 +3540,7 @@ body.modal-open { overflow: hidden; }
       });
       var rows = items.map(function (it) {
         var g = A.get(it.id);
-        var meas = catMeasured(it.category);
+        var meas = catMeasured(it.category) && !g.hasLot;                // packs have no amount → count only
         var cat = IX.cat.get(it.category);
         var iLead = it.lead_days === undefined ? null : it.lead_days, iCover = it.cover_days === undefined ? null : it.cover_days;
         var lead = iLead === null ? def.lead_days : iLead, cover = iCover === null ? def.cover_days : iCover;
@@ -3468,7 +3588,8 @@ body.modal-open { overflow: hidden; }
         else if (daysCover > Math.max(90, 3 * (lead + cover))) status = 'overstock';
         else status = 'ok';
         var conf = hist < 14 || g.outMoves30 < 3 ? 'low' : 'ok';
-        var top = Array.from(g.dests.values()).sort(function (x, y) {
+        // count = OUT moves (per-piece item) or pieces (item with packs)
+        var top = Array.from(g.dests.values()).map(function (x) { return { dest: x.dest, n: g.hasLot ? x.np : x.n, a: x.a }; }).sort(function (x, y) {
           if (amountBasis) return (y.a - x.a) || (y.n - x.n) || cmpStr(x.dest, y.dest);
           return (y.n - x.n) || (meas ? y.a - x.a : 0) || cmpStr(x.dest, y.dest);
         }).slice(0, 3).map(function (x) { return { dest: x.dest, count: x.n, amount: meas ? x.a : null }; });
@@ -3521,11 +3642,11 @@ body.modal-open { overflow: hidden; }
         if (cat !== null) { var mi = IX.item.get(m.item_id); if (!mi || mi.category !== cat) return; }
         var d = dayNum(tsOf(m.at), tz);
         if (d < from || d > today) return;
-        var r = rows[d - from];
-        if (m.type === 'IN') { r.in_count++; r.in_amount = addAmt(r.in_amount, m.amount); }
-        else if (m.type === 'OUT') { if (m.count_delta === -1) r.out_count++; r.out_amount = addAmt(r.out_amount, m.amount); }
-        else if (m.type === 'RETURN') { r.ret_count++; r.ret_amount = addAmt(r.ret_amount, m.amount); }
-        else if (m.count_delta === -1) r.adj_count++;
+        var r = rows[d - from], cd = m.count_delta || 0;                // counts are pieces (Σ count_delta)
+        if (m.type === 'IN') { r.in_count += cd; r.in_amount = addAmt(r.in_amount, m.amount); }
+        else if (m.type === 'OUT') { r.out_count += -cd + 0; r.out_amount = addAmt(r.out_amount, m.amount); }
+        else if (m.type === 'RETURN') { r.ret_count += cd; r.ret_amount = addAmt(r.ret_amount, m.amount); }
+        else if (cd < 0) r.adj_count += -cd;
       });
       if (!meas) rows.forEach(function (r) { r.in_amount = null; r.out_amount = null; r.ret_amount = null; });
       return { tz: tz, from: dayStr(from), to: dayStr(today), rows: rows };
@@ -3548,7 +3669,7 @@ body.modal-open { overflow: hidden; }
       var t0 = at(30, 8, 0), t0iso = t0.toISOString();
       seedCategoryDefs().forEach(function (d) {
         var row = { code: d[0], name: d[1], name_en: d[2], unit_label: d[3], unit_label_en: d[4], measure_uom: d[5],
-          fields: pfields(d[6]), sort: d[7], active: true, created_at: t0iso, updated_at: t0iso };
+          fields: pfields(d[6]), sort: d[7], active: true, barcode_mode: 'unit', created_at: t0iso, updated_at: t0iso };
         S.categories.push(row);
       });
       Object.keys(SEED_SETTINGS).forEach(function (k) {
@@ -3633,6 +3754,29 @@ body.modal-open { overflow: hidden; }
       issue(at(0, 8, 30), threadA.slice(6, 8), '봉제 Sewing', 'Ana Reyes', 'Line 1');
       issue(at(0, 9, 5), [kipB[1]], '재단 Cutting', 'Juan Dela Cruz', 'ORD-1041 Infield glove 11.25in');
       // Kip Leather Tan ends at 6 in stock < min 10 → the one low-stock item
+
+      // ---- pack barcodes: thread (TH) and trims (HW) switch to one barcode per received pack (+ quantity).
+      // The red thread cones above were received per piece before the switch and stay per piece.
+      opSaveCategory({ code: 'TH', barcode_mode: 'lot' }, C(at(17, 8, 0)));
+      opSaveCategory({ code: 'HW', barcode_mode: 'lot' }, C(at(17, 8, 1)));
+      var pthread = item({ category: 'TH', name: 'Polyester Thread 40/3 White', sku: 'TH-PE-40-3-WH', supplier: 'Manila Thread Supply',
+        spec: { material: 'Polyester', size: '40/3', color: 'White', color_code: 'W-001' }, min_qty: 100, location: 'B-04',
+        lead_days: 5, cover_days: 14 }, at(17, 8, 30));
+      var snap = item({ category: 'HW', name: 'Snap Button Brass 15mm', sku: 'HW-SNAP-BR-15', supplier: 'Cebu Hardware Trading',
+        spec: { kind: 'Snap', color: 'Brass', size: '15mm' }, min_qty: 300, location: 'E-01' }, at(17, 8, 31));
+      function packs(qtys) { return qtys.map(function (q) { return { qty: q }; }); }
+      function lotLine(code, q) { return { code: code, qty: q }; }
+      var pthA = recv(pthread, at(16, 9, 0), { ref_no: 'DR-3402', spec: { material: 'Polyester', size: '40/3', color: 'White',
+        color_code: 'W-001' }, memo: '5 boxes × 100 cones' }, packs([100, 100, 100, 100, 100]));
+      var snapA = recv(snap, at(15, 14, 0), { ref_no: 'CH-7710', spec: { kind: 'Snap', color: 'Brass', size: '15mm' } }, packs([500, 500, 500]));
+      opIssue({ op_id: uuid(), dest: '봉제 Sewing', person: 'Ana Reyes', purpose: 'Line 2 weekly', lines: [lotLine(pthA[0], 30)] }, C(at(12, 8, 20)));
+      opIssue({ op_id: uuid(), dest: '배팅장갑 라인 Batting Glove', person: 'Carlo Ramos', purpose: 'BG-220 wrist strap', lines: [lotLine(snapA[0], 120)] }, C(at(9, 10, 40)));
+      opIssue({ op_id: uuid(), dest: '봉제 Sewing', person: 'Ana Reyes', purpose: 'Line 1', lines: [lotLine(pthA[0], 45)] }, C(at(4, 13, 0)));
+      opReturn({ op_id: uuid(), from: '봉제 Sewing', person: 'Ana Reyes', memo: 'Line 1 leftover',
+        lines: [lotLine(pthA[0], 2)] }, C(at(3, 17, 10)));
+      opIssue({ op_id: uuid(), dest: '봉제 Sewing', person: 'Ana Reyes', purpose: 'Line 2 weekly', lines: [lotLine(pthA[0], 27), lotLine(pthA[1], 100)] }, C(at(2, 8, 15)));
+      opIssue({ op_id: uuid(), dest: '배팅장갑 라인 Batting Glove', person: 'Carlo Ramos', purpose: 'BG-221', lines: [lotLine(snapA[0], 200)] }, C(at(1, 9, 30)));
+      // white thread: 300 cones in 3 boxes (box 1 and box 2 used up); brass snaps: 1,180 in 3 bags (bag 1 opened, 180 left)
       S.demo_role = 'admin';
     }
 
@@ -3967,6 +4111,11 @@ body.modal-open { overflow: hidden; }
       'lineerr.duplicate': '중복 스캔', 'lineerr.bad_amount': '수량/양 오류', 'lineerr.already_in': '이미 재고 상태',
       'lineerr.already_void': '이미 폐기됨', 'lineerr.not_void': '폐기 상태가 아님', 'lineerr.not_in': '재고 상태가 아님', 'lineerr.bad_input': '잘못된 입력',
       'lineerr.moved_since_count': '실사 시작 후 이동됨 — 다시 확인',
+      'lineerr.qty_required': '수량을 입력하세요', 'lineerr.bad_qty': '수량 오류 — 남은 수량을 확인하세요', 'lineerr.not_lot': '묶음 바코드가 아님',
+      'detail.qty': '수량', 'detail.qty_left': '남은 수량', 'detail.barcode_mode': '바코드 방식', 'detail.amount': '양',
+      'lot.badge': '묶음', 'lot.badgeTitle': '묶음 바코드 — 입고 묶음 1개 = 바코드 1개 + 수량',
+      'lot.left': '남은 {left} / {qty} {unit}', 'lot.leftShort': '남은 {left} {unit}', 'lot.leftOff': '재고 0 / {qty} {unit} (기록상 남은 {left})', 'lot.recvQty': '입고 수량 {n} {unit}',
+      'lot.packs': '묶음 {n}개', 'lot.inCodes': '바코드 {n}개',
       'status.in': '재고', 'status.out': '반출됨', 'status.void': '폐기',
       'move.IN': '입고', 'move.OUT': '반출', 'move.RETURN': '반입', 'move.EDIT': '수정', 'move.VOID': '폐기',
       'move.RESTORE': '복구', 'move.ADJUST': '실사조정',
@@ -4046,6 +4195,11 @@ body.modal-open { overflow: hidden; }
       'lineerr.duplicate': 'Duplicate scan', 'lineerr.bad_amount': 'Invalid amount', 'lineerr.already_in': 'Already in stock',
       'lineerr.already_void': 'Already voided', 'lineerr.not_void': 'Not voided', 'lineerr.not_in': 'Not in stock', 'lineerr.bad_input': 'Invalid input',
       'lineerr.moved_since_count': 'Moved after the count started — re-check',
+      'lineerr.qty_required': 'Enter a quantity', 'lineerr.bad_qty': 'Invalid quantity — check what is left', 'lineerr.not_lot': 'Not a pack barcode',
+      'detail.qty': 'quantity', 'detail.qty_left': 'quantity left', 'detail.barcode_mode': 'barcode mode', 'detail.amount': 'amount',
+      'lot.badge': 'Pack', 'lot.badgeTitle': 'Pack barcode — one barcode per received pack, with a quantity',
+      'lot.left': '{left} / {qty} {unit} left', 'lot.leftShort': '{left} {unit} left', 'lot.leftOff': '0 / {qty} {unit} in stock (record: {left} left)', 'lot.recvQty': 'Received qty {n} {unit}',
+      'lot.packs': '{n} pack(s)', 'lot.inCodes': '{n} barcode(s)',
       'status.in': 'In stock', 'status.out': 'Issued', 'status.void': 'Void',
       'move.IN': 'Received', 'move.OUT': 'Issued', 'move.RETURN': 'Returned', 'move.EDIT': 'Edited', 'move.VOID': 'Voided',
       'move.RESTORE': 'Restored', 'move.ADJUST': 'Stocktake adj.',
@@ -4790,7 +4944,7 @@ body.modal-open { overflow: hidden; }
   var DEFAULT_CONN = { url: 'https://pgjawfpguzjhkvfrhqwh.supabase.co', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnamF3ZnBndXpqaGt2ZnJocXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDc3MTYsImV4cCI6MjA5MDQyMzcxNn0.c_NQoTEpcx5nA3ifFlQ0j8M2TP-G8wtjlPIqGpIM7MI' };
   // build stamp — build.mjs substitutes both placeholders (SPEC §0.1). Unbuilt source → dev / non-prod.
   var BUILD_PROD_RAW = '1';
-  var BUILD_VERSION_RAW = '2026.10.04.11';
+  var BUILD_VERSION_RAW = '2026.10.06.3';
   var BUILD = {
     prod: BUILD_PROD_RAW === '1',
     version: /^__/.test(BUILD_VERSION_RAW) ? 'dev' : BUILD_VERSION_RAW
@@ -5036,7 +5190,11 @@ body.modal-open { overflow: hidden; }
         var s = st[l.id] || {};
         return Object.assign({}, l, {
           in_count: Number(s.in_count) || 0, in_amount: s.in_amount == null ? 0 : Number(s.in_amount) || 0,
-          out_count: Number(s.out_count) || 0, void_count: Number(s.void_count) || 0
+          out_count: Number(s.out_count) || 0, void_count: Number(s.void_count) || 0,
+          // barcodes in stock (v3 view column; an older DB without it → in_count, which then counts barcodes)
+          in_codes: s.in_codes == null ? (Number(s.in_count) || 0) : Number(s.in_codes) || 0,
+          // pieces a pack lot holds as received (Σ qty, v4 view column); per-piece lots and older DBs → null
+          qty_total: s.qty_total == null ? null : Number(s.qty_total)
         });
       });
     };
@@ -5467,6 +5625,18 @@ body.modal-open { overflow: hidden; }
           sent++;
           var bad = (res && Array.isArray(res.results) ? res.results : []).filter(function (r) { return r && !r.ok; });
           bad.forEach(function (r) { lineErrs.push(r.code + ': ' + UI.lineErrMsg(r.err)); });
+          if (bad.length) {
+            // the op went through but some lines did not (e.g. bad_qty: someone issued from the pack meanwhile) →
+            // keep those lines in the 전송 실패 list so the clerk can enter them again (not just a toast)
+            var badCodes = {};
+            bad.forEach(function (r) { badCodes[normCode(r.code)] = 1; });
+            var pl = Array.isArray(entry.payload.lines) ? entry.payload.lines : [];
+            Queue._failed.unshift({ kind: entry.kind, payload: Object.assign({}, entry.payload, {
+              lines: pl.filter(function (l) { return l && badCodes[normCode(typeof l === 'string' ? l : l.code)]; })
+            }), at: entry.at, email: entry.email, tries: entry.tries || 0, code: 'PARTIAL', partial: true,
+              error: bad.map(function (r) { return r.code + ': ' + UI.lineErrMsg(r.err); }).join(', '), failedAt: new Date().toISOString() });
+            qSaveFailed();
+          }
           qPushLog({ kind: entry.kind, payload: entry.payload, result: res, ok: true, errors: bad, at: new Date().toISOString() });
         } catch (e) {
           var code = e && e.code;
@@ -5581,6 +5751,43 @@ body.modal-open { overflow: hidden; }
   App.stockOf = function (itemId) {
     return App.state.summary[itemId] || { item_id: itemId, in_count: 0, in_amount: 0, out_count: 0, void_count: 0, lot_count: 0, last_move_at: null };
   };
+
+  // ---------- pack barcodes (category.barcode_mode 'lot'; unit.qty / qty_left) ----------
+  // Stock counts (in_count, count_delta) are PIECES: a per-piece unit is 1, a pack unit is its qty_left.
+  App.isLotCat = function (cat) { var c = catObj(cat); return !!(c && c.barcode_mode === 'lot'); };
+  App.isLotUnit = function (u) { return !!(u && u.qty != null); };
+  /** a move of a pack unit (its before/after snapshot carries qty_left) */
+  App.isLotMove = function (m) {
+    return !!(m && ((isObj(m.after) && m.after.qty_left != null) || (isObj(m.before) && m.before.qty_left != null)));
+  };
+  /** pieces of a unit in stock: per-piece 1 when in, pack qty_left when in, else 0 */
+  App.unitPieces = function (u) { return !u || u.status !== 'in' ? 0 : (u.qty == null ? 1 : Number(u.qty_left) || 0); };
+  /** barcodes in stock for an item (mat_stock.in_codes; older DBs without the column → in_count) */
+  App.inCodes = function (st) { return st && st.in_codes != null ? Number(st.in_codes) || 0 : (st ? Number(st.in_count) || 0 : 0); };
+  /** "73 콘" */
+  UI.pieces = function (n, cat) {
+    var u = App.unitLabel(cat);
+    return fmtNum(n, 0) + (u ? ' ' + u : '');
+  };
+  /** "남은 73 / 100 콘" for a pack unit ('' for a per-piece unit) */
+  UI.lotLeft = function (u, cat) {
+    if (!App.isLotUnit(u)) return '';
+    // not in stock (issued out / written off by stocktake / voided) but qty_left kept as a record: 0 pieces in stock
+    if (u.status && u.status !== 'in' && Number(u.qty_left) > 0) {
+      return t('lot.leftOff', { left: fmtNum(u.qty_left, 0), qty: fmtNum(u.qty, 0), unit: App.unitLabel(cat) }).replace(/ {2,}/g, ' ');
+    }
+    return t('lot.left', { left: fmtNum(u.qty_left, 0), qty: fmtNum(u.qty, 0), unit: App.unitLabel(cat) }).replace(/\s+$/, '');
+  };
+  /** "−10 콘" / "+5 콘" (signed pieces of a count_delta) */
+  UI.signedPieces = function (delta, cat) {
+    var n = Number(delta) || 0;
+    var u = App.unitLabel(cat);
+    return (n > 0 ? '+' : (n < 0 ? '−' : '')) + fmtNum(Math.abs(n), 0) + (u ? ' ' + u : '');
+  };
+  /** small "묶음" badge */
+  UI.lotBadge = function () {
+    return '<span class="badge info lot-badge" title="' + esc(t('lot.badgeTitle')) + '">' + esc(t('lot.badge')) + '</span>';
+  };
   App.effectiveSpec = function (lot, unit) {
     return Object.assign({}, lot && isObj(lot.spec) ? lot.spec : {}, unit && isObj(unit.spec) ? unit.spec : {});
   };
@@ -5593,6 +5800,9 @@ body.modal-open { overflow: hidden; }
     var spec = App.effectiveSpec(lot, unit);
     var lines = [];
     var specLine = UI.specSummary(cat, spec, { labelOnly: true });
+    // pack barcode: the received quantity comes first (labels keep at most 2 lines and drop from the end)
+    var qtyTxt = App.isLotUnit(unit) ? t('lot.recvQty', { n: fmtNum(unit.qty, 0), unit: App.unitLabel(cat) }).replace(/\s+$/, '') : '';
+    if (qtyTxt) lines.push(qtyTxt);
     if (specLine) lines.push(specLine);
     var amt = unit.amount_left != null ? unit.amount_left : unit.amount;
     var amtTxt = amt != null ? fmtAmount(amt, cat && cat.measure_uom) : '';
@@ -5607,7 +5817,10 @@ body.modal-open { overflow: hidden; }
     }
     var company = App.state.settings && typeof App.state.settings.company === 'string' && App.state.settings.company.trim()
       ? App.state.settings.company.trim() : 'KSM SPORTS';
-    return { code: String(unit.code || ''), title: String(item.name || (unit.item_id != null ? '#' + unit.item_id : '')), lines: lines, footer: footer, company: company };
+    var lb = { code: String(unit.code || ''), title: String(item.name || (unit.item_id != null ? '#' + unit.item_id : '')), lines: lines, footer: footer, company: company };
+    // compact A4 "name" layout prints no lines → Labels shows qty in front of the title
+    if (qtyTxt) lb.qty = fmtNum(unit.qty, 0) + (App.unitLabel(cat) ? ' ' + App.unitLabel(cat) : '');
+    return lb;
   };
   App.printLabels = async function (units, opts) {
     opts = opts || {};
@@ -6530,7 +6743,11 @@ body.modal-open { overflow: hidden; }
       'view.item.sku': 'SKU', 'view.item.supplier': '기본 공급처', 'view.item.location': '기본 위치', 'view.item.min': '안전재고',
       'view.item.memo': '메모', 'view.item.defaultSpec': '기본 스펙',
       'view.stat.in': '재고', 'view.stat.amount': '재고량', 'view.stat.out': '반출됨', 'view.stat.void': '폐기',
-      'view.stat.lots': '입고 로트', 'view.stat.last': '최근 이동',
+      'view.stat.lots': '입고 로트', 'view.stat.last': '최근 이동', 'view.stat.codes': '재고 바코드',
+      'view.fld.qty': '입고 수량', 'view.fld.qty_left': '남은 수량', 'view.unit.qty': '남은 수량 / 입고 수량',
+      'view.edit.qtyBad': '{label}: 0 이상의 정수를 입력하세요 (입고 수량은 1 이상).', 'view.edit.qtyLeftGt': '남은 수량은 입고 수량보다 클 수 없습니다.',
+      'view.edit.qtyHint': '남은 수량을 0 으로 하면 반출됨, 1 이상이면 재고로 바뀝니다 (실사 보정).',
+      'view.col.codesIn': '바코드 {n}개',
       'view.tab.units': '재고 단위', 'view.tab.lots': '입고 로트', 'view.tab.history': '이력',
       'view.units.q': '코드 · 위치 · 비고 검색', 'view.units.selected': '{n}개 선택',
       'view.units.print': '🏷 라벨 인쇄', 'view.units.issue': '📤 반출', 'view.units.void': '🗑 폐기',
@@ -6570,6 +6787,9 @@ body.modal-open { overflow: hidden; }
       'view.void.reason': '사유', 'view.void.reasonPh': '예: 흠집, 오염, 불량', 'view.void.done': '{n}개 폐기했습니다.',
       'view.restore.confirm': '{code} 을(를) 폐기 전 상태(재고 또는 반출)로 복구할까요?', 'view.restore.done': '재고로 복구했습니다.',
       'view.restore.confirmIn': '{code} 을(를) 재고 상태로 복구할까요? (재고 +1)',
+      'view.restore.confirmInLot': '{code} 을(를) 재고 상태로 복구할까요? (재고 +{n})',
+      'view.restore.confirmOutLot': '{code} 은(는) 남은 수량이 0인 묶음이라 반출 상태로 복구됩니다. 복구할까요? (재고 수량은 변하지 않습니다)',
+      'view.void.lotIn': '재고 −{n}',
       'view.restore.confirmOut': '{code} 은(는) 반출된 상태에서 폐기되었습니다. 반출 상태로 복구할까요? (재고 수량은 변하지 않습니다)',
       'view.restore.doneOut': '반출 상태로 복구했습니다.',
       'view.result.partial': '{ok}개 완료, {bad}개 실패: {list}',
@@ -6604,7 +6824,11 @@ body.modal-open { overflow: hidden; }
       'view.item.sku': 'SKU', 'view.item.supplier': 'Default supplier', 'view.item.location': 'Default location', 'view.item.min': 'Min qty',
       'view.item.memo': 'Memo', 'view.item.defaultSpec': 'Default spec',
       'view.stat.in': 'In stock', 'view.stat.amount': 'In-stock amount', 'view.stat.out': 'Issued', 'view.stat.void': 'Void',
-      'view.stat.lots': 'Lots', 'view.stat.last': 'Last move',
+      'view.stat.lots': 'Lots', 'view.stat.last': 'Last move', 'view.stat.codes': 'Barcodes in stock',
+      'view.fld.qty': 'Received qty', 'view.fld.qty_left': 'Qty left', 'view.unit.qty': 'Left / received',
+      'view.edit.qtyBad': '{label}: enter a whole number ≥ 0 (received qty ≥ 1).', 'view.edit.qtyLeftGt': 'The quantity left cannot exceed the received quantity.',
+      'view.edit.qtyHint': 'Quantity left 0 marks the pack issued, 1 or more puts it back in stock (count correction).',
+      'view.col.codesIn': '{n} barcode(s)',
       'view.tab.units': 'Units', 'view.tab.lots': 'Lots', 'view.tab.history': 'History',
       'view.units.q': 'Search code · location · note', 'view.units.selected': '{n} selected',
       'view.units.print': '🏷 Print labels', 'view.units.issue': '📤 Issue', 'view.units.void': '🗑 Void',
@@ -6644,6 +6868,9 @@ body.modal-open { overflow: hidden; }
       'view.void.reason': 'Reason', 'view.void.reasonPh': 'e.g. scratches, stains, defect', 'view.void.done': 'Voided {n} unit(s).',
       'view.restore.confirm': 'Restore {code} to its state before it was voided (in stock or issued)?', 'view.restore.done': 'Restored to stock.',
       'view.restore.confirmIn': 'Restore {code} to stock? (stock +1)',
+      'view.restore.confirmInLot': 'Restore {code} to stock? (stock +{n})',
+      'view.restore.confirmOutLot': '{code} is a pack with 0 left, so it is restored as issued. Restore it? (The stock count does not change.)',
+      'view.void.lotIn': 'stock −{n}',
       'view.restore.confirmOut': '{code} was voided while issued. Restore it as issued? (The stock count does not change.)',
       'view.restore.doneOut': 'Restored as issued.',
       'view.result.partial': '{ok} done, {bad} failed: {list}',
@@ -6745,12 +6972,13 @@ body.modal-open { overflow: hidden; }
   }
 
   // ---------- move description (shared by timeline + history table) ----------
-  var MOVE_FIELD_KEYS = { location: 1, note: 1, amount: 1, amount_left: 1, spec: 1, received_on: 1, supplier: 1, ref_no: 1, memo: 1, status: 1 };
+  var MOVE_FIELD_KEYS = { location: 1, note: 1, amount: 1, amount_left: 1, spec: 1, received_on: 1, supplier: 1, ref_no: 1, memo: 1, status: 1, qty: 1, qty_left: 1 };
   function editValueText(k, v, cat) {
     if (v == null || v === '') return '—';
     if (k === 'spec') { var s = isObj(v) ? UI.specSummary(cat, v) : String(v); return s || '—'; }
     if (k === 'status') return I18N.has('status.' + v) ? t('status.' + v) : String(v);
     if (k === 'amount' || k === 'amount_left') return UI.fmtAmount(v, uomOf(cat)) || String(v);
+    if (k === 'qty' || k === 'qty_left') return UI.pieces(v, cat);
     if (typeof v === 'object') { try { return JSON.stringify(v); } catch (e) { return ''; } }
     return String(v);
   }
@@ -6773,6 +7001,8 @@ body.modal-open { overflow: hidden; }
     var parts = [];
     var uom = uomOf(cat);
     var amt = m.amount != null ? UI.fmtAmount(m.amount, uom) : '';
+    // pack barcode moves carry pieces in count_delta: "−10 콘" / "+5 콘"
+    if (App.isLotMove(m) && Number(m.count_delta)) amt = UI.signedPieces(m.count_delta, cat);
     switch (m.type) {
       case 'OUT':
         if (m.dest) parts.push('→ ' + destText(m));
@@ -6788,9 +7018,11 @@ body.modal-open { overflow: hidden; }
       case 'EDIT':
         var d = editDiffText(m, cat);
         if (d) parts.push(d);
+        if (App.isLotMove(m) && Number(m.count_delta)) parts.push(amt);
         break;
       case 'ADJUST':
         if (m.dest) parts.push(destText(m));
+        if (App.isLotMove(m) && Number(m.count_delta)) parts.push(amt);
         break;
       default:
         if (amt) parts.push(amt);
@@ -6892,6 +7124,16 @@ body.modal-open { overflow: hidden; }
 
   function amountHtml(unit, cat) {
     var uom = uomOf(cat);
+    if (App.isLotUnit(unit)) {
+      // pack barcode: pieces left / received
+      // big number = pieces in stock (0 when issued out / written off / voided); a kept qty_left shows once as a record
+      var ql = App.unitPieces(unit), qt = Number(unit.qty) || 0;
+      var hq = '<div class="uc-amt uc-qty">' + esc(UI.fmtNum(ql, 0)) + ' <span class="muted small">/ ' + esc(UI.fmtNum(qt, 0)) + '</span> <span class="small">' +
+        esc(App.unitLabel(cat)) + '</span></div>' +
+        (unit.status !== 'in' && Number(unit.qty_left) > 0 ? '<div class="small muted">' + esc(UI.lotLeft(unit, cat)) + '</div>' : '');
+      if (qt > 0) hq += '<div class="uc-bar" aria-hidden="true"><span style="width:' + Math.max(0, Math.min(100, ql / qt * 100)).toFixed(1) + '%"></span></div>';
+      return hq;
+    }
     if (unit.amount == null && unit.amount_left == null) {
       return '<div class="muted">' + esc(t('view.unit.countOnly')) + '</div>';
     }
@@ -6931,13 +7173,13 @@ body.modal-open { overflow: hidden; }
       '<div class="uc-status">' + UI.statusBadge(status) + '</div></div>';
     h += '<div class="uc-title">' + catBadge(cat, item && item.category) +
       (cat ? '<span class="muted">' + esc(App.catName(cat)) + '</span>' : '') +
-      '<b>' + esc(item ? item.name : ('#' + (u.item_id == null ? '?' : u.item_id))) + '</b>' +
+      '<b>' + esc(item ? item.name : ('#' + (u.item_id == null ? '?' : u.item_id))) + '</b>' + (App.isLotUnit(u) ? UI.lotBadge() : '') +
       (item && item.sku ? '<span class="small muted mono">' + esc(item.sku) + '</span>' : '') +
       (item && item.active === false ? '<span class="badge">' + esc(t('common.inactive')) + '</span>' : '') + '</div>';
 
     // left: spec   right: amount / location / lot
     h += '<div class="uc-grid"><div><h4>' + esc(t('view.unit.spec')) + '</h4>' + specTableHtml(cat, lot, u) + '</div><div>';
-    h += '<h4>' + esc(t('view.unit.amount')) + '</h4>' + amountHtml(u, cat);
+    h += '<h4>' + esc(t(App.isLotUnit(u) ? 'view.unit.qty' : 'view.unit.amount')) + '</h4>' + amountHtml(u, cat);
     var dl = [];
     dl.push('<dt>' + esc(t('view.unit.location')) + '</dt><dd>' + (u.location ? esc(u.location) : '<span class="muted">—</span>') + '</dd>');
     if (u.note) dl.push('<dt>' + esc(t('view.unit.note')) + '</dt><dd>' + esc(u.note) + '</dd>');
@@ -6958,7 +7200,9 @@ body.modal-open { overflow: hidden; }
     // actions
     var acts = [];
     if (staff && status === 'in') acts.push('<button type="button" class="btn primary lg" data-act="issue">' + esc(t('view.act.issue')) + '</button>');
-    if (staff && status === 'out') acts.push('<button type="button" class="btn primary lg" data-act="return">' + esc(t('view.act.return')) + '</button>');
+    // a pack can be returned while out, and topped up while partly issued
+    var packRoom = App.isLotUnit(u) && status === 'in' && Number(u.qty_left) < Number(u.qty);
+    if (staff && (status === 'out' || packRoom)) acts.push('<button type="button" class="btn ' + (status === 'out' ? 'primary lg' : '') + '" data-act="return">' + esc(t('view.act.return')) + '</button>');
     if (staff && status !== 'void') acts.push('<button type="button" class="btn" data-act="print">' + esc(t('view.act.print')) + '</button>');
     if (staff) acts.push('<button type="button" class="btn" data-act="edit">' + esc(t('view.act.edit')) + '</button>');
     if (mgr && status !== 'void') acts.push('<button type="button" class="btn danger" data-act="void">' + esc(t('view.act.void')) + '</button>');
@@ -7064,8 +7308,8 @@ body.modal-open { overflow: hidden; }
           Promise.resolve(App.printLabels([info.unit], { lots: info.lot ? [info.lot] : [] })).then(function () { b.disabled = false; }, function () { b.disabled = false; });
           break;
         case 'edit': openUnitEdit(info, h); break;
-        case 'void': openVoidDialog([info.unit.code], afterWrite); break;
-        case 'restore': doRestore(info.unit.code, afterWrite, info.moves); break;
+        case 'void': openVoidDialog([info.unit.code], afterWrite, [info]); break;
+        case 'restore': doRestore(info.unit.code, afterWrite, info.moves, info); break;
         case 'item':
           var id = info.unit.item_id;
           if (opts.onNavigate) opts.onNavigate();
@@ -7101,7 +7345,9 @@ body.modal-open { overflow: hidden; }
     var cat = info.category || (item ? App.catOfItem(item) : null);
     var mgr = canManager();
     var uom = uomOf(cat);
-    var showAmt = mgr && (!!uom || u.amount != null || u.amount_left != null);
+    var lotU = App.isLotUnit(u);
+    var showAmt = mgr && !lotU && (!!uom || u.amount != null || u.amount_left != null);
+    var showQty = mgr && lotU;
     var puFields = mgr ? UI.fieldsOf(cat).filter(function (f) { return f.perUnit; }) : [];
     var prefix = UI.uid('ue');
     var locId = prefix + '-locs';
@@ -7117,6 +7363,13 @@ body.modal-open { overflow: hidden; }
         esc(u.amount == null ? '' : String(u.amount)) + '"></label>' +
         '<label class="field"><span>' + esc(t('view.fld.amount_left') + (uom ? ' (' + uom + ')' : '')) + '</span><input class="input num-input" name="amount_left" inputmode="decimal" autocomplete="off" value="' +
         esc(u.amount_left == null ? '' : String(u.amount_left)) + '"></label></div>';
+    }
+    if (showQty) {
+      var ul = App.unitLabel(cat);
+      body += '<div class="grid-2">' +
+        '<label class="field"><span>' + esc(t('view.fld.qty') + (ul ? ' (' + ul + ')' : '')) + '</span><input class="input num-input" name="qty" inputmode="numeric" autocomplete="off" value="' + esc(String(u.qty)) + '"></label>' +
+        '<label class="field"><span>' + esc(t('view.fld.qty_left') + (ul ? ' (' + ul + ')' : '')) + '</span><input class="input num-input" name="qty_left" inputmode="numeric" autocomplete="off" value="' + esc(String(u.qty_left)) + '"></label></div>' +
+        '<p class="small muted">' + esc(t('view.edit.qtyHint')) + '</p>';
     }
     if (puFields.length) {
       body += '<div><div class="small" style="font-weight:700;margin:4px 0">' + esc(t('view.edit.perUnitSpec')) + '</div>' +
@@ -7163,6 +7416,16 @@ body.modal-open { overflow: hidden; }
         if (!sameNum(a, u.amount)) { p.amount = a; changed = true; }
         if (!sameNum(l, u.amount_left)) { p.amount_left = l; changed = true; }
       }
+      if (showQty) {
+        var qEl = q('qty'), qlEl = q('qty_left');
+        var qv = /^\d{1,7}$/.test(String(qEl.value || '').trim()) ? parseInt(String(qEl.value).trim(), 10) : null;
+        var qlv = /^\d{1,7}$/.test(String(qlEl.value || '').trim()) ? parseInt(String(qlEl.value).trim(), 10) : null;
+        if (qv == null || qv < 1 || qv > 1000000) return fail(t('view.edit.qtyBad', { label: t('view.fld.qty') }), qEl);
+        if (qlv == null || qlv > 1000000) return fail(t('view.edit.qtyBad', { label: t('view.fld.qty_left') }), qlEl);
+        if (qlv > qv) return fail(t('view.edit.qtyLeftGt'), qlEl);
+        if (qv !== Number(u.qty)) { p.qty = qv; changed = true; }
+        if (qlv !== Number(u.qty_left)) { p.qty_left = qlv; changed = true; }
+      }
       if (puFields.length) {
         var errs = UI.validateSpecFields(m.body, cat, { perUnit: true });
         if (errs.length) return fail(errs[0].msg, errs[0].el);
@@ -7193,14 +7456,25 @@ body.modal-open { overflow: hidden; }
   }
 
   // ---------- void / restore ----------
-  function openVoidDialog(codes, onDone) {
+  /** infos: optional [{unit, category}] of the codes — packs in stock add "(재고 −70 콘)" (pieces leave stock, not 1) */
+  function openVoidDialog(codes, onDone, infos) {
     codes = (codes || []).filter(Boolean);
     if (!codes.length) return null;
     var shown = codes.slice(0, 12).join(', ') + (codes.length > 12 ? ' … (+' + (codes.length - 12) + ')' : '');
+    var lotPieces = 0, lotCat = null, lotMixed = false;
+    (infos || []).forEach(function (inf) {
+      var u = inf && inf.unit;
+      if (!u || !App.isLotUnit(u) || u.status !== 'in') return;
+      var c = inf.category || App.catOfItem(u.item_id);
+      if (lotCat && c && lotCat !== c && App.unitLabel(lotCat) !== App.unitLabel(c)) lotMixed = true;
+      lotCat = lotCat || c;
+      lotPieces += App.unitPieces(u);
+    });
+    var lotTxt = lotPieces > 0 ? ' (' + t('view.void.lotIn', { n: lotMixed ? UI.fmtNum(lotPieces, 0) : UI.pieces(lotPieces, lotCat) }) + ')' : '';
     var opId = UI.uuid();
     var m = UI.modal({
       title: t('view.void.title'),
-      body: '<p class="confirm-msg">' + esc(t('view.void.msg', { n: codes.length })) + '</p>' +
+      body: '<p class="confirm-msg">' + esc(t('view.void.msg', { n: codes.length }) + lotTxt) + '</p>' +
         '<p class="mono small wrap-any">' + esc(shown) + '</p>' +
         '<label class="field"><span>' + esc(t('view.void.reason')) + '</span><textarea class="textarea" name="reason" rows="2" placeholder="' +
         esc(t('view.void.reasonPh')) + '"></textarea></label>',
@@ -7239,10 +7513,16 @@ body.modal-open { overflow: hidden; }
     }
     return null;
   }
-  function doRestore(code, onDone, moves) {
+  function doRestore(code, onDone, moves, info) {
     var target = restoreTarget(moves);
-    var msgKey = target === 'out' ? 'view.restore.confirmOut' : target === 'in' ? 'view.restore.confirmIn' : 'view.restore.confirm';
-    return UI.confirm(t(msgKey, { code: code }), { okLabel: t('view.act.restore') }).then(function (ok) {
+    var u = info && info.unit, msgKey, n = '';
+    if (u && App.isLotUnit(u) && target === 'in') {
+      // a pack comes back with its kept qty_left; with 0 left the server restores it as issued ('out', Δ0)
+      var ql = Number(u.qty_left) || 0;
+      if (ql > 0) { msgKey = 'view.restore.confirmInLot'; n = UI.pieces(ql, info.category || App.catOfItem(u.item_id)); }
+      else { msgKey = 'view.restore.confirmOutLot'; target = 'out'; }
+    } else msgKey = target === 'out' ? 'view.restore.confirmOut' : target === 'in' ? 'view.restore.confirmIn' : 'view.restore.confirm';
+    return UI.confirm(t(msgKey, { code: code, n: n }), { okLabel: t('view.act.restore') }).then(function (ok) {
       if (!ok) return;
       return Data.voidUnits({ op_id: UI.uuid(), codes: [code], restore: true }).then(function (res) {
         var r0 = res && Array.isArray(res.results) ? res.results[0] : null;
@@ -7464,6 +7744,9 @@ body.modal-open { overflow: hidden; }
       var it = r.item, cat = r.cat, s = r.st;
       var n = Number(s.in_count) || 0;
       var uom = uomOf(cat);
+      // pieces in pack barcodes: show how many barcodes hold them; packs have no measured amount
+      var codesN = App.inCodes(s), packish = App.isLotCat(cat) || codesN !== n;
+      if (packish && !(Number(s.in_amount) > 0)) uom = '';
       var changed = flash && prev && hasOwn(prev, it.id) && prev[it.id] !== nextPrev[it.id];
       var status;
       if (it.active === false) status = '<span class="badge">' + esc(t('common.inactive')) + '</span>';
@@ -7475,7 +7758,8 @@ body.modal-open { overflow: hidden; }
         '<td>' + catBadge(cat, it.category) + '<div class="small muted hide-sm">' + esc(cat ? App.catName(cat) : '') + '</div></td>' +
         '<td><div class="dash-name">' + esc(it.name) + '</div>' + (it.sku ? '<div class="small muted mono">' + esc(it.sku) + '</div>' : '') + '</td>' +
         '<td class="hide-sm small">' + esc(UI.specSummary(cat, it.spec)) + '</td>' +
-        '<td class="num big' + (changed ? ' flash' : '') + '"><span class="cnt">' + esc(UI.fmtNum(n, 0)) + '</span><span class="ul">' + esc(App.unitLabel(cat)) + '</span></td>' +
+        '<td class="num big' + (changed ? ' flash' : '') + '"><span class="cnt">' + esc(UI.fmtNum(n, 0)) + '</span><span class="ul">' + esc(App.unitLabel(cat)) + '</span>' +
+        (packish && n ? '<div class="small muted dash-codes">' + esc(t('view.col.codesIn', { n: UI.fmtNum(codesN, 0) })) + '</div>' : '') + '</td>' +
         '<td class="num hide-sm' + (changed ? ' flash' : '') + '">' + (uom ? esc(UI.fmtAmount(Number(s.in_amount) || 0, uom)) : '<span class="muted">—</span>') + '</td>' +
         '<td class="num hide-sm">' + (mq != null ? esc(UI.fmtNum(mq)) : '<span class="muted">—</span>') + '</td>' +
         dashCoverCell(inst, it.id) +
@@ -7734,7 +8018,9 @@ body.modal-open { overflow: hidden; }
     function stat(cls, v, l) { return '<div class="st ' + cls + '"><div class="v">' + v + '</div><div class="l">' + esc(l) + '</div></div>'; }
     var mainStat = stat('st-main' + (low ? ' low' : '') + (changed ? ' flash' : ''), esc(UI.fmtNum(n, 0)) + ' <span class="small muted">' + esc(App.unitLabel(cat)) + '</span>', t('view.stat.in'));
     var stats = '';
-    if (uom) stats += stat(changed ? 'flash' : '', esc(UI.fmtAmount(Number(st.in_amount) || 0, uom)), t('view.stat.amount'));
+    var codesIn = App.inCodes(st), packish = App.isLotCat(cat) || codesIn !== n;
+    if (packish) stats += stat('', esc(UI.fmtNum(codesIn, 0)), t('view.stat.codes'));
+    if (uom && !(packish && !(Number(st.in_amount) > 0))) stats += stat(changed ? 'flash' : '', esc(UI.fmtAmount(Number(st.in_amount) || 0, uom)), t('view.stat.amount'));
     stats += stat('', esc(UI.fmtNum(Number(st.out_count) || 0, 0)), t('view.stat.out'));
     stats += stat('', esc(UI.fmtNum(Number(st.void_count) || 0, 0)), t('view.stat.void'));
     stats += stat('', esc(UI.fmtNum(Number(st.lot_count) || 0, 0)), t('view.stat.lots'));
@@ -7765,7 +8051,7 @@ body.modal-open { overflow: hidden; }
 
   function statusCounts(inst) {
     var st = App.stockOf(inst.id);
-    var a = Number(st.in_count) || 0, b = Number(st.out_count) || 0, c = Number(st.void_count) || 0;
+    var a = App.inCodes(st), b = Number(st.out_count) || 0, c = Number(st.void_count) || 0;     // barcodes (the list shows units)
     return { 'in': a, out: b, 'void': c, all: a + b + c };
   }
   function statusBtnHtml(inst) {
@@ -7875,6 +8161,7 @@ body.modal-open { overflow: hidden; }
       var sel = !!inst.sel[u.code];
       var left = numOrNull(u.amount_left), amt = numOrNull(u.amount);
       var amtTxt = left != null ? UI.fmtNum(left) + (amt != null && amt !== left ? ' / ' + UI.fmtNum(amt) : '') + (uom ? ' ' + uom : '') : '';
+      if (App.isLotUnit(u)) amtTxt = UI.fmtNum(App.unitPieces(u), 0) + ' / ' + UI.fmtNum(u.qty, 0) + (App.unitLabel(cat) ? ' ' + App.unitLabel(cat) : '');   // pieces in stock
       var recent = (u.status === 'out' && u.last_dest ? '→ ' + (u.last_dest === 'STOCKTAKE' ? t('view.stocktake') : u.last_dest) + ' · ' : '') + UI.fmtAgo(u.last_move_at);
       return '<tr class="clickable' + (sel ? ' selected' : '') + '" data-code="' + esc(u.code) + '" tabindex="0">' +
         (staff ? '<td class="chk"><input type="checkbox" data-act="sel" data-code="' + esc(u.code) + '" aria-label="' + esc(u.code) + '"' + (sel ? ' checked' : '') + '></td>' : '') +
@@ -7950,7 +8237,11 @@ body.modal-open { overflow: hidden; }
       return '<tr data-lot="' + esc(l.id) + '"><td class="mono nowrap"><b>#' + esc(l.id) + '</b></td>' +
         '<td class="nowrap">' + esc(UI.fmtDate(l.received_on)) + '</td><td>' + esc(l.supplier || '') + '</td>' +
         '<td class="hide-sm">' + esc(l.ref_no || '') + '</td><td class="hide-sm small">' + esc(UI.specSummary(cat, l.spec)) + '</td>' +
-        '<td class="num">' + esc(UI.fmtNum(l.unit_count, 0)) + '</td><td class="num"><b>' + esc(UI.fmtNum(inN, 0)) + '</b></td>' +
+        (l.qty_total != null
+          // pack lot: received pieces (Σ pack qty) + how many packs (barcodes) — same basis as the 재고 column
+          ? '<td class="num">' + esc(UI.pieces(l.qty_total, cat)) + '<div class="small muted">' + esc(t('lot.packs', { n: UI.fmtNum(l.unit_count, 0) })) + '</div></td>'
+          : '<td class="num">' + esc(UI.fmtNum(l.unit_count, 0)) + '</td>') + '<td class="num"><b>' + esc(UI.fmtNum(inN, 0)) + '</b>' +
+        (l.in_codes != null && Number(l.in_codes) !== inN ? '<div class="small muted">' + esc(t('view.col.codesIn', { n: UI.fmtNum(l.in_codes, 0) })) + '</div>' : '') + '</td>' +
         '<td class="num hide-sm">' + esc(UI.fmtNum(Number(l.out_count) || 0, 0)) + '</td><td class="num hide-sm">' + esc(UI.fmtNum(Number(l.void_count) || 0, 0)) + '</td>' +
         (uom ? '<td class="num hide-sm">' + esc(UI.fmtAmount(Number(l.in_amount) || 0, uom)) + '</td>' : '') +
         '<td class="hide-sm small">' + esc(l.memo || '') + '</td><td><div class="row nowrap">' + acts + '</div></td></tr>';
@@ -8083,6 +8374,7 @@ body.modal-open { overflow: hidden; }
         ? '<button type="button" class="link-btn mono" data-act="unit" data-code="' + esc(m.code) + '">' + esc(m.code) + '</button>'
         : '<span class="muted small">' + esc(t('view.hist.lotRef', { id: m.lot_id == null ? '?' : m.lot_id })) + '</span>';
       var amt = m.amount != null ? UI.fmtAmount(m.amount, uom) + (m.type === 'OUT' && Number(m.count_delta) === 0 ? ' (' + t('view.partial') + ')' : '') : '';
+      if (App.isLotMove(m) && Number(m.count_delta)) amt = UI.signedPieces(m.count_delta, cat);     // pack: "−10 콘"
       var dest = m.dest ? (m.type === 'RETURN' ? '← ' : (m.type === 'OUT' ? '→ ' : '')) + destText(m) : '';
       var memo = [m.type === 'EDIT' ? editDiffText(m, cat) : '', m.memo || ''].filter(Boolean).join(' · ');
       return '<tr><td class="nowrap small">' + esc(UI.fmtDateTime(m.at)) + '</td><td>' + UI.moveTypeBadge(m.type) + '</td><td class="nowrap">' + code + '</td>' +
@@ -8214,12 +8506,13 @@ body.modal-open { overflow: hidden; }
     var codes = sel.filter(function (u) { return u.status !== 'void'; }).map(function (u) { return u.code; });
     if (!codes.length) { UI.toast(t('view.units.noneVoidable'), 'warn'); return; }
     if (codes.length < sel.length) UI.toast(t('view.units.voidSkipped', { n: sel.length - codes.length }), 'warn');
+    var vinfos = sel.filter(function (u) { return u.status !== 'void'; }).map(function (u) { return { unit: u, category: App.catOfItem(u.item_id) }; });
     openVoidDialog(codes, function () {
       requestRefresh();
       if (!inst.alive) return;
       inst.sel = {};
       loadUnits(inst, false, true);
-    });
+    }, vinfos);
   }
 
   App.register('item', {
@@ -8452,7 +8745,21 @@ body.modal-open { overflow: hidden; }
       'qi.donePartial': '{code} 부분 반출 — 잔량 {left}', 'qi.queued': '{code} 반출을 전송 대기열에 저장했습니다.',
       'qr.title': '반입 — {code}', 'qr.submit': '반입', 'qr.amountLeft': '남은 양 ({uom})', 'qr.amountHint': '최초 {amt}',
       'qr.notOut': '반출된 상태가 아니어서 반입할 수 없습니다 ({status}).', 'qr.done': '{code} 반입 완료',
-      'qr.queued': '{code} 반입을 전송 대기열에 저장했습니다.'
+      'qr.queued': '{code} 반입을 전송 대기열에 저장했습니다.',
+
+      'rcv.packs': '묶음 수 (바코드)', 'rcv.packsHint': '1–1000 · 묶음마다 바코드 라벨 1장 — 아래 각 줄에 묶음 안의 수량을 입력',
+      'rcv.packQty': '수량 ({unit})', 'rcv.perPack': '묶음별 입력', 'rcv.lotMode': '묶음 바코드: 입고 묶음 1개 = 바코드 1개 + 수량',
+      'rcv.err.packQty': '{row}행: 수량은 1~1,000,000 사이의 정수여야 합니다.', 'rcv.blankQty': '수량 미입력 {n}',
+      'flow.qtyInvalid': '빨간 칸의 수량을 확인하세요 (1 이상, 남은 수량 이하의 정수).',
+      'flow.retQtyInvalid': '빨간 칸의 반입 수량을 확인하세요 (1 이상, 각 줄의 최대 수량 이하의 정수).',
+      'flow.unverLotQty': '확인 불가 — 실제 수량을 입력하세요', 'flow.unverLotQtyBad': '수량을 확인할 수 없는 묶음 바코드입니다. 빨간 칸에 실제 수량(1 이상 정수)을 입력하세요.',
+      'flow.qtyMax': '{code}: 남은 수량({left})보다 많이 담을 수 없습니다.', 'flow.qtyPlus': '{code} 수량 {n}',
+      'flow.unverQty': '{code} ×{n} — 확인되면 묶음 바코드는 {n}개, 낱개 바코드는 1개로 처리됩니다.',
+      'flow.col.retQty': '반입 수량', 'flow.col.retAmtQty': '남은 양 · 반입 수량', 'flow.retMax': '최대 {n}',
+      'iss.err.qty': '수량은 1 이상, 남은 수량({left}) 이하의 정수여야 합니다.',
+      'ret.err.qty': '수량은 1 이상 {max} 이하의 정수여야 합니다.',
+      'qi.qty': '반출 수량 ({unit})', 'qi.donePartialLot': '{code} 반출 — {left}',
+      'qr.qty': '반입 수량 ({unit})', 'qr.qtyHint': '최대 {n} (입고 {qty})'
     },
     en: {
       'flow.scanPh': 'Scan a barcode (or type it and press Enter)',
@@ -8529,7 +8836,21 @@ body.modal-open { overflow: hidden; }
       'qi.donePartial': '{code} partially issued — {left} left', 'qi.queued': 'Issue of {code} saved to the send queue.',
       'qr.title': 'Return — {code}', 'qr.submit': 'Return', 'qr.amountLeft': 'Remaining amount ({uom})', 'qr.amountHint': 'Original {amt}',
       'qr.notOut': 'Not issued, so it cannot be returned ({status}).', 'qr.done': '{code} returned',
-      'qr.queued': 'Return of {code} saved to the send queue.'
+      'qr.queued': 'Return of {code} saved to the send queue.',
+
+      'rcv.packs': 'Packs (barcodes)', 'rcv.packsHint': '1–1000 · one barcode label per pack — type each pack\'s quantity below',
+      'rcv.packQty': 'Quantity ({unit})', 'rcv.perPack': 'Per pack', 'rcv.lotMode': 'Pack barcodes: one barcode per received pack, with its quantity',
+      'rcv.err.packQty': 'Row {row}: the quantity must be a whole number from 1 to 1,000,000.', 'rcv.blankQty': '{n} without quantity',
+      'flow.qtyInvalid': 'Check the quantities marked in red (a whole number, at least 1, at most what is left).',
+      'flow.retQtyInvalid': 'Check the return quantities marked in red (a whole number, at least 1, at most each row\'s max).',
+      'flow.unverLotQty': 'Not verified — type the real quantity', 'flow.unverLotQtyBad': 'These pack barcodes could not be checked. Type the real quantity (a whole number, at least 1) in the red boxes.',
+      'flow.qtyMax': '{code}: cannot take more than the {left} left.', 'flow.qtyPlus': '{code} quantity {n}',
+      'flow.unverQty': '{code} ×{n} — once checked, a pack barcode is sent as {n}, a single-piece barcode as 1.',
+      'flow.col.retQty': 'Return qty', 'flow.col.retAmtQty': 'Remaining amount · Return qty', 'flow.retMax': 'max {n}',
+      'iss.err.qty': 'The quantity must be a whole number from 1 to the {left} left.',
+      'ret.err.qty': 'The quantity must be a whole number from 1 to {max}.',
+      'qi.qty': 'Issue quantity ({unit})', 'qi.donePartialLot': '{code} issued — {left}',
+      'qr.qty': 'Return quantity ({unit})', 'qr.qtyHint': 'max {n} (received {qty})'
     }
   });
 
@@ -8674,7 +8995,28 @@ body.modal-open { overflow: hidden; }
     if (info.item && info.item.name) return String(info.item.name);
     return info.unit && info.unit.item_id != null ? '#' + info.unit.item_id : '';
   }
-  function measureOf(info) { return !!(info && info.unit && uomOf(info.category)); }
+  /** an amount (sqft, m …) can be entered — never for pack units (they count pieces, not measure) */
+  function measureOf(info) { return !!(info && info.unit && uomOf(info.category) && !App.isLotUnit(info.unit)); }
+  /** a pack barcode (unit.qty set) */
+  function isLotInfo(info) { return !!(info && info.unit && App.isLotUnit(info.unit)); }
+  /** whole number ≥ 1 from a typed string, else null */
+  function posInt(v) { var x = trim(v); if (!/^\d{1,7}$/.test(x)) return null; var n = parseInt(x, 10); return n >= 1 ? n : null; }
+  /** pieces a pack can take back on return: received qty − pieces in stock */
+  function lotRoom(u) { return u ? Math.max(0, Number(u.qty) - (u.status === 'in' ? Number(u.qty_left) || 0 : 0)) : 0; }
+  var QTY_ERRS = { bad_qty: 1, qty_required: 1 };
+  /** the code's prefix is a pack-mode category (a guess before the lookup: the mode is fixed per unit at receipt) */
+  function prefixIsLot(code) { var m = /^([A-Z]{1,3})[0-9]/.exec(code || ''); return !!(m && App.isLotCat(App.cat(m[1]))); }
+  /** an unverified row whose prefix is a pack category: the clerk types its quantity (offline there is no qty_left to check) */
+  function unverLot(row) { return !!(row && row.st === 'unverified' && prefixIsLot(row.code)); }
+  function prefixCat(code) { var m = /^([A-Z]{1,3})[0-9]/.exec(code || ''); return m ? App.cat(m[1]) : null; }
+  /** qty input for an unverified pack row (value = scan count until the clerk types) */
+  function unverLotQtyHtml(row, fk, label) {
+    var cat = prefixCat(row.code);
+    return '<div class="row nowrap" style="gap:4px"><input class="input sm num-input lot-qty" type="text" inputmode="numeric" autocomplete="off" data-scan-global data-k="qty" data-id="' + row.id + '" data-fk="' + fk + row.id + '"' +
+      ' aria-label="' + esc(label + ' ' + row.code) + '" value="' + esc(row.qty) + '"' + (row.qtyBad ? ' aria-invalid="true"' : '') + '>' +
+      '<span class="small muted">' + esc(App.unitLabel(cat) || '') + '</span></div>' +
+      '<div class="row-msg warn-text">' + esc(t('flow.unverLotQty')) + '</div>';
+  }
 
   /** shared CSS extras (SPEC §6 vocabulary first) */
   App.addStyle(
@@ -8726,7 +9068,9 @@ body.modal-open { overflow: hidden; }
   function puCols(cat) {
     if (!cat) return [];
     var cols = [];
-    if (uomOf(cat)) cols.push({ k: 'a', key: null, label: t('rcv.amount') + ' (' + uomOf(cat) + ')', type: 'number', required: false, amount: true });
+    // pack barcodes: one row per pack with its quantity (required); packs have no measured amount
+    if (App.isLotCat(cat)) cols.push({ k: 'q', key: null, label: t('rcv.packQty', { unit: App.unitLabel(cat) || '' }).replace(' ()', ''), type: 'number', required: true, qty: true });
+    else if (uomOf(cat)) cols.push({ k: 'a', key: null, label: t('rcv.amount') + ' (' + uomOf(cat) + ')', type: 'number', required: false, amount: true });
     UI.fieldsOf(cat).forEach(function (f) {
       if (!f.perUnit) return;
       cols.push({ k: 's:' + f.key, key: f.key, f: f, label: UI.fieldLabel(f) + (f.unit ? ' (' + f.unit + ')' : ''), type: f.type || 'text',
@@ -8806,6 +9150,7 @@ body.modal-open { overflow: hidden; }
     if (trim(it.location)) parts.push('<span class="small muted">' + esc(t('rcv.defaultLoc', { loc: trim(it.location) })) + '</span>');
     if (R.lastLotDate) parts.push('<span class="small muted">' + esc(t('rcv.lastLot', { date: R.lastLotDate })) + '</span>');
     if (it.active === false || (cat && cat.active === false)) parts.push('<span class="badge err">' + esc(t('common.inactive')) + '</span>');
+    if (App.isLotCat(cat)) parts.push(UI.lotBadge() + ' <span class="small muted rcv-lotmode">' + esc(t('rcv.lotMode')) + '</span>');
     return parts.join(' ');
   }
 
@@ -8815,14 +9160,14 @@ body.modal-open { overflow: hidden; }
       ' aria-label="' + esc((r == null ? t('rcv.fillRow') : '#' + (r + 1)) + ' ' + c.label) + '"';
     if (c.type === 'date') return '<input type="date" class="input sm"' + attrs + ' value="' + esc(/^\d{4}-\d{2}-\d{2}$/.test(val) ? val : '') + '">';
     var cls = c.type === 'number' ? 'input sm num-input' : 'input sm';
-    var extra = (c.type === 'select' ? ' list="rcv-pu-dl-' + ci + '"' : '') + (c.type === 'number' ? ' inputmode="decimal"' : '');
+    var extra = (c.type === 'select' ? ' list="rcv-pu-dl-' + ci + '"' : '') + (c.type === 'number' ? ' inputmode="' + (c.qty ? 'numeric' : 'decimal') + '"' : '');
     return '<input type="text" autocomplete="off" class="' + cls + '"' + attrs + extra + ' value="' + esc(val) + '">';
   }
 
   function rcvUnitsHtml(cat) {
     var cols = puCols(cat);
     if (!cols.length) return '';
-    var h = '<div class="row between rcv-pu-head"><h3 style="margin:0">' + esc(t('rcv.perUnit')) + '</h3>' +
+    var h = '<div class="row between rcv-pu-head"><h3 style="margin:0">' + esc(t(App.isLotCat(cat) ? 'rcv.perPack' : 'rcv.perUnit')) + '</h3>' +
       '<span class="small muted">' + esc(t('rcv.perUnitHint')) + '</span></div>';
     cols.forEach(function (c, ci) { if (c.type === 'select') h += optionsDatalist('rcv-pu-dl-' + ci, c.options); });
     h += '<div class="table-wrap rcv-pu-wrap"><table class="table compact rcv-pu"><thead><tr><th class="num">#</th>' +
@@ -8843,6 +9188,15 @@ body.modal-open { overflow: hidden; }
   function rcvTotalsHtml(cat) {
     var n = parseQty(R.qty);
     if (!n) return '';
+    if (App.isLotCat(cat)) {
+      var qsum = 0, qblank = 0;
+      for (var qi = 0; qi < n; qi++) {
+        var q = posInt(R.units[qi] && R.units[qi].q);
+        if (q == null) qblank++; else qsum += q;
+      }
+      return esc(t('rcv.totals')) + ': ' + esc(t('lot.packs', { n: UI.fmtNum(n, 0) })) + ' · <b>' + esc(UI.pieces(qsum, cat)) + '</b>' +
+        (qblank ? ' · <span class="warn-text">' + esc(t('rcv.blankQty', { n: qblank })) + '</span>' : '');
+    }
     var parts = [esc(t('rcv.totals')) + ': ' + esc(countTxt(n, cat))];
     var uom = uomOf(cat);
     if (uom) {
@@ -8901,9 +9255,9 @@ body.modal-open { overflow: hidden; }
       }
       h += '<div class="grid-3" style="margin-top:12px">' +
         '<label class="field span-2" for="rcv-memo"><span>' + esc(t('rcv.memo')) + '</span><input class="input" type="text" id="rcv-memo" data-fk="rcv-memo" data-m="memo" maxlength="2000" autocomplete="off" value="' + esc(R.memo) + '"></label>' +
-        '<label class="field" for="rcv-qty"><span>' + esc(t('rcv.qty')) + ' (' + esc(App.unitLabel(cat) || '') + ') <b class="danger-text">*</b></span>' +
+        '<label class="field" for="rcv-qty"><span>' + (App.isLotCat(cat) ? esc(t('rcv.packs')) : esc(t('rcv.qty')) + ' (' + esc(App.unitLabel(cat) || '') + ')') + ' <b class="danger-text">*</b></span>' +
         '<input class="input num-input" type="text" inputmode="numeric" id="rcv-qty" data-fk="rcv-qty" data-m="qty" maxlength="4" autocomplete="off" value="' + esc(R.qty) + '"' +
-        (parseQty(R.qty) ? '' : ' aria-invalid="true"') + '><span class="hint">' + esc(t('rcv.qtyHint')) + '</span></label>' +
+        (parseQty(R.qty) ? '' : ' aria-invalid="true"') + '><span class="hint">' + esc(t(App.isLotCat(cat) ? 'rcv.packsHint' : 'rcv.qtyHint')) + '</span></label>' +
         '</div>';
       h += '<div class="rcv-units" style="margin-top:12px">' + rcvUnitsHtml(cat) + '</div>' +
         '<div class="rcv-totals">' + rcvTotalsHtml(cat) + '</div>';
@@ -8936,7 +9290,9 @@ body.modal-open { overflow: hidden; }
       '<dt>' + esc(t('rcv.res.lot')) + '</dt><dd class="mono">#' + esc(res.lot_id) + '</dd>' +
       (res.received_on ? '<dt>' + esc(t('rcv.res.date')) + '</dt><dd>' + esc(UI.fmtDate(res.received_on)) + '</dd>' : '') +
       '<dt>' + esc(t('rcv.res.codes')) + '</dt><dd class="codes">' + esc(range) + '</dd>' +
-      '<dt>' + esc(t('rcv.res.count')) + '</dt><dd><span class="big-num">' + esc(UI.fmtNum(codes.length, 0)) + '</span> ' + esc(cat ? App.unitLabel(cat) : '') + '</dd>' +
+      '<dt>' + esc(t('rcv.res.count')) + '</dt><dd>' + (res.pieces != null ?
+        '<span class="big-num">' + esc(UI.fmtNum(res.pieces, 0)) + '</span> ' + esc(cat ? App.unitLabel(cat) : '') + ' <span class="muted">· ' + esc(t('lot.packs', { n: UI.fmtNum(codes.length, 0) })) + '</span>' :
+        '<span class="big-num">' + esc(UI.fmtNum(codes.length, 0)) + '</span> ' + esc(cat ? App.unitLabel(cat) : '')) + '</dd>' +
       '</dl>' +
       '<div class="row flow-actions">' +
       (it ? '<button type="button" class="btn ghost" data-act="view-item">' + esc(t('rcv.viewItem')) + '</button>' : '') +
@@ -9019,7 +9375,7 @@ body.modal-open { overflow: hidden; }
       var r = +tg.getAttribute('data-r'), c = +tg.getAttribute('data-c');
       var cols = puCols(rcvCat());
       if (cols[c] && R.units[r]) { R.units[r][cols[c].k] = tg.value; tg.removeAttribute('aria-invalid'); }
-      if (cols[c] && cols[c].amount) rcvUpdateTotals();
+      if (cols[c] && (cols[c].amount || cols[c].qty)) rcvUpdateTotals();
       return;
     }
     if (tg.hasAttribute('data-fill')) {
@@ -9182,6 +9538,10 @@ body.modal-open { overflow: hidden; }
           if (!raw) {
             if (c.amount) blank++;
             else if (c.required) bad = t('rcv.err.required', { row: i + 1, label: c.label });
+          } else if (c.qty) {
+            var qv = posInt(raw);
+            if (qv == null || qv > 1000000) bad = t('rcv.err.packQty', { row: i + 1 });
+            else out.qty = qv;
           } else if (c.type === 'number') {
             var v = num(raw);
             if (v == null) bad = c.amount ? t('rcv.err.amount', { row: i + 1 }) : t('rcv.err.number', { row: i + 1, label: c.label });
@@ -9249,6 +9609,10 @@ body.modal-open { overflow: hidden; }
     rcv.busy = false;
     res = res || {};
     var result = { lot_id: res.lot_id, codes: Array.isArray(res.codes) ? res.codes.slice() : [], dup: !!res.dup, item_id: col.itemId, received_on: col.payload.received_on };
+    // pack receipt: total pieces of the packs we sent (a dup replay shows barcodes only — its packs may differ)
+    if (!res.dup && col.payload.units.length && col.payload.units.every(function (u) { return u && u.qty != null; })) {
+      result.pieces = col.payload.units.reduce(function (n, u) { return n + Number(u.qty); }, 0);
+    }
     if (res.dup && res.lot_id != null) {
       // the existing lot may belong to an earlier attempt — show the truth
       try {
@@ -9264,7 +9628,9 @@ body.modal-open { overflow: hidden; }
     model.attempted = false;
     if (R === model) rcvDraw();
     UI.beep('ok');
-    UI.toast(t('rcv.done') + ' — #' + result.lot_id + ' · ' + countTxt(result.codes.length, App.catOfItem(App.item(result.item_id))), 'ok');
+    var rcat = App.catOfItem(App.item(result.item_id));
+    UI.toast(t('rcv.done') + ' — #' + result.lot_id + ' · ' + (result.pieces != null ?
+      UI.pieces(result.pieces, rcat) + ' (' + t('lot.packs', { n: result.codes.length }) + ')' : countTxt(result.codes.length, rcat)), 'ok');
     App.refreshMaster().catch(noop);
     if (withPrint) {
       var btn = rcv.el && rcv.el.querySelector('[data-act="print-lot"]');
@@ -9343,6 +9709,7 @@ body.modal-open { overflow: hidden; }
         row.st = 'ready';            // keep the last verified result; the server re-validates on confirm
       } else if (e && e.code === 'NETWORK') {
         row.st = 'unverified'; row.info = null; row.msg = t('flow.unverifiedHint');
+        if (prefixIsLot(row.code) && !row.qtySet) { row.qty = String((posInt(row.qty) || 1) + (row.extra || 0)); row.extra = 0; }
         if (!quiet) UI.beep('warn');
       } else {
         row.st = 'bad'; row.err = ''; row.msg = UI.errMsg(e);
@@ -9361,7 +9728,9 @@ body.modal-open { overflow: hidden; }
       case 'queued': h = '<span class="badge warn">' + esc(t('flow.queued')) + '</span>'; break;
       case 'done':
         h = '<span class="badge ok">✓ ' + esc(t(kind === 'issue' ? 'iss.st.done' : 'ret.st.done')) + '</span>';
-        if (row.res && row.res.partial) h += '<div class="row-msg ok-text">' + esc(t('flow.partialDone', { left: UI.fmtAmount(row.res.amount_left, uomOf(row.info && row.info.category)) })) + '</div>';
+        if (row.res && row.res.qty_left != null && row.res.qty != null) {
+          h += '<div class="row-msg ok-text">' + esc(UI.lotLeft(row.res, row.info && row.info.category)) + '</div>';   // pack: "남은 73 / 100 콘"
+        } else if (row.res && row.res.partial) h += '<div class="row-msg ok-text">' + esc(t('flow.partialDone', { left: UI.fmtAmount(row.res.amount_left, uomOf(row.info && row.info.category)) })) + '</div>';
         break;
       default:
         h = '<span class="badge err">' + esc(row.err ? UI.lineErrMsg(row.err) : t('err.UNKNOWN')) + '</span>';
@@ -9452,6 +9821,13 @@ body.modal-open { overflow: hidden; }
   }
   function applyLineResult(row, x) {
     if (!x) { row.st = 'failed'; row.err = ''; row.msg = t('err.UNKNOWN'); return; }
+    // a pack line comes back with its current qty / qty_left / status (also on bad_qty) → the row shows what is really left
+    if (isLotInfo(row.info) && x.qty_left != null) {
+      var pu = Object.assign({}, row.info.unit, { qty_left: x.qty_left });
+      if (x.qty != null) pu.qty = x.qty;
+      if (x.status) pu.status = x.status;
+      row.info = Object.assign({}, row.info, { unit: pu });
+    }
     if (x.ok) { row.st = 'done'; row.err = ''; row.msg = ''; row.res = x; }
     else { row.st = 'failed'; row.err = str(x.err); row.msg = ''; row.res = x; }
   }
@@ -9487,7 +9863,42 @@ body.modal-open { overflow: hidden; }
     return { dest: dest, person: trim(IS.person), purpose: trim(IS.purpose), memo: trim(IS.memo) };
   }
   function issSendable() {
-    return IS.rows.filter(function (r) { return r.st === 'ready' || r.st === 'unverified' || (r.st === 'failed' && r.err === 'bad_amount'); });
+    return IS.rows.filter(function (r) { return r.st === 'ready' || r.st === 'unverified' || (r.st === 'failed' && (r.err === 'bad_amount' || QTY_ERRS[r.err])); });
+  }
+  /** pieces a row takes out: pack → its quantity, single piece → 1 */
+  function issPiecesOf(r) {
+    if (!isLotInfo(r.info)) return 1;
+    if (r.st === 'done' && r.sentQty != null) return r.sentQty;
+    return posInt(r.qty) || 0;
+  }
+  /** shared lookup result for issue rows (scan, re-check, realtime): status → ready / bad; pack rows get their quantity */
+  function issApply(r, info, quiet, beepOk) {
+    if (!info) { r.st = 'bad'; r.err = 'not_found'; r.msg = ''; if (!quiet) UI.beep('err'); return; }
+    r.info = info;
+    var s = info.unit.status;
+    if (s === 'out' || s === 'void') { r.st = 'bad'; r.err = s === 'void' ? 'void' : 'already_out'; r.msg = info.unit.last_dest ? '→ ' + info.unit.last_dest : ''; if (!quiet) UI.beep('err'); return; }
+    r.st = 'ready'; r.msg = '';
+    var extra = r.extra || 0;
+    r.extra = 0;
+    if (isLotInfo(info)) {
+      var left = Number(info.unit.qty_left) || 0;
+      if (!r.qtySet) { r.qty = String(Math.max(1, Math.min(left, 1 + extra))); r.qtySet = true; }
+      if (1 + extra > left && !quiet) UI.toast(t('flow.qtyMax', { code: r.code, left: UI.fmtNum(left, 0) }), 'warn', 3000);
+    } else if (extra && !quiet) {
+      UI.toast(t('flow.dupScan', { code: r.code }), 'warn', 2500);   // repeated scans of a single-piece barcode
+    }
+    if (!quiet && beepOk) UI.beep('ok');
+  }
+  /** a repeated scan of a pack already in the list adds one more piece (list mode) */
+  function bumpLotRow(root, row, max, draw) {
+    var n = (posInt(row.qty) || 0) + 1;
+    if (n > max) { UI.beep('warn'); UI.toast(t('flow.qtyMax', { code: row.code, left: UI.fmtNum(max, 0) }), 'warn', 2500); flashRow(root, row); return; }
+    row.qty = String(n); row.qtyBad = false;
+    if (row.st === 'failed' && QTY_ERRS[row.err]) { row.st = 'ready'; row.err = ''; }
+    UI.beep('ok');
+    UI.toast(t('flow.qtyPlus', { code: row.code, n: UI.fmtNum(n, 0) }), 'ok', 1200);
+    draw();
+    flashRow(root, row);
   }
 
   function issHeadHtml() {
@@ -9507,9 +9918,20 @@ body.modal-open { overflow: hidden; }
   function issRowHtml(row, idx) {
     var info = row.info, u = info && info.unit, cat = info && info.category;
     var uom = uomOf(cat);
-    var left = u && u.amount_left != null ? UI.fmtAmount(u.amount_left, uom) : '';
+    var lot = isLotInfo(info);
+    var left = lot ? UI.lotLeft(u, cat) : (u && u.amount_left != null ? UI.fmtAmount(u.amount_left, uom) : '');
     var amtCell = '';
-    if (row.st === 'done') {
+    if (lot) {
+      if (row.st === 'done') amtCell = '<b>' + esc(UI.pieces(row.sentQty != null ? row.sentQty : posInt(row.qty) || 0, cat)) + '</b>';
+      else if (row.st === 'ready' || row.st === 'sending' || row.st === 'queued' || (row.st === 'failed' && QTY_ERRS[row.err])) {
+        var qdis = row.st === 'sending' || row.st === 'queued' ? ' disabled' : '';
+        amtCell = '<div class="row nowrap" style="gap:4px"><input class="input sm num-input lot-qty" type="text" inputmode="numeric" autocomplete="off" data-scan-global data-k="qty" data-id="' + row.id + '" data-fk="qty-' + row.id + '"' +
+          ' aria-label="' + esc(t('flow.col.issueAmt') + ' ' + row.code) + '" value="' + esc(row.qty) + '"' + (row.qtyBad ? ' aria-invalid="true"' : '') + qdis + '>' +
+          '<span class="small muted">' + esc(App.unitLabel(cat) || '') + '</span></div>';
+      }
+    } else if (unverLot(row)) {
+      amtCell = unverLotQtyHtml(row, 'qty-', t('flow.col.issueAmt'));
+    } else if (row.st === 'done') {
       var a = row.res && row.res.partial ? row.sentAmt : (u ? u.amount_left : null);
       amtCell = a != null && uom ? esc(UI.fmtAmount(a, uom)) : '';
     } else if (measureOf(info) && u.amount_left != null && (row.st === 'ready' || row.st === 'sending' || row.st === 'queued' || (row.st === 'failed' && row.err === 'bad_amount'))) {
@@ -9523,10 +9945,10 @@ body.modal-open { overflow: hidden; }
     var canRemove = row.st !== 'sending';
     var actions = (row.st === 'unverified' || (row.st === 'bad' && !row.err) ? '<button type="button" class="btn sm ghost flow-x" data-act="recheck" data-id="' + row.id + '" title="' + esc(t('flow.recheck')) + '" aria-label="' + esc(t('flow.recheck')) + '">↻</button>' : '') +
       (canRemove ? '<button type="button" class="btn sm ghost flow-x" data-act="remove" data-id="' + row.id + '" title="' + esc(t('flow.remove')) + '" aria-label="' + esc(t('flow.remove')) + '">✕</button>' : '');
-    return '<tr data-row="' + row.id + '" class="' + rowCls(row) + '">' +
+    return '<tr data-row="' + row.id + '" class="' + rowCls(row) + '"' + (lot ? ' data-lot="1"' : '') + '>' +
       '<td class="num muted">' + (idx + 1) + '</td>' +
       '<td class="code">' + esc(row.code) + '</td>' +
-      '<td class="item-cell">' + (info ? catBadge(cat) + ' ' + esc(itemName(info)) : noInfoItemHtml(row)) + '</td>' +
+      '<td class="item-cell">' + (info ? catBadge(cat) + ' ' + esc(itemName(info)) + (lot ? ' ' + UI.lotBadge() : '') : noInfoItemHtml(row)) + '</td>' +
       '<td class="small">' + esc(infoSpecShort(info)) + '</td>' +
       '<td class="num">' + esc(left) + '</td>' +
       '<td>' + amtCell + '</td>' +
@@ -9545,14 +9967,14 @@ body.modal-open { overflow: hidden; }
     if (a != null && a > 0) return a;
     return u ? u.amount_left : null;
   }
-  function subtotalsHtml(rows, amountOf) {
+  function subtotalsHtml(rows, amountOf, piecesOf) {
     var groups = {}, order = [];
     rows.forEach(function (r) {
       if (r.st === 'bad' || r.st === 'failed') return;
       var key = r.info && r.info.unit ? String(r.info.unit.item_id) : '?';
       if (!groups[key]) { groups[key] = { info: r.info, n: 0, amt: 0, hasAmt: false }; order.push(key); }
       var g = groups[key];
-      g.n++;
+      g.n += piecesOf ? piecesOf(r) : 1;                 // pieces: a pack row counts its quantity
       var a = amountOf(r);
       if (a != null && isFinite(a) && measureOf(r.info)) { g.amt += Number(a); g.hasAmt = true; }
     });
@@ -9573,7 +9995,7 @@ body.modal-open { overflow: hidden; }
       '</th><th>' + esc(t('flow.col.item')) + '</th><th>' + esc(t('flow.col.spec')) + '</th><th class="num">' + esc(t('flow.col.left')) + '</th><th>' +
       esc(t('flow.col.issueAmt')) + '</th><th>' + esc(t('flow.col.status')) + '</th><th></th></tr></thead><tbody>';
     for (var i = rows.length - 1; i >= 0; i--) h += issRowHtml(rows[i], i);   // newest on top
-    return h + '</tbody></table></div>' + subtotalsHtml(rows, issAmountOf);
+    return h + '</tbody></table></div>' + subtotalsHtml(rows, issAmountOf, issPiecesOf);
   }
   function issActionsHtml() {
     var n = issSendable().length;
@@ -9645,8 +10067,24 @@ body.modal-open { overflow: hidden; }
       if (!silent) UI.toast(t('flow.newList'), 'info', 2500);
     }
     if (ex) {
-      if (!silent) { UI.beep('warn'); UI.toast(t('flow.dupScan', { code: code }), 'warn', 2500); flashRow(iss.el, ex); }
-      return;
+      // pack barcode scanned again: list mode adds one piece; instant mode issues one more piece as a new row
+      var exLot = isLotInfo(ex.info);
+      if (exLot && IS.mode === 'list' && (ex.st === 'ready' || (ex.st === 'failed' && QTY_ERRS[ex.err]))) {
+        if (!silent) bumpLotRow(iss.el, ex, Number(ex.info.unit.qty_left) || 0, issDraw);
+        return;
+      }
+      if (ex.st === 'checking' && !silent && prefixIsLot(code)) { ex.extra = (ex.extra || 0) + 1; return; }   // decided when its lookup is back
+      if (ex.st === 'unverified' && IS.mode === 'list' && prefixIsLot(code)) {
+        if (!silent) {
+          ex.qty = String((posInt(ex.qty) || 1) + 1); ex.qtyBad = false; ex.qtySet = true;
+          UI.beep('warn'); UI.toast(t('flow.unverQty', { code: code, n: ex.qty }), 'warn', 4000); issDraw(); flashRow(iss.el, ex);
+        }
+        return;
+      }
+      if (!(exLot && IS.mode === 'instant')) {
+        if (!silent) { UI.beep('warn'); UI.toast(t('flow.dupScan', { code: code }), 'warn', 2500); flashRow(iss.el, ex); }
+        return;
+      }
     }
     var row = newRow(code);
     IS.rows.push(row);
@@ -9654,12 +10092,7 @@ body.modal-open { overflow: hidden; }
     if (instantNoDest && !silent) { UI.beep('err'); UI.toast(t('iss.needDest'), 'err'); if (iss.el) markDest(iss.el, true); }
     issDraw();
     lookupRow(row, function (r, info, quiet) {
-      if (!info) { r.st = 'bad'; r.err = 'not_found'; r.msg = ''; if (!quiet) UI.beep('err'); return; }
-      r.info = info;
-      var s = info.unit.status;
-      if (s === 'out' || s === 'void') { r.st = 'bad'; r.err = s === 'void' ? 'void' : 'already_out'; r.msg = info.unit.last_dest ? '→ ' + info.unit.last_dest : ''; if (!quiet) UI.beep('err'); return; }
-      r.st = 'ready'; r.msg = '';
-      if (!quiet && IS.mode !== 'instant') UI.beep('ok');
+      issApply(r, info, quiet, IS.mode !== 'instant');       // a pack starts at 1 piece (+ scans that arrived meanwhile)
     }, issDraw, silent).then(function (r) {
       if (!r || r.removed || IS.mode !== 'instant' || silent) return;
       if (r.st !== 'ready' && r.st !== 'unverified') return;
@@ -9681,7 +10114,16 @@ body.modal-open { overflow: hidden; }
   async function issSend(rows, op, hdr) {
     rows = rows.filter(function (r) { return !r.removed; });
     if (!rows.length) return null;
-    var lines = rows.map(function (r) { var l = { code: r.code }; if (r.sentAmt != null) l.amount = r.sentAmt; return l; });
+    var lines = rows.map(function (r) {
+      var l = { code: r.code };
+      if (r.sentAmt != null) l.amount = r.sentAmt;
+      // packs need a quantity; an unverified row sends its scan count (a single-piece barcode ignores qty)
+      if (isLotInfo(r.info) || !(r.info && r.info.unit)) {
+        if (r.sentQty == null) r.sentQty = posInt(r.qty) || 1;
+        l.qty = r.sentQty;
+      }
+      return l;
+    });
     var payload = { op_id: op, dest: hdr.dest, lines: lines };
     if (hdr.person) payload.person = hdr.person;
     if (hdr.purpose) payload.purpose = hdr.purpose;
@@ -9727,9 +10169,19 @@ body.modal-open { overflow: hidden; }
     var hdr = issHeader();
     if (!hdr.dest) { UI.beep('err'); UI.toast(t('iss.needDest'), 'err'); markDest(iss.el, true); return; }
     markDest(iss.el, false);
-    var bad = 0, unver = [];
+    var bad = 0, unver = [], qbad = 0, uqbad = 0;
     rows.forEach(function (r) {
-      r.amtBad = false; r.sentAmt = null;
+      r.amtBad = false; r.sentAmt = null; r.qtyBad = false; r.sentQty = null;
+      if (isLotInfo(r.info)) {
+        var q = posInt(r.qty), qleft = Number(r.info.unit.qty_left) || 0;
+        if (q == null || q > qleft) { r.qtyBad = true; qbad++; } else r.sentQty = q;
+        return;
+      }
+      if (unverLot(r)) {
+        var uq = posInt(r.qty);
+        if (uq == null) { r.qtyBad = true; uqbad++; } else r.sentQty = uq;
+        return;
+      }
       var raw = trim(r.amt);
       if (raw && !(r.info && r.info.unit)) { unver.push(r); return; }   // a typed amount we cannot check → never send a FULL issue
       if (!raw || !measureOf(r.info)) return;
@@ -9739,7 +10191,12 @@ body.modal-open { overflow: hidden; }
       if (left != null && a < left) r.sentAmt = a;    // equal to the remainder = full issue
     });
     if (unver.length) { blockUnverifiedAmounts(unver); issDraw(); return; }
-    if (bad) { issDraw(); UI.beep('err'); UI.toast(t('flow.amountInvalid'), 'err'); var f = iss.el.querySelector('[data-k="amt"][aria-invalid="true"]'); if (f) { try { f.focus(); } catch (x) { /* ignore */ } } return; }
+    if (bad || qbad || uqbad) {
+      issDraw(); UI.beep('err'); UI.toast(t(qbad ? 'flow.qtyInvalid' : uqbad ? 'flow.unverLotQtyBad' : 'flow.amountInvalid'), 'err');
+      var f = iss.el.querySelector('[data-k="qty"][aria-invalid="true"]') || iss.el.querySelector('[data-k="amt"][aria-invalid="true"]');
+      if (f) { try { f.focus(); } catch (x) { /* ignore */ } }
+      return;
+    }
     var st = IS;
     st.busy = true;
     var op = st.op_id;
@@ -9783,13 +10240,7 @@ body.modal-open { overflow: hidden; }
     } else if (act === 'recheck' && row) {
       e.preventDefault();
       row.err = ''; row.msg = '';
-      lookupRow(row, function (r, info) {
-        if (!info) { r.st = 'bad'; r.err = 'not_found'; return; }
-        r.info = info;
-        var s2 = info.unit.status;
-        if (s2 !== 'in') { r.st = 'bad'; r.err = s2 === 'void' ? 'void' : 'already_out'; return; }
-        r.st = 'ready';
-      }, issDraw, false);
+      lookupRow(row, function (r, info) { issApply(r, info, true, false); }, issDraw, false);
       issDraw();
     } else if (act === 'clear') {
       e.preventDefault();
@@ -9857,6 +10308,16 @@ body.modal-open { overflow: hidden; }
     if (h) { IS[h] = tg.value; return; }
     var k = tg.getAttribute('data-k');
     if (k === 'destCustom') { IS.dest = trim(tg.value); if (IS.dest) markDest(iss.el, false); return; }
+    if (k === 'qty') {
+      var qrow = find(IS.rows, function (r) { return r.id === tg.getAttribute('data-id'); });
+      if (qrow) {
+        qrow.qty = tg.value; qrow.qtySet = true;
+        if (qrow.qtyBad) { qrow.qtyBad = false; tg.removeAttribute('aria-invalid'); }
+        if (qrow.st === 'failed' && QTY_ERRS[qrow.err]) { qrow.st = 'ready'; qrow.err = ''; issDraw(); }
+        else { var qsub = iss.el.querySelector('.flow-sub'); if (qsub) qsub.outerHTML = subtotalsHtml(IS.rows, issAmountOf, issPiecesOf); }
+      }
+      return;
+    }
     if (k === 'amt') {
       var row = find(IS.rows, function (r) { return r.id === tg.getAttribute('data-id'); });
       if (row) {
@@ -9865,7 +10326,7 @@ body.modal-open { overflow: hidden; }
         if (row.st === 'failed' && row.err === 'bad_amount') { row.st = 'ready'; row.err = ''; issDraw(); }
         else {
           var sub = iss.el.querySelector('.flow-sub');
-          if (sub) sub.outerHTML = subtotalsHtml(IS.rows, issAmountOf);
+          if (sub) sub.outerHTML = subtotalsHtml(IS.rows, issAmountOf, issPiecesOf);
         }
       }
     }
@@ -9877,7 +10338,7 @@ body.modal-open { overflow: hidden; }
       if (typeof e.key === 'string' && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) iss.selTypeAt = iss.selKeyAt;
     }
     if (!tg || e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
-    if (tg.getAttribute('data-k') === 'amt') {
+    if (tg.getAttribute('data-k') === 'amt' || tg.getAttribute('data-k') === 'qty') {
       e.preventDefault();
       var s = iss.el.querySelector('#iss-scan');
       if (s) { try { s.focus(); } catch (x) { /* ignore */ } }
@@ -9904,13 +10365,7 @@ body.modal-open { overflow: hidden; }
     });
     var re = IS.rows.filter(function (r) { return (r.st === 'ready' && (codes[r.code] || (refresh && IS.rows.length <= 100))) || (r.st === 'unverified' && refresh); });
     re.forEach(function (r) {
-      lookupRow(r, function (row, info) {
-        if (!info) { row.st = 'bad'; row.err = 'not_found'; return; }
-        row.info = info;
-        var s = info.unit.status;
-        if (s !== 'in') { row.st = 'bad'; row.err = s === 'void' ? 'void' : 'already_out'; row.msg = info.unit.last_dest ? '→ ' + info.unit.last_dest : ''; return; }
-        row.st = 'ready'; row.msg = '';
-      }, issDraw, true);
+      lookupRow(r, function (row, info) { issApply(row, info, true, false); }, issDraw, true);
     });
     if (reconcileQueued(IS.rows, 'issue') || !re.length) issDraw();
   }
@@ -9953,18 +10408,22 @@ body.modal-open { overflow: hidden; }
       '<table class="meta"><tbody>' + meta.map(function (m) { return '<tr><th>' + esc(m[0]) + '</th><td>' + esc(m[1] || '') + '</td></tr>'; }).join('') + '</tbody></table>' +
       '<h2>' + esc(bi('slip.lines')) + '</h2><table><thead><tr><th class="n">#</th><th>' + esc(bi('slip.code')) + '</th><th>' + esc(bi('slip.item')) +
       '</th><th>' + esc(bi('slip.spec')) + '</th>' + (mixedDest ? '<th>' + esc(bi('slip.dest')) + '</th>' : '') + '<th>' + esc(bi('slip.type')) + '</th><th class="n">' + esc(bi('slip.amount')) + '</th></tr></thead><tbody>';
-    var groups = {}, order = [];
+    var groups = {}, order = [], total = 0;
     rows.forEach(function (r, i) {
       var info = r.info, cat = info && info.category, uom = uomOf(cat);
-      var amt = issAmountOf(r);
-      var partial = r.st === 'done' ? !!(r.res && r.res.partial) : r.sentAmt != null;
+      var lot = isLotInfo(info);
+      var amt = lot ? null : issAmountOf(r);
+      var pcs = issPiecesOf(r);
+      var partial = r.st === 'done' ? !!(r.res && r.res.partial) : (lot ? pcs < (Number(info.unit.qty_left) || 0) : r.sentAmt != null);
       var type = (partial ? bi('slip.partial') : bi('slip.full')) + (r.st === 'queued' ? ' (' + bi('slip.pending') + ')' : '');
+      var amtTxt = lot ? UI.pieces(pcs, cat) : (amt != null && uom ? UI.fmtAmount(amt, uom) : '');
       h += '<tr><td class="n">' + (i + 1) + '</td><td class="mono">' + esc(r.code) + '</td><td>' + esc(info ? itemName(info) : t('flow.unknownItem')) + '</td><td>' +
         esc(infoSpecShort(info)) + '</td>' + (mixedDest ? '<td>' + esc(r.hdr ? r.hdr.dest : '') + '</td>' : '') + '<td>' + esc(type) + '</td><td class="n">' +
-        esc(amt != null && uom ? UI.fmtAmount(amt, uom) : '') + '</td></tr>';
+        esc(amtTxt) + '</td></tr>';
       var key = info && info.unit ? String(info.unit.item_id) : '?';
       if (!groups[key]) { groups[key] = { info: info, n: 0, amt: 0, has: false }; order.push(key); }
-      groups[key].n++;
+      groups[key].n += pcs;
+      total += pcs;
       if (amt != null && uom) { groups[key].amt += Number(amt); groups[key].has = true; }
     });
     h += '</tbody></table><h2>' + esc(bi('slip.totals')) + '</h2><table><thead><tr><th>' + esc(bi('slip.item')) + '</th><th class="n">' + esc(bi('slip.count')) +
@@ -9974,7 +10433,7 @@ body.modal-open { overflow: hidden; }
         return '<tr><td>' + esc(g.info ? itemName(g.info) : t('flow.unknownItem')) + '</td><td class="n">' + esc(UI.fmtNum(g.n, 0) + ' ' + (cat ? (cat.unit_label || '') + (cat.unit_label_en && cat.unit_label_en !== cat.unit_label ? ' / ' + cat.unit_label_en : '') : '')) +
           '</td><td class="n">' + esc(g.has ? UI.fmtAmount(r6(g.amt), uomOf(cat)) : '') + '</td></tr>';
       }).join('') +
-      '<tr><th>' + esc(bi('slip.sum')) + '</th><th class="n">' + esc(UI.fmtNum(rows.length, 0)) + '</th><th></th></tr></tbody></table>' +
+      '<tr><th>' + esc(bi('slip.sum')) + '</th><th class="n">' + esc(UI.fmtNum(total, 0)) + '</th><th></th></tr></tbody></table>' +
       '<div class="sig"><div>' + esc(bi('slip.issuer')) + '</div><div>' + esc(bi('slip.receiver')) + '</div><div>' + esc(bi('slip.check')) + '</div></div>' +
       '<div class="foot">' + esc(bi('slip.writer')) + ': ' + esc(me.name || me.email || '') + ' · ' + esc(company) + ' · ' + esc(t('app.name')) + '</div></div>';
     return h;
@@ -10012,7 +10471,12 @@ body.modal-open { overflow: hidden; }
     if (!RS) RS = { op_id: UI.uuid(), from: '', person: '', memo: '', rows: [], busy: false };
     return RS;
   }
-  function retSendable() { return RS.rows.filter(function (r) { return r.st === 'ready' || r.st === 'unverified' || (r.st === 'failed' && r.err === 'bad_amount'); }); }
+  function retSendable() { return RS.rows.filter(function (r) { return r.st === 'ready' || r.st === 'unverified' || (r.st === 'failed' && (r.err === 'bad_amount' || QTY_ERRS[r.err])); }); }
+  function retPiecesOf(r) {
+    if (!isLotInfo(r.info)) return 1;
+    if (r.st === 'done' && r.sentQty != null) return r.sentQty;
+    return posInt(r.qty) || 0;
+  }
   function retAmountOf(r) {
     if (r.st === 'done' && r.res && r.res.amount_left != null) return r.res.amount_left;
     var a = num(r.amt);
@@ -10022,13 +10486,23 @@ body.modal-open { overflow: hidden; }
 
   function retRowHtml(row, idx) {
     var info = row.info, u = info && info.unit, cat = info && info.category, uom = uomOf(cat);
-    var editable = row.st === 'ready' || row.st === 'unverified' || (row.st === 'failed' && row.err === 'bad_amount');
+    var lot = isLotInfo(info);
+    var editable = row.st === 'ready' || row.st === 'unverified' || (row.st === 'failed' && (row.err === 'bad_amount' || QTY_ERRS[row.err]));
     var amtCell = '', locCell = '';
     if (row.st === 'done') {
-      amtCell = row.res && row.res.amount_left != null && uom ? esc(UI.fmtAmount(row.res.amount_left, uom)) : '';
+      if (lot) amtCell = '<b>' + esc(UI.signedPieces(row.sentQty != null ? row.sentQty : posInt(row.qty) || 0, cat)) + '</b>' +
+        (row.res && row.res.qty != null ? '<div class="row-msg ok-text">' + esc(UI.lotLeft(row.res, cat)) + '</div>' : '');
+      else amtCell = row.res && row.res.amount_left != null && uom ? esc(UI.fmtAmount(row.res.amount_left, uom)) : '';
       locCell = esc(row.sentLoc || (u && u.location) || '');
     } else {
-      if (measureOf(info) && editable && row.st !== 'unverified') {
+      if (lot && editable && row.st !== 'unverified') {
+        amtCell = '<div class="row nowrap" style="gap:4px"><input class="input sm num-input lot-qty" type="text" inputmode="numeric" autocomplete="off" data-scan-global data-k="qty" data-id="' + row.id + '" data-fk="rqty-' + row.id + '"' +
+          ' aria-label="' + esc(t('flow.col.retQty') + ' ' + row.code) + '" value="' + esc(row.qty) + '"' + (row.qtyBad ? ' aria-invalid="true"' : '') + '>' +
+          '<span class="small muted">' + esc(App.unitLabel(cat) || '') + '</span></div>' +
+          '<div class="row-msg muted">' + esc(UI.lotLeft(u, cat) + ' · ' + t('flow.retMax', { n: UI.fmtNum(lotRoom(u), 0) })) + '</div>';
+      } else if (unverLot(row)) {
+        amtCell = unverLotQtyHtml(row, 'rqty-', t('flow.col.retQty'));
+      } else if (measureOf(info) && editable && row.st !== 'unverified') {
         amtCell = '<input class="input sm num-input" type="text" inputmode="decimal" autocomplete="off" data-scan-global data-k="amt" data-id="' + row.id + '" data-fk="ramt-' + row.id + '"' +
           (u.amount != null ? ' placeholder="≤ ' + esc(UI.fmtNum(u.amount)) + '"' : '') + ' aria-label="' + esc(t('flow.col.retLeft') + ' ' + row.code) + '" value="' + esc(row.amt) + '"' +
           (row.amtBad ? ' aria-invalid="true"' : '') + '>' + (u.amount != null ? '<div class="row-msg muted">' + esc(t('qr.amountHint', { amt: UI.fmtAmount(u.amount, uom) })) + '</div>' : '');
@@ -10042,10 +10516,10 @@ body.modal-open { overflow: hidden; }
     }
     var actions = (row.st === 'unverified' || (row.st === 'bad' && !row.err) ? '<button type="button" class="btn sm ghost flow-x" data-act="recheck" data-id="' + row.id + '" title="' + esc(t('flow.recheck')) + '" aria-label="' + esc(t('flow.recheck')) + '">↻</button>' : '') +
       (row.st !== 'sending' ? '<button type="button" class="btn sm ghost flow-x" data-act="remove" data-id="' + row.id + '" title="' + esc(t('flow.remove')) + '" aria-label="' + esc(t('flow.remove')) + '">✕</button>' : '');
-    return '<tr data-row="' + row.id + '" class="' + rowCls(row) + '">' +
+    return '<tr data-row="' + row.id + '" class="' + rowCls(row) + '"' + (lot ? ' data-lot="1"' : '') + '>' +
       '<td class="num muted">' + (idx + 1) + '</td>' +
       '<td class="code">' + esc(row.code) + '</td>' +
-      '<td class="item-cell">' + (info ? catBadge(cat) + ' ' + esc(itemName(info)) + (infoSpecShort(info) ? '<div class="row-msg muted">' + esc(infoSpecShort(info)) + '</div>' : '') : noInfoItemHtml(row)) + '</td>' +
+      '<td class="item-cell">' + (info ? catBadge(cat) + ' ' + esc(itemName(info)) + (lot ? ' ' + UI.lotBadge() : '') + (infoSpecShort(info) ? '<div class="row-msg muted">' + esc(infoSpecShort(info)) + '</div>' : '') : noInfoItemHtml(row)) + '</td>' +
       '<td>' + esc(u && u.last_dest ? u.last_dest : '') + '</td>' +
       '<td>' + amtCell + '</td>' +
       '<td>' + locCell + '</td>' +
@@ -10058,10 +10532,11 @@ body.modal-open { overflow: hidden; }
     var locs = locList(rows.map(function (r) { return r.info && r.info.unit && r.info.unit.location; }).concat(rows.map(function (r) { return r.info && r.info.item && r.info.item.location; })));
     var h = optionsDatalist('ret-loc-dl', locs) +
       '<div class="table-wrap"><table class="table flow-table"><thead><tr><th class="num">' + esc(t('flow.col.no')) + '</th><th>' + esc(t('flow.col.code')) +
-      '</th><th>' + esc(t('flow.col.item')) + '</th><th>' + esc(t('flow.col.lastDest')) + '</th><th>' + esc(t('flow.col.retLeft')) + '</th><th>' +
+      '</th><th>' + esc(t('flow.col.item')) + '</th><th>' + esc(t('flow.col.lastDest')) + '</th><th>' +
+      esc(t(rows.some(function (r) { return isLotInfo(r.info); }) ? (rows.every(function (r) { return isLotInfo(r.info); }) ? 'flow.col.retQty' : 'flow.col.retAmtQty') : 'flow.col.retLeft')) + '</th><th>' +
       esc(t('flow.col.location')) + '</th><th>' + esc(t('flow.col.status')) + '</th><th></th></tr></thead><tbody>';
     for (var i = rows.length - 1; i >= 0; i--) h += retRowHtml(rows[i], i);
-    return h + '</tbody></table></div>' + subtotalsHtml(rows, retAmountOf);
+    return h + '</tbody></table></div>' + subtotalsHtml(rows, retAmountOf, retPiecesOf);
   }
   function retActionsHtml() {
     var n = retSendable().length;
@@ -10121,8 +10596,13 @@ body.modal-open { overflow: hidden; }
     if (!info) { r.st = 'bad'; r.err = 'not_found'; r.msg = ''; if (!quiet) UI.beep('err'); return; }
     r.info = info;
     var u = info.unit;
-    if (u.status !== 'out') { r.st = 'bad'; r.err = u.status === 'void' ? 'void' : 'already_in'; r.msg = ''; if (!quiet) UI.beep('err'); return; }
+    // a pack can also be topped up while partly issued (in, qty_left < qty)
+    var returnable = u.status === 'out' || (App.isLotUnit(u) && u.status === 'in' && lotRoom(u) > 0);
+    if (!returnable) { r.st = 'bad'; r.err = u.status === 'void' ? 'void' : 'already_in'; r.msg = ''; if (!quiet) UI.beep('err'); return; }
     r.st = 'ready'; r.msg = '';
+    var extra = r.extra || 0;
+    r.extra = 0;
+    if (App.isLotUnit(u) && !r.qtySet) { r.qty = String(Math.max(1, Math.min(lotRoom(u), 1 + extra))); r.qtySet = true; }
     if (!r.amtSet) { r.amt = measureOf(info) && u.amount_left != null ? String(u.amount_left) : ''; r.amtSet = true; }
     if (!r.locSet) { r.loc = trim(u.location) || trim(info.item && info.item.location); r.locSet = true; }
     if (!quiet) UI.beep('ok');
@@ -10139,6 +10619,19 @@ body.modal-open { overflow: hidden; }
     }
     var ex = findRow(RS.rows, code);
     if (ex) {
+      // a pack scanned again adds one piece to its return quantity
+      if (isLotInfo(ex.info) && (ex.st === 'ready' || (ex.st === 'failed' && QTY_ERRS[ex.err]))) {
+        if (!silent) bumpLotRow(ret.el, ex, lotRoom(ex.info.unit), retDraw);
+        return;
+      }
+      if (ex.st === 'checking' && !silent && prefixIsLot(code)) { ex.extra = (ex.extra || 0) + 1; return; }
+      if (unverLot(ex)) {
+        if (!silent) {
+          ex.qty = String((posInt(ex.qty) || 1) + 1); ex.qtyBad = false; ex.qtySet = true;
+          UI.beep('warn'); UI.toast(t('flow.unverQty', { code: code, n: ex.qty }), 'warn', 4000); retDraw(); flashRow(ret.el, ex);
+        }
+        return;
+      }
       if (!silent) { UI.beep('warn'); UI.toast(t('flow.dupScan', { code: code }), 'warn', 2500); flashRow(ret.el, ex); }
       return;
     }
@@ -10154,12 +10647,19 @@ body.modal-open { overflow: hidden; }
     if (RS.rows.some(function (r) { return r.st === 'checking'; })) { UI.toast(t('flow.waitChecking'), 'warn'); return; }
     var rows = retSendable();
     if (!rows.length) { UI.toast(t('flow.nothing'), 'warn'); return; }
-    var bad = 0, unver = [];
+    var bad = 0, unver = [], qbad = 0, uqbad = 0;
     var lines = rows.map(function (r) {
-      r.amtBad = false;
+      r.amtBad = false; r.qtyBad = false; r.sentQty = null;
       var l = { code: r.code };
       var u = r.info && r.info.unit;
       var raw = trim(r.amt);
+      if (isLotInfo(r.info)) {
+        var q = posInt(r.qty);
+        if (q == null || q > lotRoom(u)) { r.qtyBad = true; qbad++; } else { l.qty = q; r.sentQty = q; }
+      } else if (unverLot(r)) {                                 // unverified pack: the quantity the clerk typed (never a silent 1)
+        var uq = posInt(r.qty);
+        if (uq == null) { r.qtyBad = true; uqbad++; } else { l.qty = uq; r.sentQty = uq; }
+      } else if (!u) { l.qty = posInt(r.qty) || 1; }          // unverified, not a pack prefix: a single piece ignores qty
       if (raw && !u) unver.push(r);
       else if (raw && measureOf(r.info)) {
         var a = num(raw);
@@ -10171,7 +10671,7 @@ body.modal-open { overflow: hidden; }
       return l;
     });
     if (unver.length) { blockUnverifiedAmounts(unver); retDraw(); return; }
-    if (bad) { retDraw(); UI.beep('err'); UI.toast(t('flow.amountInvalid'), 'err'); return; }
+    if (bad || qbad || uqbad) { retDraw(); UI.beep('err'); UI.toast(t(qbad ? 'flow.retQtyInvalid' : uqbad ? 'flow.unverLotQtyBad' : 'flow.amountInvalid'), 'err'); return; }
     var from = trim(RS.from);
     if (!from) {
       var dests = uniqStr(rows.map(function (r) { return r.info && r.info.unit && r.info.unit.last_dest; }));
@@ -10262,13 +10762,18 @@ body.modal-open { overflow: hidden; }
       row.amt = tg.value;
       if (row.amtBad) { row.amtBad = false; tg.removeAttribute('aria-invalid'); }
       if (row.st === 'failed' && row.err === 'bad_amount') { row.st = 'ready'; row.err = ''; retDraw(); }
+    } else if (k === 'qty') {
+      row.qty = tg.value; row.qtySet = true;
+      if (row.qtyBad) { row.qtyBad = false; tg.removeAttribute('aria-invalid'); }
+      if (row.st === 'failed' && QTY_ERRS[row.err]) { row.st = 'ready'; row.err = ''; retDraw(); }
+      else { var sub = ret.el.querySelector('.flow-sub'); if (sub) sub.outerHTML = subtotalsHtml(RS.rows, retAmountOf, retPiecesOf); }
     } else if (k === 'loc') row.loc = tg.value;
   }
   function retOnKey(e) {
     var tg = e.target;
     if (!tg || e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
     var k = tg.getAttribute('data-k');
-    if (k === 'amt' || k === 'loc') {
+    if (k === 'amt' || k === 'loc' || k === 'qty') {
       e.preventDefault();
       var s = ret.el.querySelector('#ret-scan');
       if (s) { try { s.focus(); } catch (x) { /* ignore */ } }
@@ -10331,6 +10836,7 @@ body.modal-open { overflow: hidden; }
     return '<div class="qf-unit"><div class="row between"><span class="code-big">' + esc(u.code) + '</span>' + UI.statusBadge(u.status) + '</div>' +
       '<div>' + catBadge(cat) + ' <b>' + esc(itemName(info)) + '</b></div>' +
       '<div class="small muted">' + esc(infoSpec(info)) + '</div>' +
+      (App.isLotUnit(u) ? '<div class="small">' + UI.lotBadge() + ' <b>' + esc(UI.lotLeft(u, cat)) + '</b></div>' : '') +
       (u.amount_left != null && uom ? '<div class="small">' + esc(t('flow.col.left')) + ': <b>' + esc(UI.fmtAmount(u.amount_left, uom)) + '</b>' +
         (u.amount != null ? ' / ' + esc(UI.fmtAmount(u.amount, uom)) : '') + '</div>' : '') +
       (u.location ? '<div class="small">' + esc(t('flow.col.location')) + ': ' + esc(u.location) + '</div>' : '') +
@@ -10397,13 +10903,15 @@ body.modal-open { overflow: hidden; }
     var u = info.unit, uom = uomOf(info.category);
     var op = UI.uuid();
     var measure = measureOf(info) && u.amount_left != null;
+    var lot = isLotInfo(info), unitL = App.unitLabel(info.category) || '';
     var body = quickUnitHtml(info) +
       '<div class="grid-2">' +
       '<div class="field span-2"><label for="qi-dest">' + esc(t('iss.dest')) + ' <b class="danger-text">*</b></label>' + destFieldHtml('qi', lastIssueHdr.dest || (IS && IS.dest) || '', false) + '</div>' +
       '<label class="field"><span>' + esc(t('flow.person')) + '</span><input class="input" type="text" data-scan-global data-q="person" maxlength="200" autocomplete="off" list="qi-person-dl" placeholder="' + esc(t('flow.personPh')) + '" value="' + esc(lastIssueHdr.person || '') + '">' + personsDatalist('qi-person-dl') + '</label>' +
       '<label class="field"><span>' + esc(t('iss.purpose')) + '</span><input class="input" type="text" data-scan-global data-q="purpose" maxlength="200" autocomplete="off"></label>' +
       (measure ? '<label class="field"><span>' + esc(t('qi.amount', { uom: uom })) + '</span><input class="input num-input" type="text" inputmode="decimal" autocomplete="off" data-scan-global data-q="amount" placeholder="' + esc(t('iss.partialPh', { amt: UI.fmtNum(u.amount_left) })) + '"><span class="hint">' + esc(t('qi.amountHint', { left: UI.fmtAmount(u.amount_left, uom) })) + '</span></label>' : '') +
-      '<label class="field' + (measure ? '' : ' span-2') + '"><span>' + esc(t('flow.memo')) + '</span><input class="input" type="text" data-scan-global data-q="memo" maxlength="2000" autocomplete="off"></label>' +
+      (lot ? '<label class="field"><span>' + esc(t('qi.qty', { unit: unitL })) + ' <b class="danger-text">*</b></span><input class="input num-input" type="text" inputmode="numeric" autocomplete="off" data-scan-global data-q="qty" value="1"><span class="hint">' + esc(UI.lotLeft(u, info.category)) + '</span></label>' : '') +
+      '<label class="field' + (measure || lot ? '' : ' span-2') + '"><span>' + esc(t('flow.memo')) + '</span><input class="input" type="text" data-scan-global data-q="memo" maxlength="2000" autocomplete="off"></label>' +
       '</div><div class="qf-err danger-text small" role="alert"></div>';
     var m = UI.modal({
       title: t('qi.title', { code: u.code }),
@@ -10449,6 +10957,18 @@ body.modal-open { overflow: hidden; }
         }
         if (a < Number(u.amount_left)) line.amount = a;
       }
+      if (lot) {
+        var qEl = root.querySelector('[data-q="qty"]');
+        if (qEl) qEl.removeAttribute('aria-invalid');
+        var q = posInt(val('qty'));
+        if (q == null || q > Number(u.qty_left)) {
+          if (qEl) { qEl.setAttribute('aria-invalid', 'true'); try { qEl.focus(); } catch (x) { /* ignore */ } }
+          errEl.textContent = t('iss.err.qty', { left: UI.fmtNum(u.qty_left, 0) });
+          UI.beep('err');
+          return false;
+        }
+        line.qty = q;
+      }
       var p = { op_id: op, dest: dest, lines: [line] };
       var person = val('person'), purpose = val('purpose'), memo = val('memo');
       if (person) p.person = person;
@@ -10472,7 +10992,8 @@ body.modal-open { overflow: hidden; }
           return false;
         }
         UI.beep('ok');
-        UI.toast(x.partial ? t('qi.donePartial', { code: u.code, left: UI.fmtAmount(x.amount_left, uom) }) : t('qi.done', { code: u.code }), 'ok');
+        UI.toast(x.qty != null ? t('qi.donePartialLot', { code: u.code, left: UI.lotLeft(x, info.category) }) :
+          (x.partial ? t('qi.donePartial', { code: u.code, left: UI.fmtAmount(x.amount_left, uom) }) : t('qi.done', { code: u.code })), 'ok');
         App.refreshMaster().catch(noop);
         callDone(onDone, res);
         return true;
@@ -10490,7 +11011,8 @@ body.modal-open { overflow: hidden; }
     if (!App.can('staff')) { UI.toast(t('err.FORBIDDEN'), 'err'); return Promise.resolve(null); }
     return resolveInfo(info).then(function (inf) {
       if (!inf) { UI.beep('err'); UI.toast(t('flow.notFound', { code: codeOfInfo(info) }), 'err'); return null; }
-      if (inf.unit.status !== 'out') { UI.beep('err'); UI.toast(t('qr.notOut', { status: t('status.' + inf.unit.status) }), 'err'); return null; }
+      var packRoom = App.isLotUnit(inf.unit) && inf.unit.status === 'in' && lotRoom(inf.unit) > 0;   // a partly issued pack
+      if (inf.unit.status !== 'out' && !packRoom) { UI.beep('err'); UI.toast(t('qr.notOut', { status: t('status.' + inf.unit.status) }), 'err'); return null; }
       return openQuickReturnModal(inf, onDone);
     }, function (e) { UI.toast(UI.errMsg(e), 'err'); return null; });
   };
@@ -10499,12 +11021,15 @@ body.modal-open { overflow: hidden; }
     var u = info.unit, uom = uomOf(info.category);
     var op = UI.uuid();
     var measure = measureOf(info);
+    var lot = isLotInfo(info), room = lotRoom(u);
     var locs = locList([u.location, info.item && info.item.location]);
     var body = quickUnitHtml(info) +
       '<div class="grid-2">' +
+      (lot ? '<label class="field"><span>' + esc(t('qr.qty', { unit: App.unitLabel(info.category) || '' })) + ' <b class="danger-text">*</b></span><input class="input num-input" type="text" inputmode="numeric" autocomplete="off" data-scan-global data-q="qty" value="' + (room >= 1 ? '1' : '') + '">' +
+        '<span class="hint">' + esc(t('qr.qtyHint', { n: UI.fmtNum(room, 0), qty: UI.fmtNum(u.qty, 0) })) + '</span></label>' : '') +
       (measure ? '<label class="field"><span>' + esc(t('qr.amountLeft', { uom: uom })) + '</span><input class="input num-input" type="text" inputmode="decimal" autocomplete="off" data-scan-global data-q="amount_left" value="' + esc(u.amount_left != null ? String(u.amount_left) : '') + '">' +
         (u.amount != null ? '<span class="hint">' + esc(t('qr.amountHint', { amt: UI.fmtAmount(u.amount, uom) })) + '</span>' : '') + '</label>' : '') +
-      '<label class="field' + (measure ? '' : ' span-2') + '"><span>' + esc(t('flow.col.location')) + '</span><input class="input" type="text" data-scan-global data-q="location" maxlength="200" autocomplete="off" list="qr-loc-dl" value="' + esc(trim(u.location) || trim(info.item && info.item.location)) + '">' + optionsDatalist('qr-loc-dl', locs) + '</label>' +
+      '<label class="field' + (measure || lot ? '' : ' span-2') + '"><span>' + esc(t('flow.col.location')) + '</span><input class="input" type="text" data-scan-global data-q="location" maxlength="200" autocomplete="off" list="qr-loc-dl" value="' + esc(trim(u.location) || trim(info.item && info.item.location)) + '">' + optionsDatalist('qr-loc-dl', locs) + '</label>' +
       '<label class="field"><span>' + esc(t('ret.from')) + '</span><input class="input" type="text" data-scan-global data-q="from" maxlength="200" autocomplete="off" list="qr-from-dl" value="' + esc(trim(u.last_dest)) + '">' + optionsDatalist('qr-from-dl', destList()) + '</label>' +
       '<label class="field"><span>' + esc(t('flow.memo')) + '</span><input class="input" type="text" data-scan-global data-q="memo" maxlength="2000" autocomplete="off"></label>' +
       '</div><div class="qf-err danger-text small" role="alert"></div>';
@@ -10535,6 +11060,18 @@ body.modal-open { overflow: hidden; }
         }
         line.amount_left = a;
       }
+      if (lot) {
+        var qEl = root.querySelector('[data-q="qty"]');
+        if (qEl) qEl.removeAttribute('aria-invalid');
+        var q = posInt(val('qty'));
+        if (q == null || q > room) {
+          if (qEl) { qEl.setAttribute('aria-invalid', 'true'); try { qEl.focus(); } catch (x) { /* ignore */ } }
+          errEl.textContent = t('ret.err.qty', { max: UI.fmtNum(room, 0) });
+          UI.beep('err');
+          return false;
+        }
+        line.qty = q;
+      }
       var loc = val('location');
       if (loc) line.location = loc;
       var p = { op_id: op, lines: [line] };
@@ -10555,7 +11092,7 @@ body.modal-open { overflow: hidden; }
           return false;
         }
         UI.beep('ok');
-        UI.toast(t('qr.done', { code: u.code }), 'ok');
+        UI.toast(t('qr.done', { code: u.code }) + (x.qty != null ? ' — ' + UI.lotLeft(x, info.category) : ''), 'ok');
         App.refreshMaster().catch(noop);
         callDone(onDone, res);
         return true;
@@ -10635,6 +11172,10 @@ body.modal-open { overflow: hidden; }
     ['adm.col.amountInit', '최초 양', 'Initial amount'],
     ['adm.col.uom', '단위', 'Unit'],
     ['adm.col.countDelta', '수량 변화', 'Count change'],
+    ['adm.col.unitLabel2', '수량 단위', 'Count unit'],
+    ['adm.col.qtyLeft', '남은 수량(묶음)', 'Qty left (pack)'],
+    ['adm.col.qtyRecv', '입고 수량(묶음)', 'Received qty (pack)'],
+    ['adm.col.qtyLeftOf', '남은 / 입고', 'Left / received'],
     ['adm.col.dest', '반출처/반입처', 'To / from'],
     ['adm.col.person', '받는 사람', 'Person'],
     ['adm.col.purpose', '용도', 'Purpose'],
@@ -10799,6 +11340,31 @@ body.modal-open { overflow: hidden; }
     ['adm.stk.appliedNote', '이 실사는 반영되었습니다. 결과 CSV를 받은 뒤 [새 실사 시작]을 누르세요.', 'This stocktake has been applied. Download the result CSV, then press [New stocktake].'],
     ['adm.stk.act.missing', '누락 → 재고 제외', 'Missing → out of stock'],
     ['adm.stk.act.found', '발견 → 재고 복귀', 'Found → back in stock'],
+    ['adm.stk.act.counted', '묶음 수량 → 실사 수량', 'Pack qty → counted'],
+    ['adm.stk.tab.counted', '수량 차이', 'Qty differences'],
+    ['adm.stk.desc.counted', '묶음 바코드의 실제 수량이 시스템과 다른 항목입니다. 체크한 항목은 [차이 반영] 시 남은 수량을 실사 수량으로 맞춥니다 (0 이면 재고에서 빠짐).', 'Pack barcodes whose counted quantity differs from the system. Ticked ones get their quantity left set to the count on [Apply differences] (0 = out of stock).'],
+    ['adm.stk.kind.counted', '수량 차이', 'Qty difference'],
+    ['adm.stk.applyBtn3', '차이 반영 (누락 {m} · 발견 {f} · 수량 {c})', 'Apply differences (missing {m} · found {f} · qty {c})'],
+    ['adm.stk.applyConfirm3', '누락 {m}개를 재고에서 빼고, 발견 {f}개를 재고로 되돌리고, 묶음 {c}개의 남은 수량을 실사 수량으로 맞춥니다. 계속할까요?', 'Take {m} missing unit(s) out of stock, put {f} found unit(s) back and set {c} pack(s) to their counted quantity. Continue?'],
+    ['adm.stk.countTitle', '묶음 수량 확인 — {code}', 'Count the pack — {code}'],
+    ['adm.stk.countSys', '시스템: {left}', 'System: {left}'],
+    ['adm.stk.countLabel', '실제 수량 ({unit})', 'Counted quantity ({unit})'],
+    ['adm.stk.countHint', '묶음 안의 실제 수량을 세어 입력하세요 (0 = 비어 있음, 최대 입고 수량 {max}).', 'Count what is really in the pack (0 = empty, at most the received {max}).'],
+    ['adm.stk.countBad', '0 이상 {max} 이하의 정수를 입력하세요.', 'Enter a whole number from 0 to {max}.'],
+    ['adm.stk.col.sys', '시스템', 'System'],
+    ['adm.stk.col.counted', '실사', 'Counted'],
+    ['adm.stk.col.diff', '차이', 'Difference'],
+    ['adm.stk.col.sysQty', '시스템 수량', 'System qty'],
+    ['adm.stk.col.countQty', '실사 수량', 'Counted qty'],
+    ['adm.stk.needCount', '수량 미입력', 'Not counted'],
+    ['adm.stk.recount', '수량 입력', 'Count'],
+    ['adm.stk.printMissing', '누락분 라벨 인쇄 ({n})', 'Print missing labels ({n})'],
+    ['adm.stk.printFound', '발견분 라벨 인쇄 ({n})', 'Print found labels ({n})'],
+    ['adm.stk.labelHint', '라벨이 떨어진 자재는 실사 누락 목록에 나옵니다 — 누락분을 인쇄해 다시 붙이세요', 'A unit whose label fell off shows up in the MISSING list — print the missing labels and stick them back on'],
+    ['adm.stk.printHint', '이 목록 전체의 라벨을 인쇄합니다 (체크 여부와 무관 — 체크는 반영 대상만 정합니다).', 'Prints labels for the whole list (ticks do not matter here — they only decide what is applied).'],
+    ['adm.stk.printOff', '체크 해제한 항목만 인쇄 ({n})', 'Print unticked only ({n})'],
+    ['adm.stk.printOffHint', '실물은 있는데 라벨만 떨어져 체크를 해제한 항목의 라벨만 인쇄합니다.', 'Prints labels only for the rows you unticked (the unit is there, only its label fell off).'],
+    ['adm.stk.printed', '라벨 {n}장을 인쇄로 보냈습니다.', 'Sent {n} label(s) to the printer.'],
     ['adm.stk.res.ok', '반영됨', 'Applied'],
     ['adm.stk.res.dup', '이미 반영됨', 'Already applied'],
     ['adm.stk.res.excluded', '제외(체크 해제)', 'Excluded (unticked)'],
@@ -10910,6 +11476,15 @@ body.modal-open { overflow: hidden; }
     ['adm.cat.uomCustom', '직접 입력', 'Custom'],
     ['adm.cat.uomCustomPh', '단위 (예: pcs)', 'Unit (e.g. pcs)'],
     ['adm.cat.uomHint', '자재가 이미 입고된 카테고리는 측정 단위를 바꿀 수 없습니다.', 'The measure cannot change once units of this category exist.'],
+    ['adm.cat.bcMode', '바코드 방식', 'Barcode mode'],
+    ['adm.cat.bcUnit', '장별 바코드(낱개)', 'One barcode per piece'],
+    ['adm.cat.bcUnitHint', '낱개 1개(가죽 1장, 롤 1개)마다 바코드 1장. 낱개마다 크기·등급·남은 양이 다를 때 씁니다.', 'Every piece (a hide, a roll) gets its own barcode — use it when pieces differ in size, grade or what is left.'],
+    ['adm.cat.bcLot', '묶음 바코드(입고 묶음 + 수량)', 'One barcode per pack (with a quantity)'],
+    ['adm.cat.bcLotHint', '입고한 묶음(박스·봉지) 1개마다 바코드 1장 + 수량. 실 콘·폼·부자재처럼 낱개 구분이 의미 없을 때 씁니다. 반출·반입은 바코드를 스캔하고 수량을 입력합니다.', 'Each received pack (box, bag) gets one barcode with its quantity — for thread cones, foam, trims… where single pieces do not matter. Issue/return by scanning it and entering a quantity.'],
+    ['adm.cat.bcFuture', '바꿔도 이미 입고된 자재의 바코드는 그대로이고, 이후 입고부터 적용됩니다.', 'Changing it keeps the barcodes of materials already received; it applies to future receipts only.'],
+    ['adm.cat.bcLtWarn', '⚠ 가죽은 장마다 크기(sqft)·등급이 달라 장별 바코드(가죽 1장 = 바코드 1장)를 권장합니다. 묶음 바코드로 바꾸면 장별 sqft·등급을 관리할 수 없습니다.', '⚠ Leather hides differ in size (sqft) and grade — one barcode per hide is recommended. With pack barcodes the per-hide sqft and grade are not tracked.'],
+    ['adm.cat.bcMeasureNote', '참고: 묶음 바코드는 개수만 셉니다(측정 단위의 남은 양은 기록하지 않음). 이 카테고리 품목에 묶음 바코드가 생기면 그 품목의 수요예측은 개수 기준으로 바뀌고, 기존 낱개의 부분 반출량(예: 10 m)은 더 이상 사용량에 잡히지 않습니다. 나중에 장별로 되돌려도 묶음 바코드가 남아 있는 품목은 개수 기준으로 유지됩니다.', 'Note: pack barcodes count pieces only (no remaining measure). Once an item in this category has pack barcodes, its forecast switches to a count basis and earlier partial issues by measure (e.g. 10 m) no longer count as usage. Switching back to one barcode per piece keeps the count basis while the item still has pack barcodes.'],
+    ['adm.cat.bcLtConfirm', '가죽(LT)을 묶음 바코드로 바꿀까요? 장별 바코드를 권장합니다.', 'Switch leather (LT) to pack barcodes? One barcode per hide is recommended.'],
     ['adm.cat.sort', '표시 순서', 'Display order'],
     ['adm.cat.active', '사용 중', 'Active'],
     ['adm.cat.fieldsTitle', '스펙 필드', 'Spec fields'],
@@ -11513,7 +12088,7 @@ body.modal-open { overflow: hidden; }
   var DIFF_KEYS = {
     location: 'adm.col.location', note: 'adm.col.note', amount: 'adm.col.amountInit', amount_left: 'adm.col.amountLeft',
     spec: 'adm.col.spec', status: 'adm.col.status', received_on: 'adm.col.receivedOn', supplier: 'adm.col.supplier',
-    ref_no: 'adm.col.refNo', memo: 'adm.col.memo'
+    ref_no: 'adm.col.refNo', memo: 'adm.col.memo', qty: 'adm.col.qtyRecv', qty_left: 'adm.col.qtyLeft'
   };
   function diffVal(v, cat) {
     if (v == null || v === '') return '∅';
@@ -11537,6 +12112,7 @@ body.modal-open { overflow: hidden; }
       (m.lot_id != null ? '<span class="muted small">' + esc(t('adm.hist.lotRef', { id: m.lot_id })) + '</span>' : '');
     var amt = esc(fmtAmt(m.amount, uom));
     if (m.type === 'OUT' && Number(m.count_delta) === 0) amt += ' <span class="badge warn">' + esc(t('adm.hist.partial')) + '</span>';
+    if (App.isLotMove(m) && Number(m.count_delta)) amt = '<b>' + esc(UI.signedPieces(m.count_delta, cat)) + '</b>';    // pack: "−10 콘"
     var diff = m.type === 'EDIT' ? diffText(m.before, m.after, cat) : '';
     return '<tr>' +
       '<td class="nowrap small">' + esc(UI.fmtDateTime(m.at)) + '</td>' +
@@ -11624,12 +12200,14 @@ body.modal-open { overflow: hidden; }
       if (amt != null && !isFinite(amt)) amt = null;
       if (m.type === 'ADJUST') {
         var a = s.ADJUST;
-        if (cd > 0) { a.plus++; if (amt != null) { a.pa = Math.round((a.pa + amt) * 1e6) / 1e6; a.ha = true; } }
-        else if (cd < 0) { a.minus++; if (amt != null) { a.ma = Math.round((a.ma + amt) * 1e6) / 1e6; a.ha = true; } }
+        var w = App.isLotMove(m) ? Math.abs(cd) : 1;           // pack ADJUST: pieces
+        if (cd > 0) { a.plus += w; if (amt != null) { a.pa = Math.round((a.pa + amt) * 1e6) / 1e6; a.ha = true; } }
+        else if (cd < 0) { a.minus += w; if (amt != null) { a.ma = Math.round((a.ma + amt) * 1e6) / 1e6; a.ha = true; } }
         return;
       }
       var b = s[m.type];
-      if (m.type === 'OUT' && cd === 0) b.p++; else b.n++;
+      if (App.isLotMove(m)) b.n += Math.abs(cd);              // pack moves count their pieces
+      else if (m.type === 'OUT' && cd === 0) b.p++; else b.n++;
       if (amt != null && isFinite(amt)) { b.a = Math.round((b.a + amt) * 1e6) / 1e6; b.ha = true; }
     });
     var items = keys.map(function (k) { return App.item(map[k].item_id) || { id: map[k].item_id, name: '#' + map[k].item_id, category: '' }; });
@@ -11726,7 +12304,8 @@ body.modal-open { overflow: hidden; }
   function histCsvRows(rows) {
     var out = [[t('adm.col.at'), t('adm.col.type'), t('adm.col.typeCode'), t('adm.col.code'), t('adm.col.lot'), t('adm.col.categoryCode'),
       t('adm.col.category'), t('adm.col.item'), 'SKU', t('adm.col.amount'), t('adm.col.uom'), t('adm.col.countDelta'), t('adm.col.dest'),
-      t('adm.col.person'), t('adm.col.purpose'), t('adm.col.memo'), t('adm.col.changes'), t('adm.col.byName'), t('adm.col.byEmail'), 'op_id']];
+      t('adm.col.person'), t('adm.col.purpose'), t('adm.col.memo'), t('adm.col.changes'), t('adm.col.byName'), t('adm.col.byEmail'), 'op_id',
+      t('adm.col.unitLabel2'), t('adm.col.qtyLeft')]];
     rows.forEach(function (m) {
       var it = App.item(m.item_id), cat = it ? App.cat(it.category) : null;
       out.push([
@@ -11734,7 +12313,8 @@ body.modal-open { overflow: hidden; }
         it ? it.category : '', cat ? App.catName(cat) : '', it ? it.name : '#' + m.item_id, it && it.sku ? it.sku : '',
         m.amount == null || m.amount === '' ? '' : Number(m.amount), cat && cat.measure_uom ? cat.measure_uom : '',
         Number(m.count_delta) || 0, m.dest || '', m.person || '', m.purpose || '', m.memo || '',
-        m.type === 'EDIT' ? diffText(m.before, m.after, cat) : '', m.by_name || '', m.by_email || '', m.op_id || ''
+        m.type === 'EDIT' ? diffText(m.before, m.after, cat) : '', m.by_name || '', m.by_email || '', m.op_id || '',
+        cat ? App.unitLabel(cat) : '', isObj(m.after) && m.after.qty_left != null ? Number(m.after.qty_left) : ''
       ]);
     });
     return out;
@@ -11837,14 +12417,31 @@ body.modal-open { overflow: hidden; }
     }
     ST.ix = ix;
   }
+  /** pack barcode counts: {code: counted pieces} (sessions saved before packs have none) */
+  function stCounts(s) { if (!isObj(s.counts)) s.counts = {}; return s.counts; }
+  /** a pack barcode in this session: [qty_left (system pieces), qty] or null */
+  function stLotOf(c) {
+    var s = ST.sess, e = ST.ix && ST.ix.exp[c];
+    if (e && e[6] != null) return { sys: e[6], qty: e[7], left: e[6] };
+    var inf = s && s.info[c];
+    if (inf && inf.q != null) return { sys: inf.s === 'in' ? inf.ql : 0, qty: inf.q, left: inf.ql };
+    return null;
+  }
   function stDerive() {
     var s = ST.sess, ix = ST.ix;
-    var d = { matched: [], missing: [], found: [], outside: [], unknown: [], pending: [] };
+    var counts = stCounts(s);
+    var d = { matched: [], missing: [], found: [], counted: [], outside: [], unknown: [], pending: [] };
     s.scans.forEach(function (sc) {
       var c = sc[0];
-      if (ix.exp[c]) { d.matched.push(c); return; }
+      if (ix.exp[c]) {
+        d.matched.push(c);
+        var e = ix.exp[c];
+        if (e[6] != null && counts[c] != null && counts[c] !== e[6]) d.counted.push(c);   // pack: counted ≠ system
+        return;
+      }
       var k = s.info[c] && s.info[c].k;
-      if (k === 'found') d.found.push(c);
+      if (k === 'found' && s.info[c].q != null && counts[c] != null) d.counted.push(c);   // found pack with a count
+      else if (k === 'found') d.found.push(c);
       else if (k === 'outside') d.outside.push(c);
       else if (k === 'unknown') d.unknown.push(c);
       else d.pending.push(c);
@@ -11937,7 +12534,9 @@ body.modal-open { overflow: hidden; }
         if (loc !== null) return trimStr(u.location).toLowerCase() === loc;
         return true;
       }).map(function (u) {
-        return [u.code, u.item_id, u.location || '', u.amount_left == null ? null : Number(u.amount_left), u.lot_id == null ? null : u.lot_id, u.seq == null ? null : u.seq];
+        // [code, item_id, location, amount_left, lot_id, seq, qty_left, qty] — the last two only for pack barcodes
+        return [u.code, u.item_id, u.location || '', u.amount_left == null ? null : Number(u.amount_left), u.lot_id == null ? null : u.lot_id, u.seq == null ? null : u.seq,
+          u.qty == null ? null : Number(u.qty_left), u.qty == null ? null : Number(u.qty)];
       });
     });
   }
@@ -12007,14 +12606,17 @@ body.modal-open { overflow: hidden; }
     if (!stc || !ST.sess || !alive(stc.el)) return;
     var s = ST.sess, el = stc.el;
     var d = stDerive();
-    var unexpected = d.found.length + d.outside.length + d.unknown.length + d.pending.length;
+    var unexpected = d.found.length + d.outside.length + d.unknown.length + d.pending.length +
+      d.counted.filter(function (c) { return !ST.ix.exp[c]; }).length;
     var k = qs(el, '[data-role=kpis]');
     if (k) {
       k.innerHTML = kpiHtml('info', s.exp.length, t('adm.stk.k.expected')) + kpiHtml('', s.scans.length, t('adm.stk.k.scanned')) +
         kpiHtml('ok', d.matched.length, t('adm.stk.k.matched')) + kpiHtml(d.missing.length ? 'err' : '', d.missing.length, t('adm.stk.k.missing')) +
         kpiHtml(unexpected ? 'warn' : '', unexpected, t('adm.stk.k.unexpected'));
     }
-    var tabs = [['missing', d.missing.length], ['found', d.found.length], ['matched', d.matched.length], ['outside', d.outside.length], ['unknown', d.unknown.length]];
+    var tabs = [['missing', d.missing.length], ['found', d.found.length]];
+    if (d.counted.length || ST.tab === 'counted') tabs.push(['counted', d.counted.length]);
+    tabs = tabs.concat([['matched', d.matched.length], ['outside', d.outside.length], ['unknown', d.unknown.length]]);
     if (d.pending.length) tabs.push(['pending', d.pending.length]);
     tabs.push(['recent', s.scans.length]);
     if (!tabs.some(function (x) { return x[0] === ST.tab; })) ST.tab = 'missing';
@@ -12031,19 +12633,24 @@ body.modal-open { overflow: hidden; }
     var ab = qs(el, '[data-act=st-apply]');
     if (ab) {
       var m = d.missing.filter(function (c) { return !s.off[c]; }).length, f = d.found.filter(function (c) { return !s.off[c]; }).length;
-      ab.textContent = ST.applying ? t('adm.stk.applying') : ST.checking ? t('adm.stk.checkingMoves') : t('adm.stk.applyBtn', { m: m, f: f });
-      ab.disabled = ST.applying || ST.checking || (!m && !f);
+      var cq = d.counted.filter(function (c) { return !s.off[c]; }).length;
+      ab.textContent = ST.applying ? t('adm.stk.applying') : ST.checking ? t('adm.stk.checkingMoves') :
+        (cq || d.counted.length ? t('adm.stk.applyBtn3', { m: m, f: f, c: cq }) : t('adm.stk.applyBtn', { m: m, f: f }));
+      ab.disabled = ST.applying || ST.checking || (!m && !f && !cq);
     }
     var ap = qs(el, '[data-role=applied]');
     if (ap) ap.innerHTML = s.applied ? stAppliedHtml(s) : '';
   }
 
   function stUnitRowCells(c, e, extraHtml) {
-    // e = expected entry [code, item_id, location, amount_left, lot_id, seq]
+    // e = expected entry [code, item_id, location, amount_left, lot_id, seq, qty_left?, qty?]
     var uom = uomOfItem(e[1]);
-    return '<td class="nowrap"><button type="button" class="linkbtn mono" data-code="' + esc(c) + '">' + esc(c) + '</button>' + (extraHtml || '') + '</td>' +
+    var cnt = ST.sess ? stCounts(ST.sess)[c] : null;
+    var left = e[6] != null ? UI.pieces(e[6], catOfItemId(e[1])) + (cnt != null && cnt !== e[6] ? ' → ' + UI.fmtNum(cnt, 0) : '') : fmtAmt(e[3], uom);
+    return '<td class="nowrap"><button type="button" class="linkbtn mono" data-code="' + esc(c) + '">' + esc(c) + '</button>' + (extraHtml || '') +
+      (e[6] != null ? ' ' + UI.lotBadge() : '') + '</td>' +
       '<td>' + itemCell(e[1]) + '</td><td>' + esc(e[2] || '') + '</td>' +
-      '<td class="num">' + esc(fmtAmt(e[3], uom)) + '</td>' +
+      '<td class="num">' + esc(left) + '</td>' +
       '<td class="small muted nowrap">' + (e[4] != null ? esc(t('adm.lbl.lotSeq', { lot: e[4], seq: e[5] == null ? '?' : e[5] })) : '') + '</td>';
   }
   function stUnscanBtn(c) {
@@ -12059,6 +12666,37 @@ body.modal-open { overflow: hidden; }
     var h = desc, rows;
     var thUnit = '<th>' + esc(t('adm.col.code')) + '</th><th>' + esc(t('adm.col.item')) + '</th><th>' + esc(t('adm.col.location')) + '</th><th class="num">' + esc(t('adm.col.amountLeft')) + '</th><th>' + esc(t('adm.col.lot')) + '</th>';
     if (tab === 'missing' || tab === 'found') {
+      // (A) re-print labels: a unit whose label fell off shows up as missing
+      // the ticks decide what is APPLIED (written off / found), not what is printed: the main button prints the whole
+      // list; rows the clerk unticked (unit there, label gone) can be printed on their own
+      var nOff = list.filter(function (c) { return !!s.off[c]; }).length;
+      h += (tab === 'missing' ? '<p class="notice info small st-label-hint">' + esc(t('adm.stk.labelHint')) + '</p>' : '') +
+        '<div class="row" style="margin:6px 0;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm" data-act="st-print-' + tab + '" title="' + esc(t('adm.stk.printHint')) + '">🏷 ' +
+        esc(t(tab === 'missing' ? 'adm.stk.printMissing' : 'adm.stk.printFound', { n: fmtNum(list.length) })) + '</button>' +
+        (nOff > 0 && nOff < list.length ? '<button type="button" class="btn sm ghost" data-act="st-print-' + tab + '-off" title="' + esc(t('adm.stk.printOffHint')) + '">🏷 ' +
+          esc(t('adm.stk.printOff', { n: fmtNum(nOff) })) + '</button>' : '') + '</div>';
+    }
+    if (tab === 'counted') {
+      var allC = list.every(function (c) { return !s.off[c]; });
+      var cnts = stCounts(s);
+      rows = shown.map(function (c) {
+        var lo = stLotOf(c) || { sys: 0, qty: 0 };
+        var e = ix.exp[c], inf = s.info[c] || {};
+        var itemId = e ? e[1] : inf.i, cat = catOfItemId(itemId);
+        var diff = (Number(cnts[c]) || 0) - (Number(lo.sys) || 0);
+        return '<tr><td class="chk"><input type="checkbox" data-pick="' + esc(c) + '"' + chk(!s.off[c]) + dis(applied) + ' aria-label="' + esc(c) + '"></td>' +
+          '<td class="nowrap"><button type="button" class="linkbtn mono" data-code="' + esc(c) + '">' + esc(c) + '</button> ' + UI.lotBadge() + '</td>' +
+          '<td>' + itemCell(itemId) + '</td><td>' + (e ? UI.statusBadge('in') : UI.statusBadge(inf.s)) + '</td>' +
+          '<td class="num">' + esc(UI.pieces(lo.sys, cat)) + '</td><td class="num"><b>' + esc(UI.pieces(cnts[c], cat)) + '</b></td>' +
+          '<td class="num ' + (diff < 0 ? 'danger-text' : 'ok-text') + '">' + esc(UI.signedPieces(diff, cat)) + '</td>' +
+          '<td class="right nowrap">' + (applied ? '' : '<button type="button" class="btn sm ghost" data-stcount="' + esc(c) + '">' + esc(t('adm.stk.recount')) + '</button>' + stUnscanBtn(c)) + '</td></tr>';
+      }).join('');
+      return h + '<div class="table-wrap"><table class="table compact"><thead><tr><th class="chk"><input type="checkbox" data-stall="counted"' + chk(allC) + dis(applied) +
+        ' aria-label="' + esc(t('adm.stk.toggleAll')) + '"></th><th>' + esc(t('adm.col.code')) + '</th><th>' + esc(t('adm.col.item')) + '</th><th>' + esc(t('adm.col.status')) +
+        '</th><th class="num">' + esc(t('adm.stk.col.sys')) + '</th><th class="num">' + esc(t('adm.stk.col.counted')) + '</th><th class="num">' + esc(t('adm.stk.col.diff')) +
+        '</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + stCapNote(list.length);
+    }
+    if (tab === 'missing' || tab === 'found') {
       var allOn = list.every(function (c) { return !s.off[c]; });
       var head = '<th class="chk"><input type="checkbox" data-stall="' + tab + '"' + chk(allOn) + dis(applied) + ' aria-label="' + esc(t('adm.stk.toggleAll')) + '"></th>';
       if (tab === 'missing') {
@@ -12070,8 +12708,11 @@ body.modal-open { overflow: hidden; }
       } else {
         rows = shown.map(function (c) {
           var inf = s.info[c] || {};
+          // a found pack without a count: [수량 입력] (otherwise the server restores its recorded quantity)
+          var needC = inf.q != null ? ' ' + UI.lotBadge() + ' <span class="badge warn">' + esc(t('adm.stk.needCount')) + '</span>' +
+            (applied ? '' : ' <button type="button" class="btn sm" data-stcount="' + esc(c) + '">' + esc(t('adm.stk.recount')) + '</button>') : '';
           return '<tr><td class="chk"><input type="checkbox" data-pick="' + esc(c) + '"' + chk(!s.off[c]) + dis(applied) + ' aria-label="' + esc(c) + '"></td>' +
-            '<td class="nowrap"><button type="button" class="linkbtn mono" data-code="' + esc(c) + '">' + esc(c) + '</button></td>' +
+            '<td class="nowrap"><button type="button" class="linkbtn mono" data-code="' + esc(c) + '">' + esc(c) + '</button>' + needC + '</td>' +
             '<td>' + itemCell(inf.i) + '</td><td>' + UI.statusBadge(inf.s) + '</td><td>' + esc(inf.d || '') + '</td><td>' + esc(inf.l || '') + '</td>' +
             '<td class="right">' + (applied ? '' : stUnscanBtn(c)) + '</td></tr>';
         }).join('');
@@ -12132,7 +12773,7 @@ body.modal-open { overflow: hidden; }
       '<p>' + esc(t('adm.stk.applied', { ok: okN, bad: bad.length })) + '</p>' +
       (list.length ? '<div class="table-wrap"><table class="table compact"><thead><tr><th>' + esc(t('adm.col.code')) + '</th><th>' + esc(t('adm.col.kind')) + '</th><th>' +
         esc(t('adm.col.result')) + '</th></tr></thead><tbody>' + list.map(function (r) {
-          return '<tr class="' + (r.ok ? '' : 'row-err') + '"><td class="mono nowrap">' + esc(r.code || '') + '</td><td>' + esc(t('adm.stk.act.' + (r.action === 'found' ? 'found' : 'missing'))) +
+          return '<tr class="' + (r.ok ? '' : 'row-err') + '"><td class="mono nowrap">' + esc(r.code || '') + '</td><td>' + esc(t('adm.stk.act.' + (r.action === 'found' || r.action === 'counted' ? r.action : 'missing'))) +
             '</td><td>' + (r.ok ? '<span class="badge ok">' : '<span class="badge err">') + esc(stResultText(r)) + '</span></td></tr>';
         }).join('') + '</tbody></table></div>' + stCapNote(res.length) : '') + '</div>';
   }
@@ -12171,11 +12812,14 @@ body.modal-open { overflow: hidden; }
   }
   function stScanOne(code) {
     var s = ST.sess, ix = ST.ix;
-    if (ix.scan[code]) { UI.beep('warn'); stSetLast(code, 'dup'); return; }
+    if (ix.scan[code]) {
+      if (stLotOf(code)) { UI.beep('ok'); stAskCount(code); return; }       // a pack scanned again → count it (again)
+      UI.beep('warn'); stSetLast(code, 'dup'); return;
+    }
     if (s.scans.length >= ST_MAX_SCANS) { UI.beep('err'); UI.toast(t('adm.stk.tooMany', { n: fmtNum(ST_MAX_SCANS) }), 'err'); return; }
     s.scans.push([code, Date.now()]);
     ix.scan[code] = 1;
-    if (ix.exp[code]) { UI.beep('ok'); stSetLast(code, 'match'); return; }
+    if (ix.exp[code]) { UI.beep('ok'); stSetLast(code, 'match'); if (stLotOf(code)) stAskCount(code); return; }
     s.info[code] = { k: 'pending' };
     UI.beep('warn');
     stSetLast(code, 'unexpected');
@@ -12186,6 +12830,7 @@ body.modal-open { overflow: hidden; }
     if (!s || s.applied) return;
     s.scans = s.scans.filter(function (x) { return x[0] !== code; });
     delete s.info[code];
+    delete stCounts(s)[code];
     if (s.off) delete s.off[code];
     if (ST.ix) delete ST.ix.scan[code];
     if (ST.last && ST.last.code === code) ST.last = null;
@@ -12228,7 +12873,11 @@ body.modal-open { overflow: hidden; }
         var u = by[c];
         if (!u) { s.info[c] = { k: 'unknown' }; unknownHit = true; }
         else if (u.status === 'in') s.info[c] = { k: 'outside', s: 'in', i: u.item_id, l: u.location || '' };
-        else s.info[c] = { k: 'found', s: u.status, i: u.item_id, l: u.location || '', d: u.last_dest || '' };
+        else {
+          s.info[c] = { k: 'found', s: u.status, i: u.item_id, l: u.location || '', d: u.last_dest || '' };
+          // a found pack: remember its quantities and ask what is in it
+          if (u.qty != null) { s.info[c].q = Number(u.qty); s.info[c].ql = Number(u.qty_left); if (stCounts(s)[c] == null) stAskCount(c); }
+        }
       });
       if (unknownHit) UI.beep('err');
       stSave();
@@ -12293,7 +12942,8 @@ body.modal-open { overflow: hidden; }
     if (d.pending.length) { UI.toast(t('adm.stk.pendingWait'), 'warn'); stRequeuePending(true); return; }
     var missing0 = d.missing.filter(function (c) { return !s.off[c]; });
     var found0 = d.found.filter(function (c) { return !s.off[c]; });
-    if (!missing0.length && !found0.length) { UI.toast(t('adm.stk.nothingToApply'), 'warn'); return; }
+    var counted0 = d.counted.filter(function (c) { return !s.off[c]; });
+    if (!missing0.length && !found0.length && !counted0.length) { UI.toast(t('adm.stk.nothingToApply'), 'warn'); return; }
     var memoEl = stc ? qs(stc.el, '[data-f=memo]') : null;
     if (memoEl) s.memo = trimStr(memoEl.value);
     var memo = (s.memo || stDefaultMemo(s)).slice(0, 2000);
@@ -12314,11 +12964,12 @@ body.modal-open { overflow: hidden; }
       if (d1.pending.length) { UI.toast(t('adm.stk.pendingWait'), 'warn'); stRequeuePending(true); return; }
       var missing = d1.missing.filter(function (c) { return !s.off[c]; });
       var found = d1.found.filter(function (c) { return !s.off[c]; });
-      if (!missing.length && !found.length) {
+      var counted = d1.counted.filter(function (c) { return !s.off[c]; });
+      if (!missing.length && !found.length && !counted.length) {
         UI.toast(moved.length ? t('adm.stk.movedNone', { n: moved.length }) : t('adm.stk.nothingToApply'), 'warn', 9000);
         return;
       }
-      var msg = t('adm.stk.applyConfirm', { m: missing.length, f: found.length });
+      var msg = counted.length ? t('adm.stk.applyConfirm3', { m: missing.length, f: found.length, c: counted.length }) : t('adm.stk.applyConfirm', { m: missing.length, f: found.length });
       if (moved.length) {
         msg += '\n\n' + t('adm.stk.movedNote', { n: moved.length }) + '\n' + moved.slice(0, 10).join(', ') + (moved.length > 10 ? ' …' : '');
       }
@@ -12327,13 +12978,14 @@ body.modal-open { overflow: hidden; }
         var d2 = stDerive();
         var missing2 = d2.missing.filter(function (c) { return !s.off[c]; });
         var found2 = d2.found.filter(function (c) { return !s.off[c]; });
-        if (d2.pending.length || !stSameList(missing, missing2) || !stSameList(found, found2)) {
+        var counted2 = d2.counted.filter(function (c) { return !s.off[c]; });
+        if (d2.pending.length || !stSameList(missing, missing2) || !stSameList(found, found2) || !stSameList(counted, counted2)) {
           UI.toast(t('adm.stk.changedRetry'), 'warn', 7000);
           UI.beep('warn');
           stRefresh();
           return;
         }
-        stRunApply(s, memo, missing, found);
+        stRunApply(s, memo, missing, found, counted);
       });
     }, function (err) {
       ST.checking = false;
@@ -12341,18 +12993,23 @@ body.modal-open { overflow: hidden; }
       stRefresh();
     });
   }
-  function stRunApply(s, memo, missing, found) {
+  function stRunApply(s, memo, missing, found, counted) {
     ST.applying = true;
     stRefresh();
     var calls = [], i;
+    var cnts = stCounts(s);
+    var countedLines = (counted || []).map(function (c) { return { code: c, qty: cnts[c] }; });
     for (i = 0; i < missing.length; i += CHUNK) calls.push({ missing: missing.slice(i, i + CHUNK), found: [] });
     for (i = 0; i < found.length; i += CHUNK) calls.push({ missing: [], found: found.slice(i, i + CHUNK) });
+    for (i = 0; i < countedLines.length; i += CHUNK) calls.push({ missing: [], found: [], counted: countedLines.slice(i, i + CHUNK) });
     var results = [];
     var p = Promise.resolve();
     calls.forEach(function (c) {
       p = p.then(function () {
         // as_of: the server skips a missing write-off when the unit moved after the expected list was loaded
-        return Data.stocktakeApply({ op_id: s.op_id, memo: memo, missing: c.missing, found: c.found, as_of: s.loaded_at }).then(function (res) {
+        var payload = { op_id: s.op_id, memo: memo, missing: c.missing, found: c.found, as_of: s.loaded_at };
+        if (c.counted) payload.counted = c.counted;          // packs: qty_left := counted (as_of guards these too)
+        return Data.stocktakeApply(payload).then(function (res) {
           (res && Array.isArray(res.results) ? res.results : []).forEach(function (r) { results.push(r); });
         });
       });
@@ -12378,6 +13035,83 @@ body.modal-open { overflow: hidden; }
       stRefresh();
     });
   }
+  // ---- pack barcodes: ask the counted quantity (one dialog at a time; scans are blocked while it is open) ----
+  function stAskCount(code) {
+    if (!ST.askQ) ST.askQ = [];
+    if (ST.askQ.indexOf(code) < 0) ST.askQ.push(code);
+    stNextAsk();
+  }
+  function stNextAsk() {
+    if (ST.asking || !ST.askQ || !ST.askQ.length) return;
+    if (UI.topModal()) { setTimeout(stNextAsk, 300); return; }
+    var s = ST.sess;
+    if (!s || s.applied || !stc || !alive(stc.el)) { ST.askQ = []; return; }
+    var code = ST.askQ.shift();
+    var lo = stLotOf(code);
+    if (!lo) { stNextAsk(); return; }
+    var e = ST.ix.exp[code], inf = s.info[code] || {};
+    var itemId = e ? e[1] : inf.i, cat = catOfItemId(itemId);
+    var cur = stCounts(s)[code];
+    var def = cur != null ? cur : (lo.left != null && (e || lo.left > 0) ? lo.left : '');
+    var max = Number(lo.qty) || 0;
+    ST.asking = true;
+    var body = '<div class="col"><div>' + itemCell(itemId) + '</div>' +
+      '<div class="small">' + esc(t('adm.stk.countSys', { left: UI.lotLeft({ qty: lo.qty, qty_left: lo.left }, cat) })) + (e ? '' : ' · ' + UI.statusBadge(inf.s)) + '</div>' +
+      '<label class="field"><span>' + esc(t('adm.stk.countLabel', { unit: App.unitLabel(cat) || '' })) + '</span><input class="input num-input" type="text" inputmode="numeric" autocomplete="off" data-f="stcount" value="' + esc(def) + '"></label>' +
+      '<p class="small muted">' + esc(t('adm.stk.countHint', { max: fmtNum(max) })) + '</p><div class="form-err danger-text small" role="alert"></div></div>';
+    var m = UI.modal({
+      title: t('adm.stk.countTitle', { code: code }), body: body,
+      buttons: [{ label: t('btn.cancel'), kind: 'ghost' }, { label: t('btn.ok'), kind: 'primary', onClick: function () {
+        var inp = qs(m.body, '[data-f=stcount]'), raw = trimStr(inp && inp.value);
+        var n = /^\d{1,7}$/.test(raw) ? parseInt(raw, 10) : null;
+        if (n == null || n > max) {
+          var er = qs(m.body, '.form-err');
+          if (er) er.textContent = t('adm.stk.countBad', { max: fmtNum(max) });
+          if (inp) { inp.setAttribute('aria-invalid', 'true'); try { inp.focus(); } catch (x) { /* ignore */ } }
+          UI.beep('err');
+          return false;
+        }
+        if (ST.sess !== s || s.applied) return true;
+        stCounts(s)[code] = n;
+        stSave();
+        stRefresh();
+        return true;
+      } }],
+      onClose: function () {
+        ST.asking = false;
+        var sc = stc && qs(stc.el, '[data-role=scan]');
+        if (sc && !UI.topModal()) { try { sc.focus({ preventScroll: true }); } catch (x) { /* ignore */ } }
+        setTimeout(stNextAsk, 0);
+      }
+    });
+    var inp0 = qs(m.body, '[data-f=stcount]');
+    if (inp0) {
+      inp0.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter' || ev.isComposing || ev.keyCode === 229) return;
+        ev.preventDefault();
+        var b = m.el.querySelector('.modal-foot .btn.primary');
+        if (b) b.click();
+      });
+      setTimeout(function () { try { inp0.focus(); inp0.select(); } catch (x) { /* ignore */ } }, 0);
+    }
+  }
+  // ---- (A) print labels for the missing / found units (the whole list, or offOnly: just the unticked rows) ----
+  function stPrintLabels(tab, btn, offOnly) {
+    var s = ST.sess;
+    if (!s) return;
+    var d = stDerive();
+    var list = d[tab] || [];
+    var codes = offOnly ? list.filter(function (c) { return !!s.off[c]; }) : list;
+    if (!codes.length) { UI.toast(t('labels.none'), 'warn'); return; }
+    busyBtn(btn, Data.listAllUnits({ codes: codes.slice(), status: 'all' }).then(function (units) {
+      var by = {};
+      (Array.isArray(units) ? units : []).forEach(function (u) { if (u && u.code) by[u.code] = u; });
+      var rows = codes.map(function (c) { return by[c]; }).filter(Boolean);    // keep the list order
+      return App.printLabels(rows);
+    })).then(function (n) {
+      if (n) UI.toast(t('adm.stk.printed', { n: fmtNum(n) }), 'ok');
+    }, function (err) { UI.toast(UI.errMsg(err), 'err'); });
+  }
   function stCsv() {
     var s = ST.sess;
     if (!s) return;
@@ -12385,19 +13119,23 @@ body.modal-open { overflow: hidden; }
     var resMap = {};
     (s.applied && Array.isArray(s.applied.results) ? s.applied.results : []).forEach(function (r) { if (r && r.code) resMap[r.code] = r; });
     var rows = [[t('adm.col.code'), t('adm.col.kind'), t('adm.col.categoryCode'), t('adm.col.item'), 'SKU', t('adm.col.location'),
-      t('adm.col.amountLeft'), t('adm.col.uom'), t('adm.col.status'), t('adm.col.result')]];
+      t('adm.col.amountLeft'), t('adm.col.uom'), t('adm.col.status'), t('adm.col.result'), t('adm.stk.col.sysQty'), t('adm.stk.col.countQty')]];
+    var cnts = stCounts(s);
     function push(c, kind) {
       var e = ST.ix.exp[c], inf = s.info[c] || {};
+      var lo = stLotOf(c);
       var itemId = e ? e[1] : inf.i;
       var it = itemId != null ? App.item(itemId) : null;
       var res = resMap[c];
-      var excluded = (kind === 'missing' || kind === 'found') && s.off[c];
+      var excluded = (kind === 'missing' || kind === 'found' || kind === 'counted') && s.off[c];
       rows.push([c, t('adm.stk.kind.' + kind), it ? it.category : '', itemId != null ? itemName(itemId) : '', it && it.sku ? it.sku : '',
         e ? e[2] : (inf.l || ''), e && e[3] != null ? e[3] : '', itemId != null ? uomOfItem(itemId) : '',
-        e ? t('status.in') : (inf.s ? t('status.' + inf.s) : ''), res ? stResultText(res) : (excluded ? t('adm.stk.res.excluded') : '')]);
+        e ? t('status.in') : (inf.s ? t('status.' + inf.s) : ''), res ? stResultText(res) : (excluded ? t('adm.stk.res.excluded') : ''),
+        lo ? lo.sys : '', lo && cnts[c] != null ? cnts[c] : '']);
     }
     d.missing.forEach(function (c) { push(c, 'missing'); });
     d.found.forEach(function (c) { push(c, 'found'); });
+    d.counted.forEach(function (c) { push(c, 'counted'); });
     d.unknown.forEach(function (c) { push(c, 'unknown'); });
     d.outside.forEach(function (c) { push(c, 'outside'); });
     d.pending.forEach(function (c) { push(c, 'pending'); });
@@ -12438,6 +13176,7 @@ body.modal-open { overflow: hidden; }
       stRefresh();
     });
     delegate(el, 'click', '[data-unscan]', function (e, b) { stUnscan(b.getAttribute('data-unscan')); });
+    delegate(el, 'click', '[data-stcount]', function (e, b) { e.preventDefault(); if (ST.sess && !ST.sess.applied) stAskCount(b.getAttribute('data-stcount')); });
     delegate(el, 'click', '[data-code]', function (e, b) { e.preventDefault(); App.openUnitPopup(b.getAttribute('data-code')); });
     delegate(el, 'click', '[data-act]', function (e, b) {
       var act = b.getAttribute('data-act');
@@ -12468,6 +13207,8 @@ body.modal-open { overflow: hidden; }
       } else if (act === 'st-reload') stReloadExp(b);
       else if (act === 'st-apply') stApply();
       else if (act === 'st-csv') stCsv();
+      else if (act === 'st-print-missing' || act === 'st-print-found') stPrintLabels(act === 'st-print-missing' ? 'missing' : 'found', b);
+      else if (act === 'st-print-missing-off' || act === 'st-print-found-off') stPrintLabels(act === 'st-print-missing-off' ? 'missing' : 'found', b, true);
       else if (act === 'st-recheck') { stRequeuePending(true); stRefresh(); }
     });
   }
@@ -12747,6 +13488,7 @@ body.modal-open { overflow: hidden; }
     var rows = LB.units.slice(0, 2000).map(function (u) {
       var cat = catOfItemId(u.item_id), uom = cat && cat.measure_uom ? cat.measure_uom : '';
       var amt = u.amount_left != null ? fmtAmt(u.amount_left, uom) + (u.amount != null && Number(u.amount) !== Number(u.amount_left) ? ' / ' + fmtNum(u.amount) : '') : fmtAmt(u.amount, uom);
+      if (App.isLotUnit(u)) amt = UI.lotLeft(u, cat);          // pack: "남은 73 / 100 콘"
       return '<tr class="' + (LB.sel[u.code] ? 'selected' : '') + '"><td class="chk"><input type="checkbox" data-rsel="' + esc(u.code) + '"' + chk(LB.sel[u.code]) + ' aria-label="' + esc(u.code) + '"></td>' +
         '<td class="mono nowrap"><b>' + esc(u.code) + '</b></td><td>' + itemCell(u.item_id) + '</td>' +
         '<td class="small">' + esc(UI.specSummary(cat, u.spec)) + '</td><td>' + UI.statusBadge(u.status) + '</td>' +
@@ -12942,6 +13684,9 @@ body.modal-open { overflow: hidden; }
     var isNew = !orig;
     var src = orig || (isObj(cat) ? cat : {});
     var uomVal = src.measure_uom == null ? '' : String(src.measure_uom);
+    var bcVal = src.barcode_mode === 'lot' ? 'lot' : 'unit';
+    /** leather (LT, or a sqft category) in pack mode → warn: hides differ, one barcode per hide is recommended */
+    function bcWarnOn(code, uom, mode) { return mode === 'lot' && (String(code || '').toUpperCase() === 'LT' || uom === 'sqft'); }
     var st = {
       fields: (Array.isArray(src.fields) ? src.fields : []).filter(isObj).map(function (f) {
         return {
@@ -12970,6 +13715,14 @@ body.modal-open { overflow: hidden; }
       '<label class="field"><span>' + esc(t('adm.cat.sort')) + '</span><input class="input num-input" data-c="sort" inputmode="numeric" value="' + esc(src.sort == null ? '' : src.sort) + '"></label>' +
       '<div class="field"><span>&nbsp;</span><label class="check"><input type="checkbox" data-c="active"' + chk(src.active !== false) + '> ' + esc(t('adm.cat.active')) + '</label></div>' +
       '</div>' +
+      '<fieldset class="field adm-bcmode" style="border:1px solid var(--line);border-radius:var(--radius);padding:8px 12px;margin:0">' +
+      '<legend style="font-weight:700;padding:0 4px">' + esc(t('adm.cat.bcMode')) + '</legend>' +
+      '<label class="check" style="align-items:flex-start"><input type="radio" name="' + esc(pre) + '-bcm" data-c="bcmode" value="unit"' + chk(bcVal !== 'lot') + '> <span><b>' + esc(t('adm.cat.bcUnit')) + '</b><br><span class="small muted">' + esc(t('adm.cat.bcUnitHint')) + '</span></span></label>' +
+      '<label class="check" style="align-items:flex-start;margin-top:6px"><input type="radio" name="' + esc(pre) + '-bcm" data-c="bcmode" value="lot"' + chk(bcVal === 'lot') + '> <span><b>' + esc(t('adm.cat.bcLot')) + '</b><br><span class="small muted">' + esc(t('adm.cat.bcLotHint')) + '</span></span></label>' +
+      '<p class="hint" style="margin:6px 0 0">' + esc(t('adm.cat.bcFuture')) + '</p>' +
+      '<div class="notice warn small" data-role="bcwarn" style="margin-top:6px"' + (bcWarnOn(src.code, uomVal, bcVal) ? '' : ' hidden') + '>' + esc(t('adm.cat.bcLtWarn')) + '</div>' +
+      '<div class="notice info small" data-role="bcmeasure" style="margin-top:6px"' + (bcVal === 'lot' && uomVal !== '' ? '' : ' hidden') + '>' + esc(t('adm.cat.bcMeasureNote')) + '</div>' +
+      '</fieldset>' +
       '<div class="adm-section-title"><h4 style="margin:0">' + esc(t('adm.cat.fieldsTitle')) + '</h4><button type="button" class="btn sm" data-ce="add">' + esc(t('adm.cat.addField')) + '</button></div>' +
       '<p class="small muted" style="margin:0">' + esc(t('adm.cat.fieldsHint')) + '</p>' +
       '<div data-role="fields"></div>' +
@@ -13060,6 +13813,10 @@ body.modal-open { overflow: hidden; }
       else if (isNew) p.sort = ((App.state.cats || []).reduce(function (mx, c) { return Math.max(mx, Number(c.sort) || 0); }, 0) || 0) + 10;
       var origUom = orig && orig.measure_uom != null ? String(orig.measure_uom) : null;
       if (isNew || uom !== origUom) p.measure_uom = uom;
+      var bcEl = qs(root(), '[data-c="bcmode"]:checked');
+      var bc = bcEl && bcEl.value === 'lot' ? 'lot' : 'unit';
+      var origBc = orig && orig.barcode_mode === 'lot' ? 'lot' : 'unit';
+      if ((isNew && bc === 'lot') || (!isNew && bc !== origBc)) p.barcode_mode = bc;     // future receipts only
       return p;
     }
     var buttons = [];
@@ -13082,6 +13839,14 @@ body.modal-open { overflow: hidden; }
       label: t('btn.save'), kind: 'primary', onClick: function () {
         var p = collect();
         if (!p) return false;
+        var ltLot = p.barcode_mode === 'lot' && bcWarnOn(p.code, p.measure_uom !== undefined ? p.measure_uom : (orig && orig.measure_uom), 'lot');
+        return (ltLot ? UI.confirm(t('adm.cat.bcLtConfirm'), { danger: true }) : Promise.resolve(true)).then(function (go) {
+          if (!go) return false;
+          return saveCat(p);
+        });
+      }
+    });
+    function saveCat(p) {
         return Data.saveCategory(p).then(function (res) {
           var saved = res && res.category ? res.category : null;
           UI.toast(t('adm.cat.saved'), 'ok');
@@ -13093,8 +13858,7 @@ body.modal-open { overflow: hidden; }
           showErr([friendlyErr(err, { exists: 'adm.cat.errExists', measure_uom: 'adm.cat.errUom' })]);
           return false;
         });
-      }
-    });
+    }
     m = UI.modal({ title: isNew ? t('adm.cat.newTitle') : t('adm.cat.editTitle', { code: orig.code }), body: body, wide: true, buttons: buttons, cls: 'adm-cat-editor' });
     var r = m.body;
     renderFields();
@@ -13107,7 +13871,16 @@ body.modal-open { overflow: hidden; }
       var c = qs(r, '[data-c="uom_custom"]');
       c.hidden = e.target.value !== '__custom';
       if (!c.hidden) { try { c.focus(); } catch (x) { /* ignore */ } }
+      bcWarnSync();
     });
+    function bcWarnSync() {
+      var w = qs(r, '[data-role=bcwarn]'), sel = qs(r, '[data-c="bcmode"]:checked');
+      var code = isNew ? trimStr(val('code')).toUpperCase() : orig.code;
+      if (w) w.hidden = !bcWarnOn(code, val('uom'), sel ? sel.value : 'unit');
+      var mn = qs(r, '[data-role=bcmeasure]');
+      if (mn) mn.hidden = !(sel && sel.value === 'lot' && val('uom'));   // measured category → forecast becomes count-only
+    }
+    delegate(r, 'change', '[data-c="bcmode"]', bcWarnSync);
     delegate(r, 'input', '[data-fk]', function (e, inp) {
       var i = Number(inp.getAttribute('data-fi')), k = inp.getAttribute('data-fk');
       var f = st.fields[i];
@@ -13366,7 +14139,7 @@ body.modal-open { overflow: hidden; }
       '</th><th class="num">' + esc(t('adm.col.inStock')) + '</th><th>' + esc(t('adm.col.status')) + '</th><th class="num">' + esc(t('adm.col.sort')) + '</th></tr></thead><tbody>' +
       cats.map(function (c) {
         return '<tr class="clickable" data-cat="' + esc(c.code) + '"><td><button type="button" class="linkbtn mono">' + esc(c.code) + '</button></td>' +
-          '<td>' + esc(c.name || '') + '</td><td>' + esc(c.name_en || '') + '</td><td>' + esc(c.unit_label || '') + (c.unit_label_en ? ' / ' + esc(c.unit_label_en) : '') + '</td>' +
+          '<td>' + esc(c.name || '') + (c.barcode_mode === 'lot' ? ' ' + UI.lotBadge() : '') + '</td><td>' + esc(c.name_en || '') + '</td><td>' + esc(c.unit_label || '') + (c.unit_label_en ? ' / ' + esc(c.unit_label_en) : '') + '</td>' +
           '<td>' + esc(c.measure_uom || '–') + '</td><td class="num">' + esc(UI.fieldsOf(c).length) + '</td><td class="num">' + esc(fmtNum(inStock[c.code] || 0)) + '</td>' +
           '<td>' + (c.active === false ? '<span class="badge void">' + esc(t('common.inactive')) + '</span>' : '<span class="badge ok">' + esc(t('adm.cat.active')) + '</span>') + '</td>' +
           '<td class="num">' + esc(c.sort == null ? '' : c.sort) + '</td></tr>';
@@ -13909,7 +14682,8 @@ body.modal-open { overflow: hidden; }
         });
         var rows = [[t('adm.col.code'), t('adm.col.categoryCode'), t('adm.col.category'), t('adm.col.item'), 'SKU', t('adm.col.spec'),
           t('adm.col.amountLeft'), t('adm.col.amountInit'), t('adm.col.uom'), t('adm.col.location'), t('adm.col.receivedOn'), t('adm.col.supplier'),
-          t('adm.col.refNo'), t('adm.col.lot'), t('adm.col.seq'), t('adm.col.note'), t('adm.col.lastMove')]];
+          t('adm.col.refNo'), t('adm.col.lot'), t('adm.col.seq'), t('adm.col.note'), t('adm.col.lastMove'),
+          t('adm.col.qtyLeft'), t('adm.col.qtyRecv'), t('adm.col.qtyLeftOf')]];
         units.forEach(function (u) {
           var it = App.item(u.item_id), cat = it ? App.cat(it.category) : null, lot = lotMap[u.lot_id] || null;
           rows.push([
@@ -13917,7 +14691,8 @@ body.modal-open { overflow: hidden; }
             specLabeled(cat, App.effectiveSpec(lot, u)),
             u.amount_left == null ? '' : Number(u.amount_left), u.amount == null ? '' : Number(u.amount), cat && cat.measure_uom ? cat.measure_uom : '',
             u.location || '', lot ? UI.fmtDate(lot.received_on) : '', (lot && lot.supplier) || (it && it.supplier) || '',
-            lot && lot.ref_no ? lot.ref_no : '', u.lot_id == null ? '' : u.lot_id, u.seq == null ? '' : u.seq, u.note || '', fmtDateTimeSec(u.last_move_at)
+            lot && lot.ref_no ? lot.ref_no : '', u.lot_id == null ? '' : u.lot_id, u.seq == null ? '' : u.seq, u.note || '', fmtDateTimeSec(u.last_move_at),
+            u.qty == null ? '' : Number(u.qty_left), u.qty == null ? '' : Number(u.qty), u.qty == null ? '' : UI.lotLeft(u, cat)
           ]);
         });
         UI.csvDownload('ksm-stock_' + fileStamp() + '.csv', rows);
