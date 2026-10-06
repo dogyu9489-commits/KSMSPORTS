@@ -16055,6 +16055,7 @@
   .bcs-mv{ display:inline-block; font-family:var(--mono); font-size:10.5px; font-weight:600; padding:1px 6px; border-radius:5px; background:#F3F4F6; color:#374151; }
   .bcs-mv-in{ background:#DBEAFE; color:#1E40AF; } .bcs-mv-out{ background:#FEE2E2; color:#B91C1C; }
   .bcs-mv-return{ background:#D1FAE5; color:#065F46; } .bcs-mv-adjust, .bcs-mv-void{ background:#FEF3C7; color:#92400E; }
+  .bcs-pack{ display:inline-block; margin-left:5px; font-size:10px; font-weight:600; padding:0 5px; border-radius:4px; background:#EDE9FE; color:#5B21B6; vertical-align:1px; white-space:nowrap; }   /* v303 — pack (lot-mode) barcode */
   @media (max-width: 1100px){ .bcs-kpis{ grid-template-columns:repeat(3, minmax(0,1fr)); } }
   @media (max-width: 760px){ .bcs-grid2{ grid-template-columns:1fr; } .bcs-modal-bg{ padding:12px 8px; } }
   @media (max-width: 640px){ .bcs-kpis{ grid-template-columns:repeat(2, minmax(0,1fr)); } .bcs-m-head, .bcs-m-body{ padding-left:14px; padding-right:14px; } }
@@ -19931,7 +19932,7 @@ const state = { users:[], session:null };
         with the page open see the banner within ~3-5 seconds of
         the admin's first load of the new version.
 ============================================================ */
-const APP_VERSION = '2026.05.22.302';
+const APP_VERSION = '2026.05.22.303';
 
 /* ============================================================
    Supabase client (singleton)
@@ -56371,6 +56372,15 @@ function _invSwitchTab(tab){
    viewer's device zone, so Korea / Manila viewers see identical numbers.
    Channel + timers are torn down when leaving the tab, the Inventory
    page, or on logout (_bcsStop).
+   v303 — pack barcodes (category barcode_mode 'lot'): one barcode per
+   received pack with a quantity (mat_units.qty / qty_left), issued and
+   returned by quantity. Stock and move counts are PIECES (a pack in
+   stock counts its qty_left; count_delta of a pack move is ±k). Shown
+   here: pieces + "in N barcodes" (mat_stock.in_codes), pack lots with
+   received / left quantity, pack moves as "−10 cones". Extra read-only
+   SELECTs: mat_stock (in_codes) and mat_units (pack rows of one item,
+   detail only) — both optional: an older database without them still
+   renders exactly as before.
    ================================================================ */
 const _BCS_URL = 'https://dogyu9489-commits.github.io/KSMSPORTS/materials.html';
 const _BCS_APP = 'KSM Materials';   // the barcode app's own English title (KO: KSM 자재관리) — one name in every link/message
@@ -56428,6 +56438,19 @@ function _bcsUnitWord(cat, n){
   return w + 's';
 }
 function _bcsUnits(cat, n, d){ return _bcsNum(n, d == null ? 0 : d) + ' ' + _bcsUnitWord(cat, n); }
+/* v303 — signed piece quantity of a move: "−10 cones" / "+100 cones" */
+function _bcsSigned(cat, n){ const v = +n || 0; return (v > 0 ? '+' : (v < 0 ? '−' : '')) + _bcsUnits(cat, Math.abs(v)); }
+/* v303 — barcodes in stock when they differ from the pieces (pack barcodes): "in 5 barcodes" */
+function _bcsInCodes(r){
+  if (r && r.f && _bcsIsNum(r.f.in_codes)) return +r.f.in_codes;
+  return r && r.st && _bcsIsNum(r.st.in_codes) ? +r.st.in_codes : null;
+}
+function _bcsCodesNote(cat, inCount, inCodes){
+  if (!_bcsIsNum(inCodes)) return '';
+  const c = +inCodes;
+  if (c === (+inCount || 0) && !(cat && cat.barcode_mode === 'lot')) return '';
+  return 'in ' + _bcsNum(c, 0) + ' barcode' + (c === 1 ? '' : 's');
+}
 function _bcsAmt(f, n, d){ return _bcsNum(n, d == null ? 2 : d) + (f && f.measure_uom ? ' ' + f.measure_uom : ''); }   // 2 dp = the app's UI.fmtAmount
 /* stock amount text; units received without an amount are named instead of silently adding "0 sqft" */
 function _bcsStockAmt(f, cat){
@@ -56572,10 +56595,12 @@ async function _bcsRefresh(){
   const email = String(state.session && state.session.email || '').toLowerCase();
   try {
     const tz = _bcsTz();
-    const [c, i, f] = await Promise.all([
+    const [c, i, f, sk] = await Promise.all([
       Sb.from('mat_categories').select('*').order('sort', { ascending:true }).order('code', { ascending:true }),
       Sb.from('mat_items').select('*').eq('active', true).order('name', { ascending:true }).limit(5000),
       Sb.rpc('mat_forecast', { p:{ tz } }),
+      // v303 — optional: barcodes in stock per item (in_codes); any error here is ignored
+      Sb.from('mat_stock').select('*').limit(5000).then(x => x, () => ({ data:null, error:true })),
     ]);
     if (gen !== _bcs.gen) return;
     const kc = _bcsErrKind(c.error), ki = _bcsErrKind(i.error), kf = _bcsErrKind(f.error);
@@ -56600,8 +56625,9 @@ async function _bcsRefresh(){
       const fc = f.data || {};
       const catMap = {}; cats.forEach(x => { catMap[x.code] = x; });
       const itemMap = {}; items.forEach(x => { itemMap[String(x.id)] = x; });
+      const stMap = {}; if (sk && !sk.error && Array.isArray(sk.data)) sk.data.forEach(x => { if (x && x.item_id != null) stMap[String(x.item_id)] = x; });   // v303
       const rows = (Array.isArray(fc.items) ? fc.items : []).map(r => ({
-        f: r, it: itemMap[String(r.item_id)] || null, cat: catMap[r.category] || null,
+        f: r, it: itemMap[String(r.item_id)] || null, cat: catMap[r.category] || null, st: stMap[String(r.item_id)] || null,
       }));
       _bcs.data = { email, cats, catMap, items, itemMap, fc, rows };
       _bcs.lastOkAt = Date.now(); _bcs.lastErr = null;
@@ -56748,7 +56774,7 @@ function _bcsPaint(){
         <div class="inv-table-wrap bcs-table-wrap"><table class="inv-table bcs-table">
           <thead><tr>
             <th>Category</th><th>Item</th>
-            <th class="num" title="Barcode units currently in stock (+ remaining measure).">In stock</th>
+            <th class="num" title="Pieces currently in stock — a pack barcode counts its remaining quantity (+ remaining measure).">In stock</th>
             <th class="num" title="Safety stock (minimum units) set on the item in KSM Materials.">Min</th>
             <th class="num" title="Average daily usage over the last 30 days (issues minus returns), in the forecast basis.">Daily use<span class="bcs-th-sub"> /day</span></th>
             <th class="num" title="Net usage in the last 30 days and the change vs the previous 30 days.">30-day use</th>
@@ -56870,6 +56896,7 @@ function _bcsPaintData(){
     const f = r.f, it = r.it || {}, cat = r.cat;
     const s = _BCS_STATUS[f.status] || { label:String(f.status || '—'), cls:'is-idle', tip:'' };
     const amtTxt = _bcsStockAmt(f, cat);
+    const codesTxt = _bcsCodesNote(cat, f.in_count, _bcsInCodes(r));   // v303
     const amt = amtTxt ? `<div class="bcs-sub"${(+f.in_unmeasured || 0) > 0 ? ` data-bcs-unmeasured="1" title="${esc('Some units have no ' + f.measure_uom + ' recorded, so this item is forecast by count.')}"` : ''}>${esc(amtTxt)}</div>` : '';
     const daily = f.basis === 'amount' ? f.daily_amount : f.daily_count;
     const use30 = f.basis === 'amount' ? f.use30_amount : f.use30_count;
@@ -56893,7 +56920,7 @@ function _bcsPaintData(){
     return `<tr data-bcs-row="${esc(String(f.item_id))}" tabindex="0" title="Click for details">
       <td class="cat"><span class="bcs-code">${esc(f.category || '')}</span><div class="bcs-sub">${esc(cat ? (cat.name_en || cat.name) : '')}</div></td>
       <td><div class="bcs-name">${esc(it.name || ('Item #' + f.item_id))}</div>${it.sku ? `<div class="bcs-sub bcs-mono">${esc(it.sku)}</div>` : ''}</td>
-      <td class="num"><div>${esc(_bcsUnits(cat, f.in_count || 0))}</div>${amt}</td>
+      <td class="num"><div>${esc(_bcsUnits(cat, f.in_count || 0))}</div>${codesTxt ? `<div class="bcs-sub" data-bcs-codes="1" title="Barcodes in stock — a pack barcode holds several ${esc(_bcsUnitWord(cat, 2))}">${esc(codesTxt)}</div>` : ''}${amt}</td>
       <td class="num">${esc(minTxt)}</td>
       <td class="num">${(+daily || 0) > 0 ? esc(_bcsBasisQty(f, cat, daily, 2)) : '—'}</td>
       <td class="num"><div>${_bcsIsNum(use30) ? esc(_bcsBasisQty(f, cat, use30, 1)) : '—'}</div>${trend}</td>
@@ -56954,13 +56981,15 @@ async function _bcsRenderDetail(isRefresh){
   let ex;
   try {
     const iid = +id;
-    const [u, lots, ls, mv] = await Promise.all([
+    const [u, lots, ls, mv, pk] = await Promise.all([
       Sb.rpc('mat_usage_series', { p:{ item_id:iid, days:90, tz } }),
       Sb.from('mat_lots').select('*').eq('item_id', iid).order('received_on', { ascending:false }).order('id', { ascending:false }).limit(100),
       Sb.from('mat_lot_stock').select('*').eq('item_id', iid),
       Sb.from('mat_moves').select('*').eq('item_id', iid).order('at', { ascending:false }).order('id', { ascending:false }).limit(20),
+      // v303 — pack barcodes of this item (qty set); an older database without the column → error, ignored
+      Sb.from('mat_units').select('code,lot_id,qty,qty_left,status').eq('item_id', iid).not('qty', 'is', null).limit(5000).then(x => x, () => ({ data:null, error:true })),
     ]);
-    ex = { u, lots, ls, mv };
+    ex = { u, lots, ls, mv, pk };
   } catch(e){ ex = { fatal:e }; }
   if (gen !== _bcs.detailGen || _bcs.detailId !== id) return;
   const fresh = d === _bcs.data ? row : (_bcs.data && _bcs.data.rows.filter(r => String(r.f.item_id) === id)[0]) || row;
@@ -57092,6 +57121,7 @@ function _bcsDetailHtml(row, ex){
   add('Supplier', it.supplier);
   add('Location', it.location);
   add('Unit', cat ? (cat.unit_label_en || cat.unit_label) + (f.measure_uom ? ' (measured in ' + f.measure_uom + ')' : '') : '');
+  if (cat && (cat.barcode_mode === 'lot' || cat.barcode_mode === 'unit')) add('Barcodes', cat.barcode_mode === 'lot' ? 'One per received pack, with a quantity — issued and returned by quantity' : 'One per piece');   // v303
   add('Safety stock (min)', _bcsIsNum(f.min_qty) ? _bcsUnits(cat, f.min_qty, 1) : '—');
   add('Lead time', (_bcsIsNum(f.lead_days) ? f.lead_days + ' days' : '—') + (f.lead_set ? '' : ' (default)'));
   add('Order covers', _bcsIsNum(f.cover_days) ? f.cover_days + ' days' : '—');
@@ -57126,7 +57156,7 @@ function _bcsDetailHtml(row, ex){
   // top destinations
   const dests = Array.isArray(f.top_dests90) ? f.top_dests90 : [];
   const destHtml = dests.length
-    ? `<table class="bcs-mini"><thead><tr><th>Destination</th><th class="num">Units</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}</tr></thead><tbody>${dests.map(x => `<tr><td>${esc(x.dest || '(none)')}</td><td class="num">${esc(_bcsNum(x.count, 0))}</td>${f.measure_uom ? `<td class="num">${esc(_bcsNum(x.amount, 1))}</td>` : ''}</tr>`).join('')}</tbody></table>`
+    ? `<table class="bcs-mini"><thead><tr><th>Destination</th><th class="num">${cat && cat.barcode_mode === 'lot' ? esc(_bcsUnitWord(cat, 2).replace(/^[a-z]/, c => c.toUpperCase())) : 'Units'}</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}</tr></thead><tbody>${dests.map(x => `<tr><td>${esc(x.dest || '(none)')}</td><td class="num">${esc(_bcsNum(x.count, 0))}</td>${f.measure_uom ? `<td class="num">${esc(_bcsNum(x.amount, 1))}</td>` : ''}</tr>`).join('')}</tbody></table>`
     : `<div class="bcs-muted">No issues in the last 90 days.</div>`;
   // chart / lots / moves (async)
   let chart = loading, lotsHtml = loading, movesHtml = loading;
@@ -57135,6 +57165,22 @@ function _bcsDetailHtml(row, ex){
     chart = lotsHtml = movesHtml = m;
   } else if (ex){
     chart = ex.u.error ? exErr(ex.u) : _bcsChartSvg(f, cat, ex.u.data);
+    // v303 — pack barcodes per lot (received / left pieces, barcodes by status) and the set of pack codes
+    const packs = {}, packCodes = {}, packIn = [];
+    if (ex.pk && !ex.pk.error && Array.isArray(ex.pk.data)) ex.pk.data.forEach(x => {
+      if (!x || x.qty == null || !_bcsIsNum(x.qty)) return;
+      packCodes[String(x.code)] = 1;
+      if (x.status === 'in') packIn.push(x);
+      const k = String(x.lot_id);
+      const p = packs[k] || (packs[k] = { qty:0, left:0, n:0, inN:0, outN:0, voidN:0 });
+      p.qty += +x.qty || 0; p.n++;
+      if (x.status === 'in'){ p.inN++; p.left += +x.qty_left || 0; }
+      else if (x.status === 'out') p.outN++;
+      else if (x.status === 'void') p.voidN++;
+    });
+    const nPk = (n) => esc(_bcsNum(n, 0)) + ' pack' + (+n === 1 ? '' : 's');
+    const hasPk = Object.keys(packs).length > 0;   // v303 — header tooltips only when the item has pack lots
+    const packTag = `<span class="bcs-pack" title="Pack barcode: one barcode per received pack, with a quantity">pack</span>`;
     if (ex.lots.error) lotsHtml = exErr(ex.lots);
     else {
       const lsMap = {}; (ex.ls.data || []).forEach(x => { lsMap[String(x.lot_id)] = x; });
@@ -57145,23 +57191,48 @@ function _bcsDetailHtml(row, ex){
       });
       const inLots = lots.filter(l => (lsMap[String(l.id)] || {}).in_count > 0).length;
       lotsHtml = lots.length ? `<div class="bcs-muted" style="margin-bottom:6px">${esc(String(inLots))} of ${esc(String(lots.length))} lot${lots.length === 1 ? '' : 's'} still have stock${ex.ls.error ? ' · stock per lot unavailable' : ''}</div>
-        <div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>Received</th><th>Ref / PO</th><th>Supplier</th><th class="num">Units</th><th class="num">In stock</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)} left</th>` : ''}<th class="num">Out</th><th class="num">Void</th></tr></thead><tbody>${lots.map(l => {
+        <div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>Received</th><th>Ref / PO</th><th>Supplier</th>${hasPk ? `<th class="num" title="${esc(_bcsUnitWord(cat, 2))} the lot's barcodes hold — a pack counts its current pack size (incl. manager corrections)">Units</th><th class="num" title="${esc(_bcsUnitWord(cat, 2))} still in stock — a pack counts what is left in it">In stock</th>` : `<th class="num">Units</th><th class="num">In stock</th>`}${f.measure_uom ? `<th class="num">${esc(f.measure_uom)} left</th>` : ''}${hasPk ? `<th class="num" title="Barcodes issued out (packs: emptied or missing at stocktake)">Out</th><th class="num" title="Barcodes voided">Void</th>` : `<th class="num">Out</th><th class="num">Void</th>`}</tr></thead><tbody>${lots.map(l => {
           const x = lsMap[String(l.id)] || {};
+          const pk = packs[String(l.id)];
+          if (pk){
+            const inPcs = _bcsIsNum(x.in_count) ? +x.in_count : pk.left;
+            return `<tr class="${inPcs > 0 ? '' : 'is-dim'}" data-bcs-packlot="1"><td>${esc(l.received_on || '')}${packTag}</td><td>${esc(l.ref_no || '—')}</td><td>${esc(l.supplier || '—')}</td><td class="num">${esc(_bcsUnits(cat, pk.qty))}<div class="bcs-sub">${nPk(pk.n)}</div></td><td class="num">${esc(_bcsUnits(cat, inPcs))}<div class="bcs-sub">${nPk(pk.inN)}</div></td>${f.measure_uom ? `<td class="num">—</td>` : ''}<td class="num">${nPk(pk.outN)}</td><td class="num">${nPk(pk.voidN)}</td></tr>`;
+          }
           return `<tr class="${(+x.in_count || 0) > 0 ? '' : 'is-dim'}"><td>${esc(l.received_on || '')}</td><td>${esc(l.ref_no || '—')}</td><td>${esc(l.supplier || '—')}</td><td class="num">${esc(_bcsNum(l.unit_count, 0))}</td><td class="num">${esc(_bcsNum(x.in_count || 0, 0))}</td>${f.measure_uom ? `<td class="num">${esc(_bcsNum(x.in_amount || 0, 1))}</td>` : ''}<td class="num">${esc(_bcsNum(x.out_count || 0, 0))}</td><td class="num">${esc(_bcsNum(x.void_count || 0, 0))}</td></tr>`;
         }).join('')}</tbody></table></div>` : `<div class="bcs-muted">No lots received yet.</div>`;
+      // v303 — pack barcodes in stock: "73 / 100 cones left" (opened packs first)
+      if (packIn.length){
+        const lotDay = {}; lots.forEach(l => { lotDay[String(l.id)] = l.received_on || ''; });
+        const MAXP = 30;
+        const pl = packIn.slice().sort((a, b) => {
+          const oa = +a.qty_left < +a.qty ? 0 : 1, ob = +b.qty_left < +b.qty ? 0 : 1;
+          if (oa !== ob) return oa - ob;
+          return String(lotDay[String(a.lot_id)] || '').localeCompare(String(lotDay[String(b.lot_id)] || '')) || String(a.code).localeCompare(String(b.code));
+        });
+        lotsHtml += `<div class="bcs-muted" style="margin:10px 0 6px">Pack barcodes in stock: ${esc(_bcsNum(packIn.length, 0))}${packIn.length > MAXP ? ` (first ${MAXP} shown)` : ''}</div>
+        <div class="bcs-scroll"><table class="bcs-mini" data-bcs-packs="1"><thead><tr><th>Barcode</th><th>Received</th><th class="num" title="${esc(_bcsUnitWord(cat, 2))} left in the pack / received in it">Left</th></tr></thead><tbody>${pl.slice(0, MAXP).map(x => {
+          const opened = +x.qty_left < +x.qty;
+          return `<tr><td class="bcs-mono">${esc(x.code || '—')}${packTag}</td><td>${esc(lotDay[String(x.lot_id)] || '—')}</td><td class="num">${esc(_bcsNum(x.qty_left, 0) + ' / ' + _bcsUnits(cat, x.qty))}${opened ? `<div class="bcs-sub">opened</div>` : ''}</td></tr>`;
+        }).join('')}</tbody></table></div>`;
+      }
     }
     if (ex.mv.error) movesHtml = exErr(ex.mv);
     else {
       const mv = ex.mv.data || [];
-      movesHtml = mv.length ? `<div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>When</th><th>Type</th><th>Barcode</th><th class="num">Qty</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}<th>To / person / purpose</th><th>By</th></tr></thead><tbody>${mv.map(x => {
+      const hasQty = (o) => !!(o && typeof o === 'object' && (o.qty_left != null || o.qty != null));   // pack snapshot {status, qty_left}
+      const anyPk = Object.keys(packCodes).length > 0;   // v303
+      movesHtml = mv.length ? `<div class="bcs-scroll"><table class="bcs-mini"><thead><tr><th>When</th><th>Type</th><th>Barcode</th><th class="num" title="${esc(_bcsUnitWord(cat, 2))} added (+) or taken out (−) — a pack barcode moves by the quantity entered">Qty</th>${f.measure_uom ? `<th class="num">${esc(f.measure_uom)}</th>` : ''}<th>To / person / purpose</th><th>By</th></tr></thead><tbody>${mv.map(x => {
         const det = [x.dest, x.person, x.purpose, x.memo].filter(v => v != null && v !== '').join(' · ');
         const cd = +x.count_delta || 0;
-        return `<tr><td class="bcs-nowrap">${esc(_bcsTs(x.at))}</td><td><span class="bcs-mv bcs-mv-${esc(String(x.type || '').toLowerCase())}">${esc(x.type || '')}</span></td><td class="bcs-mono">${esc(x.code || '—')}</td><td class="num">${cd ? esc((cd > 0 ? '+' : '') + cd) : '0'}</td>${f.measure_uom ? `<td class="num">${_bcsIsNum(x.amount) ? esc(_bcsNum(x.amount, 2)) : '—'}</td>` : ''}<td>${esc(det || '—')}</td><td>${esc(x.by_name || x.by_email || '')}</td></tr>`;
+        const isPack = !!((x.code && packCodes[String(x.code)]) || hasQty(x.after) || hasQty(x.before));
+        const qtyCell = (isPack || anyPk) ? (cd ? esc(_bcsSigned(cat, cd)) : '0') : (cd ? esc((cd > 0 ? '+' : '') + cd) : '0');   // v303 — an item with pack barcodes: every row "−1 roll"
+        return `<tr${isPack ? ' data-bcs-packmove="1"' : ''}><td class="bcs-nowrap">${esc(_bcsTs(x.at))}</td><td><span class="bcs-mv bcs-mv-${esc(String(x.type || '').toLowerCase())}">${esc(x.type || '')}</span></td><td class="bcs-mono">${esc(x.code || '—')}${isPack ? packTag : ''}</td><td class="num">${qtyCell}</td>${f.measure_uom ? `<td class="num">${_bcsIsNum(x.amount) ? esc(_bcsNum(x.amount, 2)) : '—'}</td>` : ''}<td>${esc(det || '—')}</td><td>${esc(x.by_name || x.by_email || '')}</td></tr>`;
       }).join('')}</tbody></table></div>` : `<div class="bcs-muted">No moves yet.</div>`;
     }
   }
   const stockAmtD = _bcsStockAmt(f, cat);
-  const stockLine = esc(_bcsUnits(cat, f.in_count || 0)) + (stockAmtD ? ` · ${esc(stockAmtD)}` : '');
+  const codesD = _bcsCodesNote(cat, f.in_count, _bcsInCodes(row));   // v303 — pack barcodes
+  const stockLine = esc(_bcsUnits(cat, f.in_count || 0)) + (codesD ? ` <small>${esc(codesD)}</small>` : '') + (stockAmtD ? ` · ${esc(stockAmtD)}` : '');
   return `
     <div class="bcs-m-head">
       <div>
