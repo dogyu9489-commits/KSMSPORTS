@@ -8,7 +8,7 @@
 <meta name="color-scheme" content="light">
 <meta name="format-detection" content="telephone=no">
 <meta name="robots" content="noindex, nofollow">
-<meta name="ksm-mat-version" content="2026.10.06.3">
+<meta name="ksm-mat-version" content="2026.10.07.2">
 <link rel="icon" href="data:,">
 <title>KSM 자재관리</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
@@ -2457,18 +2457,23 @@ body.modal-open { overflow: hidden; }
     var lastRaw = null;    // last committed serialization (also the rollback snapshot)
 
     function emptyState() {
-      return { schema: SCHEMA, rev: 0, demo_role: 'admin', seq: { item: 0, lot: 0, move: 0 },
-        categories: [], items: [], lots: [], units: [], moves: [], counters: {}, settings: {}, members: [] };
+      return { schema: SCHEMA, rev: 0, demo_role: 'admin', seq: { item: 0, lot: 0, move: 0, pending: 0 },
+        categories: [], items: [], lots: [], units: [], moves: [], counters: {}, settings: {}, members: [], pending: [], links: [] };
     }
     function moveKey(op, code, type) { return op + '|' + (code || '') + '|' + type; }
     function rebuildIndex() {
-      IX = { cat: new Map(), item: new Map(), lot: new Map(), unit: new Map(), lotByOp: new Map(), moveByKey: new Map() };
+      IX = { cat: new Map(), item: new Map(), lot: new Map(), unit: new Map(), lotByOp: new Map(), moveByKey: new Map(),
+        pending: new Map(), pendingKey: new Map(), link: new Map() };
       S.categories.forEach(function (c) { IX.cat.set(c.code, c); });
       S.items.forEach(function (it) { IX.item.set(it.id, it); });
       S.lots.forEach(function (l) { IX.lot.set(l.id, l); IX.lotByOp.set(l.op_id, l); });
       S.units.forEach(function (u) { IX.unit.set(u.code, u); });
       S.moves.forEach(function (m) { IX.moveByKey.set(moveKey(m.op_id, m.code, m.type), m); });
+      (S.pending || []).forEach(function (r) { IX.pending.set(r.id, r); IX.pendingKey.set(pendKey(r.src, r.src_ref, r.src_line), r); });
+      (S.links || []).forEach(function (l) { IX.link.set(linkKey(l.src, l.src_key), l); });
     }
+    function pendKey(src, ref, line) { return JSON.stringify([src, ref, line]); }
+    function linkKey(src, key) { return JSON.stringify([src, key]); }
     function validShape(o) {
       return isObj(o) && o.schema === SCHEMA && isObj(o.seq) && Array.isArray(o.categories) && Array.isArray(o.items) &&
         Array.isArray(o.lots) && Array.isArray(o.units) && Array.isArray(o.moves) && isObj(o.counters) &&
@@ -2477,6 +2482,10 @@ body.modal-open { overflow: hidden; }
     // blobs written by older versions (= re-running the SQL setup on an existing DB): new item columns default to null,
     // the 'forecast' setting is seeded only when missing
     function migrate(o) {
+      // v5 pending receipts / item links (= new tables on re-run): start empty
+      if (!Array.isArray(o.pending)) o.pending = [];
+      if (!Array.isArray(o.links)) o.links = [];
+      if (typeof o.seq.pending !== 'number') o.seq.pending = o.pending.reduce(function (m, r) { return Math.max(m, (r && r.id) || 0); }, 0);
       // v3 pack barcodes: existing categories are per-piece, existing units have no qty
       o.categories.forEach(function (c) { if (isObj(c) && !hasOwn(c, 'barcode_mode')) c.barcode_mode = 'unit'; });
       o.units.forEach(function (u) {
@@ -2531,7 +2540,7 @@ body.modal-open { overflow: hidden; }
     }
     function rollback() {
       if (lastRaw !== null) {
-        try { S = JSON.parse(lastRaw); rebuildIndex(); return; } catch (e) { /* fall through */ }
+        try { S = JSON.parse(lastRaw); migrate(S); rebuildIndex(); return; } catch (e) { /* fall through */ }
       }
       seedState(); persist();
     }
@@ -2795,6 +2804,14 @@ body.modal-open { overflow: hidden; }
       }
       S.items = S.items.filter(function (x) { return x.id !== id; });
       IX.item.delete(id);
+      // FKs: mat_item_links on delete cascade, mat_pending_receipts.item_id on delete set null
+      S.links = S.links.filter(function (l) {
+        if (l.item_id !== id) return true;
+        IX.link.delete(linkKey(l.src, l.src_key));
+        emit(c, 'mat_item_links', 'DELETE', { src: l.src, src_key: l.src_key });
+        return false;
+      });
+      S.pending.forEach(function (r) { if (r.item_id === id) { r.item_id = null; emit(c, 'mat_pending_receipts', 'UPDATE', r); } });
       emit(c, 'mat_items', 'DELETE', { id: id });
       return { deleted: true, deactivated: false };
     }
@@ -2821,6 +2838,7 @@ body.modal-open { overflow: hidden; }
       var loc = ptxt(p, 'location', 200);
       var memo = ptxt(p, 'memo', 2000);
       var units = parr(p, 'units', 1, 1000);
+      var pid = pint(p, 'pending_id', 1, BIGINT_MAX);              // optional: completes that 입고 대기 row atomically
       var item = IX.item.get(itemId);
       if (!item) fail('NOT_FOUND', 'item');
       var cat = IX.cat.get(item.category);
@@ -2846,6 +2864,14 @@ body.modal-open { overflow: hidden; }
           spec: pspec(u.spec, 'units.spec'), note: ptxt(u, 'note', 1000) };
       });
       var n = prepared.length;
+      // pending receipt: must be 'pending' and (when its item is set) for the same item
+      var pend = null;
+      if (pid !== null) {
+        pend = IX.pending.get(pid);
+        if (!pend) fail('NOT_FOUND', 'pending');
+        if (pend.status !== 'pending') fail('CONFLICT', 'pending_' + pend.status);
+        if (pend.item_id !== null && pend.item_id !== item.id) fail('CONFLICT', 'pending_item');
+      }
       // allocate codes (prefix counter); on collision push the counter past the max existing code and retry
       var prefix = cat.code, codes, tries = 0;
       for (;;) {
@@ -2877,7 +2903,202 @@ body.modal-open { overflow: hidden; }
           count_delta: u.qty === null ? 1 : u.qty, dest: supplier, purpose: ref, memo: memo,
           after: u.qty === null ? null : stSnap('in', u.qty) });
       });
+      if (pend) {
+        pend.status = 'done'; pend.lot_id = lot.id; pend.item_id = item.id; pend.done_by = c.email; pend.done_at = c.iso;
+        emit(c, 'mat_pending_receipts', 'UPDATE', pend);
+      }
       return { lot_id: lot.id, codes: codes, dup: false };
+    }
+
+    // ---- 입고 대기 (pending receipts from the KSM intranet purchase QC) + item links (= SQL §7b)
+    var PENDING_SRCS = ['ksm_purchase'];
+    var PENDING_STATUSES = ['pending', 'done', 'cancelled'];
+    // mat__src_key: trim ASCII whitespace, collapse runs to one space, ASCII A–Z → lower-case; '' → null
+    function srcKey(s) {
+      if (s === null || s === undefined) return null;
+      var k = String(s).replace(/^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g, '').replace(/[ \t\r\n\f\v]+/g, ' ')
+        .replace(/[A-Z]/g, function (ch) { return ch.toLowerCase(); });
+      return k === '' ? null : k;
+    }
+    function asciiUpper(s) { return s === null ? null : s.replace(/[a-z]/g, function (ch) { return ch.toUpperCase(); }); }
+    function itemUsable(id) {
+      var it = IX.item.get(id);
+      if (!it) return null;
+      var cat = IX.cat.get(it.category);
+      return { item: it, active: !!(it.active && cat && cat.active) };
+    }
+    function psrc(p) {
+      var src = ptxt(p, 'src', 40);
+      if (PENDING_SRCS.indexOf(src) < 0) bad('src');
+      return src;
+    }
+    function jdateOk(line, k) {
+      try { return { val: pdate(line, k), ok: true }; } catch (e) { return { val: null, ok: false }; }
+    }
+
+    function opPendingCreate(p, c) {
+      need(c, 'staff');
+      p = pobj(p);
+      var src = psrc(p);
+      var ref = ptxt(p, 'src_ref', 200);
+      if (ref === null) bad('src_ref');
+      var lines = parr(p, 'lines', 1, 1000);
+      var seen = new Set();
+      var results = lines.map(function (ln) {
+        if (!isObj(ln)) return { src_line: null, ok: false, err: 'bad_input', field: 'line' };
+        var tl = jtext(ln.src_line, 100);
+        if (!tl.ok || tl.val === null) return { src_line: null, ok: false, err: 'bad_input', field: 'src_line' };
+        var sl = tl.val;
+        if (seen.has(sl)) return { src_line: sl, ok: false, err: 'duplicate' };
+        seen.add(sl);
+        var ex = IX.pendingKey.get(pendKey(src, ref, sl));
+        if (ex) return { src_line: sl, ok: true, id: ex.id, dup: true, status: ex.status, item_id: ex.item_id };
+        // field validation, first bad field wins (same order as SQL)
+        var v = {}, r;
+        function txt(k, max, out) { r = jtext(ln[k], max); if (!r.ok) return k; v[out || k] = r.val; return null; }
+        var field = txt('item_code', 200);
+        if (!field) { r = jtext(ln.item_name, 300); if (!r.ok || (r.val === null && v.item_code === null)) field = 'item_name'; else v.item_name = r.val; }
+        if (!field) {
+          r = jnum(ln.item_id);
+          if (!r.ok || (r.val !== null && (Math.floor(r.val) !== r.val || r.val < 1))) field = 'item_id'; else v.item_id = r.val;
+        }
+        if (!field) { r = jnum(ln.qty); if (!r.ok || r.val === null || r.val <= 0) field = 'qty'; else v.qty = r.val; }
+        if (!field) field = txt('uom', 20);
+        if (!field) { r = jnum(ln.unit_price); if (!r.ok || (r.val !== null && r.val < 0)) field = 'unit_price'; else v.unit_price = r.val; }
+        if (!field) { r = jtext(ln.currency, 10); if (!r.ok) field = 'currency'; else v.currency = asciiUpper(r.val); }
+        if (!field) { r = jnum(ln.fx_rate); if (!r.ok || (r.val !== null && r.val <= 0)) field = 'fx_rate'; else v.fx_rate = r.val; }
+        if (!field) field = txt('supplier', 200);
+        if (!field) field = txt('ref_no', 200);
+        if (!field) { r = jdateOk(ln, 'received_on'); if (!r.ok) field = 'received_on'; else v.received_on = r.val; }
+        if (!field) field = txt('note', 2000);
+        if (field) return { src_line: sl, ok: false, err: 'bad_input', field: field };
+        var itemId = v.item_id;
+        if (itemId !== null) {
+          var us = itemUsable(itemId);
+          if (!us) return { src_line: sl, ok: false, err: 'item_not_found' };
+          if (!us.active) return { src_line: sl, ok: false, err: 'item_inactive' };
+        } else {
+          var lk = IX.link.get(linkKey(src, srcKey(v.item_code !== null ? v.item_code : v.item_name)));
+          var lu = lk ? itemUsable(lk.item_id) : null;
+          itemId = lu && lu.active ? lk.item_id : null;
+        }
+        S.seq.pending = (S.seq.pending || 0) + 1;
+        var row = { id: S.seq.pending, src: src, src_ref: ref, src_line: sl, item_id: itemId, src_item_code: v.item_code,
+          src_item_name: v.item_name, qty: v.qty, uom: v.uom, unit_price: v.unit_price, currency: v.currency, fx_rate: v.fx_rate,
+          supplier: v.supplier, ref_no: v.ref_no, received_on: v.received_on, note: v.note, status: 'pending', lot_id: null,
+          created_by: c.email, created_at: c.iso, done_by: null, done_at: null, cancel_reason: null };
+        S.pending.push(row); IX.pending.set(row.id, row); IX.pendingKey.set(pendKey(src, ref, sl), row);
+        emit(c, 'mat_pending_receipts', 'INSERT', row);
+        return { src_line: sl, ok: true, id: row.id, status: 'pending', item_id: itemId };
+      });
+      return { results: results };
+    }
+
+    function opPendingList(p, c) {
+      need(c, 'viewer');
+      p = pobj(p);
+      var st = ptxt(p, 'status', 20);
+      if (st === null) st = 'pending';
+      if (st !== 'all' && PENDING_STATUSES.indexOf(st) < 0) bad('status');
+      var src = ptxt(p, 'src', 40);
+      var ref = ptxt(p, 'src_ref', 200);
+      var limit = pint(p, 'limit', 1, 2000);
+      if (limit === null) limit = 500;
+      return S.pending.filter(function (r) {
+        return (st === 'all' || r.status === st) && (src === null || r.src === src) && (ref === null || r.src_ref === ref);
+      }).sort(function (a, b) { return b.id - a.id; }).slice(0, limit).map(function (r) {
+        var o = clone(r);
+        var codes = r.lot_id !== null ? lotCodes(r.lot_id) : [];
+        o.codes = codes.length ? codes : null;
+        return o;
+      });
+    }
+
+    function opPendingCancel(p, c) {
+      need(c, 'staff');
+      p = pobj(p);
+      var id = pint(p, 'id', 1, BIGINT_MAX);
+      if (id === null) bad('id');
+      var reason = ptxt(p, 'reason', 500);
+      if (reason === null) bad('reason');
+      var rel = ptxt(p, 'src_ref', 200);
+      var row = IX.pending.get(id);
+      if (!row) fail('NOT_FOUND', 'pending');
+      // manager+, or the account that created it, or (staff+) an intranet purchase return/delete release:
+      // a 'ksm_purchase' row whose src_ref the caller names, with the exact reason 'purchase return/delete'
+      if (rank(c.role) < ROLE_RANK.manager && row.created_by !== c.email &&
+          !(row.src === 'ksm_purchase' && rel !== null && rel === row.src_ref && reason === 'purchase return/delete')) fail('FORBIDDEN', 'requires manager');
+      if (row.status === 'done') fail('CONFLICT', 'done');
+      if (row.status === 'cancelled') return { ok: true, dup: true, pending: row };
+      row.status = 'cancelled'; row.cancel_reason = reason; row.done_by = c.email; row.done_at = c.iso;
+      emit(c, 'mat_pending_receipts', 'UPDATE', row);
+      return { ok: true, dup: false, pending: row };
+    }
+
+    function opLinkItem(p, c) {
+      need(c, 'staff');
+      p = pobj(p);
+      var src = psrc(p);
+      var tk = jtext(p.src_key, 200);
+      if (!tk.ok) bad('src_key');
+      var key = srcKey(tk.val);
+      if (key === null) bad('src_key');
+      if (!hasOwn(p, 'item_id')) bad('item_id');
+      var itemId = pint(p, 'item_id', 1, BIGINT_MAX);
+      var lk = linkKey(src, key);
+      var cur = IX.link.get(lk) || null;
+      if (itemId === null) {
+        if (cur) {
+          S.links = S.links.filter(function (l) { return l !== cur; });
+          IX.link.delete(lk);
+          emit(c, 'mat_item_links', 'DELETE', { src: src, src_key: key });
+        }
+        return { ok: true, link: null, deleted: !!cur, pending_updated: 0 };
+      }
+      var item = IX.item.get(itemId);
+      if (!item) fail('NOT_FOUND', 'item');
+      var cat = IX.cat.get(item.category);
+      if (!item.active) fail('CONFLICT', 'item_inactive');
+      if (!cat || !cat.active) fail('CONFLICT', 'category_inactive');
+      if (!cur) {
+        cur = { src: src, src_key: key, item_id: itemId, created_by: c.email, created_at: c.iso };
+        S.links.push(cur); IX.link.set(lk, cur);
+        emit(c, 'mat_item_links', 'INSERT', cur);
+      } else if (cur.item_id !== itemId) {
+        cur.item_id = itemId; cur.created_by = c.email; cur.created_at = c.iso;
+        emit(c, 'mat_item_links', 'UPDATE', cur);
+      }
+      var nUpd = 0;
+      S.pending.forEach(function (r) {
+        if (r.src !== src || r.status !== 'pending' || r.item_id !== null) return;
+        if (srcKey(r.src_item_code !== null ? r.src_item_code : r.src_item_name) !== key) return;
+        r.item_id = itemId; nUpd++;
+        emit(c, 'mat_pending_receipts', 'UPDATE', r);
+      });
+      return { ok: true, link: cur, deleted: false, pending_updated: nUpd };
+    }
+
+    // mat_link_lookup: any approved KSM account (role-independent; the demo's 'none' = not approved)
+    function opLinkLookup(p, c) {
+      if (rank(c.role) < ROLE_RANK.viewer) fail('FORBIDDEN', 'requires approved account');
+      p = pobj(p);
+      var src = ptxt(p, 'src', 40);
+      if (src !== 'ksm_purchase') bad('src');
+      var keys = parr(p, 'keys', 1, 1000);
+      var want = new Set();
+      keys.forEach(function (k) {
+        var t = jtext(k, 200);
+        if (!t.ok) bad('keys');
+        var n = srcKey(t.val);
+        if (n !== null) want.add(n);
+      });
+      return S.links.filter(function (l) { return l.src === src && want.has(l.src_key) && IX.item.get(l.item_id); })
+        .sort(function (a, b) { return cmpStr(a.src_key, b.src_key); })
+        .map(function (l) {
+          var it = IX.item.get(l.item_id), cat = IX.cat.get(it.category);
+          return { src_key: l.src_key, item_id: l.item_id, name: it.name, sku: it.sku === undefined ? null : it.sku,
+            category: it.category, active: !!(it.active && cat && cat.active) };
+        });
     }
 
     function opIssue(p, c) {
@@ -3777,6 +3998,21 @@ body.modal-open { overflow: hidden; }
       opIssue({ op_id: uuid(), dest: '봉제 Sewing', person: 'Ana Reyes', purpose: 'Line 2 weekly', lines: [lotLine(pthA[0], 27), lotLine(pthA[1], 100)] }, C(at(2, 8, 15)));
       opIssue({ op_id: uuid(), dest: '배팅장갑 라인 Batting Glove', person: 'Carlo Ramos', purpose: 'BG-221', lines: [lotLine(snapA[0], 200)] }, C(at(1, 9, 30)));
       // white thread: 300 cones in 3 boxes (box 1 and box 2 used up); brass snaps: 1,180 in 3 bags (bag 1 opened, 180 left)
+
+      // ---- 입고 대기: the KSM intranet purchase QC passed a delivery today → 3 lines wait in 📥 입고 (one not linked yet).
+      // Created by the intranet's QC inspector (another account), so a demo 'staff' cannot cancel them — a manager can.
+      function PQ(d) { var cx = C(d); cx.email = 'qc@ksm.local'; cx.name = 'Purchase QC'; return cx; }
+      opLinkItem({ src: 'ksm_purchase', src_key: 'PM-LT-KIP-TAN-12', item_id: kip }, PQ(at(0, 7, 50)));
+      opLinkItem({ src: 'ksm_purchase', src_key: 'PM-TH-PE-40-3-WH', item_id: pthread }, PQ(at(0, 7, 51)));
+      var today0 = ymd(at(0, 8, 0));
+      opPendingCreate({ src: 'ksm_purchase', src_ref: 'RCV-DEMO-0001', lines: [
+        { src_line: '1', item_code: 'PM-LT-KIP-TAN-12', item_name: 'Kip Leather Tan 1.2mm', qty: 6, uom: 'hide', unit_price: 4200,
+          currency: 'PHP', fx_rate: 1, supplier: 'Hokkaido Kip Leather Co.', ref_no: 'PO-2026-0107', received_on: today0, note: 'QC pass' },
+        { src_line: '2', item_code: 'PM-TH-PE-40-3-WH', item_name: 'Polyester Thread 40/3 White', qty: 200, uom: 'cone', unit_price: 38.5,
+          currency: 'PHP', fx_rate: 1, supplier: 'Manila Thread Supply', ref_no: 'PO-2026-0107', received_on: today0 },
+        { src_line: '3', item_code: 'PM-LT-COW-NAT-13', item_name: 'Cowhide Natural 1.3mm', qty: 4, uom: 'hide', unit_price: 75,
+          currency: 'USD', fx_rate: 56.2, supplier: 'Midwest Steer Tannery', ref_no: 'PO-2026-0107', received_on: today0, note: 'not linked yet' }
+      ] }, PQ(at(0, 8, 0)));
       S.demo_role = 'admin';
     }
 
@@ -3921,6 +4157,18 @@ body.modal-open { overflow: hidden; }
       setMember: write(opSetMember),
       forecast: call(opForecast),
       usageSeries: call(opUsageSeries),
+      // 입고 대기 / item links (mat_pending_create / mat_pending_list / mat_pending_cancel / mat_link_item; table mat_item_links)
+      pendingCreate: write(opPendingCreate),
+      pendingList: call(opPendingList),
+      pendingCancel: write(opPendingCancel),
+      linkItem: write(opLinkItem),
+      linkLookup: call(opLinkLookup),
+      listItemLinks: function () {
+        return read(function (c) {
+          if (!canRead(c)) return [];
+          return S.links.slice().sort(function (a, b) { return cmpStr(a.src, b.src) || cmpStr(a.src_key, b.src_key); });
+        });
+      },
 
       exportAll: function () {
         return read(function (c) {
@@ -4069,7 +4317,8 @@ body.modal-open { overflow: hidden; }
       'app.tagline': '가죽 · 실 · 펠트 · 폼 등 자재 바코드 관리',
       'nav.dashboard': '재고현황', 'nav.lookup': '바코드 조회', 'nav.receive': '입고', 'nav.issue': '반출',
       'nav.return': '반입', 'nav.history': '입출고 이력', 'nav.forecast': '수요예측', 'nav.stocktake': '재고실사', 'nav.labels': '라벨',
-      'nav.settings': '설정', 'nav.item': '품목 상세', 'nav.menu': '메뉴',
+      'nav.settings': '설정', 'nav.item': '품목 상세', 'nav.menu': '메뉴', 'nav.badge': '{n}건 대기',
+      'pur.from': '구매 입고 {ref}', 'pur.fromTitle': 'KSM 인트라넷 구매 입고 대기에서 처리됨 (입고 대기 #{id})',
       'hdr.demo': 'DEMO', 'hdr.demoTitle': '데모 모드 — 이 PC에만 저장되는 연습용 데이터입니다',
       'hdr.queue': '전송 대기 {n}', 'hdr.logout': '로그아웃', 'hdr.exitDemo': '데모 종료',
       'hdr.lang': 'EN', 'hdr.langTitle': 'Switch to English',
@@ -4153,7 +4402,8 @@ body.modal-open { overflow: hidden; }
       'app.tagline': 'Barcode inventory for leather, thread, felt, foam and more',
       'nav.dashboard': 'Stock', 'nav.lookup': 'Barcode Lookup', 'nav.receive': 'Receive', 'nav.issue': 'Issue',
       'nav.return': 'Return', 'nav.history': 'History', 'nav.forecast': 'Forecast', 'nav.stocktake': 'Stocktake', 'nav.labels': 'Labels',
-      'nav.settings': 'Settings', 'nav.item': 'Item detail', 'nav.menu': 'Menu',
+      'nav.settings': 'Settings', 'nav.item': 'Item detail', 'nav.menu': 'Menu', 'nav.badge': '{n} waiting',
+      'pur.from': 'From purchase {ref}', 'pur.fromTitle': 'Completed from a KSM intranet purchase receipt (waiting receipt #{id})',
       'hdr.demo': 'DEMO', 'hdr.demoTitle': 'Demo mode — practice data stored on this PC only',
       'hdr.queue': 'Pending {n}', 'hdr.logout': 'Log out', 'hdr.exitDemo': 'Exit demo',
       'hdr.lang': '한국어', 'hdr.langTitle': '한국어로 전환',
@@ -4944,7 +5194,7 @@ body.modal-open { overflow: hidden; }
   var DEFAULT_CONN = { url: 'https://pgjawfpguzjhkvfrhqwh.supabase.co', anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBnamF3ZnBndXpqaGt2ZnJocXdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ4NDc3MTYsImV4cCI6MjA5MDQyMzcxNn0.c_NQoTEpcx5nA3ifFlQ0j8M2TP-G8wtjlPIqGpIM7MI' };
   // build stamp — build.mjs substitutes both placeholders (SPEC §0.1). Unbuilt source → dev / non-prod.
   var BUILD_PROD_RAW = '1';
-  var BUILD_VERSION_RAW = '2026.10.06.3';
+  var BUILD_VERSION_RAW = '2026.10.07.2';
   var BUILD = {
     prod: BUILD_PROD_RAW === '1',
     version: /^__/.test(BUILD_VERSION_RAW) ? 'dev' : BUILD_VERSION_RAW
@@ -4952,6 +5202,9 @@ body.modal-open { overflow: hidden; }
   var KEY_PLACEHOLDER = '__ANON' + '_KEY__';
   var CONN_KEY = 'ksm-mat-conn';
   var RT_TABLES = ['mat_units', 'mat_moves', 'mat_items', 'mat_categories', 'mat_lots', 'mat_settings', 'mat_members'];
+  // purchase → barcode pending receipts (SPEC §2.6). Subscribed only after mat_pending_list answered once: a postgres_changes
+  // subscription on a table that does not exist yet (app deployed before the SQL re-run) would error the WHOLE channel.
+  var RT_PENDING_TABLES = ['mat_pending_receipts', 'mat_item_links'];
   var PAGE = 1000;
 
   function defaultConn() {
@@ -4976,6 +5229,11 @@ body.modal-open { overflow: hidden; }
     return s.replace(/[%_]/g, function (c) { return '\\' + c; });
   }
   function normCode(c) { return String(c == null ? '' : c).trim().toUpperCase(); }
+  /** mat_pending_list result → rows array (accepts a bare array or {rows|results:[…]}); null for any other shape */
+  function pendingRowsOf(r) {
+    var a = Array.isArray(r) ? r : (isObj(r) ? (Array.isArray(r.rows) ? r.rows : (Array.isArray(r.results) ? r.results : null)) : null);
+    return a ? a.filter(isObj) : null;
+  }
 
   function safeStorage() {
     return {
@@ -5035,7 +5293,7 @@ body.modal-open { overflow: hidden; }
     var statusFns = [];
     var listeners = [];
     var authFns = [];
-    var rt = { ch: null, timer: null, attempts: 0, destroyed: false };
+    var rt = { ch: null, timer: null, attempts: 0, destroyed: false, pendingOn: false };
     var lastToken = null;
 
     function setStatus(s) {
@@ -5299,7 +5557,8 @@ body.modal-open { overflow: hidden; }
       saveCategory: 'mat_save_category', deleteCategory: 'mat_delete_category', saveItem: 'mat_save_item',
       deleteItem: 'mat_delete_item', receive: 'mat_receive', issue: 'mat_issue', returnUnits: 'mat_return',
       updateUnit: 'mat_update_unit', voidUnits: 'mat_void', updateLot: 'mat_update_lot',
-      stocktakeApply: 'mat_stocktake_apply', setSetting: 'mat_set_setting', setMember: 'mat_set_member'
+      stocktakeApply: 'mat_stocktake_apply', setSetting: 'mat_set_setting', setMember: 'mat_set_member',
+      pendingCreate: 'mat_pending_create', pendingCancel: 'mat_pending_cancel', linkItem: 'mat_link_item'
     };
     Object.keys(RPCS).forEach(function (m) {
       A[m] = function (p) {
@@ -5307,6 +5566,19 @@ body.modal-open { overflow: hidden; }
         return rpc(RPCS[m], p);
       };
     });
+
+    // ---------- purchase pending receipts (SPEC §2.6) ----------
+    A.pendingList = async function (p) {
+      if (p != null && !isObj(p)) throw new DataError('BAD_INPUT', 'payload');
+      var r = await rpc('mat_pending_list', p || {});
+      var rows = pendingRowsOf(r);
+      if (rows && !rt.pendingOn) {
+        // the tables exist → add them to realtime (re-subscribe once so other PCs' badge updates live)
+        rt.pendingOn = true;
+        if (rt.ch && !rt.destroyed) { rtDrop(); if (rt.timer) { clearTimeout(rt.timer); rt.timer = null; } rtStart(); }
+      }
+      return rows || [];
+    };
 
     // ---------- demand forecast (read-only RPCs, viewer+; SPEC §2.3 mat_forecast / mat_usage_series) ----------
     A.forecast = function (p) {
@@ -5344,7 +5616,7 @@ body.modal-open { overflow: hidden; }
       var ch;
       try {
         ch = sb.channel('ksm-mat-' + Math.random().toString(36).slice(2, 10));
-        RT_TABLES.forEach(function (tb) {
+        RT_TABLES.concat(rt.pendingOn ? RT_PENDING_TABLES : []).forEach(function (tb) {
           ch = ch.on('postgres_changes', { event: '*', schema: 'public', table: tb }, function (payload) { dispatch(tb, payload); }) || ch;
         });
       } catch (e) { logErr(e); setStatus('offline'); rtSchedule(); return; }
@@ -5415,7 +5687,7 @@ body.modal-open { overflow: hidden; }
   var Data = {
     mode: null, status: 'connecting', DataError: DataError,
     _impl: null, _cloud: null, _demo: null, _cfg: null, _statusFns: [], _statusUnsub: null, _authFns: [],
-    _mapError: mapError, _sanitizeQ: sanitizeQ, _dayStartISO: dayStartISO, _createCloudAdapter: createCloudAdapter
+    _mapError: mapError, _sanitizeQ: sanitizeQ, _pendingRowsOf: pendingRowsOf, _dayStartISO: dayStartISO, _createCloudAdapter: createCloudAdapter
   };
   Data.cloudAvailable = function () { return !!(W.supabase && typeof W.supabase.createClient === 'function'); };
   Data.init = function (cfg) {
@@ -5462,6 +5734,7 @@ body.modal-open { overflow: hidden; }
     'getLotsByIds', 'listUnits', 'listAllUnits', 'getUnit', 'listMoves', 'getSettings', 'listMembers', 'saveCategory',
     'deleteCategory', 'saveItem', 'deleteItem', 'receive', 'issue', 'returnUnits', 'updateUnit', 'voidUnits', 'updateLot',
     'stocktakeApply', 'setSetting', 'setMember', 'exportAll', 'forecast', 'usageSeries',
+    'pendingList', 'pendingCancel', 'pendingCreate', 'linkItem',
     'setDemoRole', 'getDemoRole', 'resetDemo'];
   function implErr(e) {
     if (Data.mode === 'demo') {
@@ -5684,7 +5957,7 @@ body.modal-open { overflow: hidden; }
   var App = {
     state: {
       me: null, mode: null, lang: 'ko', route: null, params: {}, cats: [], catMap: {}, items: [], itemMap: {},
-      summary: {}, settings: {}, rt: 'connecting', queueCount: 0
+      summary: {}, settings: {}, rt: 'connecting', queueCount: 0, pending: []
     },
     prefs: Object.assign({}, DEFAULT_PREFS),
     screens: {},
@@ -6096,8 +6369,115 @@ body.modal-open { overflow: hidden; }
     if (!batch.length || !App.state.me) return;
     var last = batch[batch.length - 1];
     var evt = { table: last.table, type: last.type, row: last.row, batch: batch };
+    if (Data.mode === 'demo' || batch.some(function (e) { return e && (hasOwn(PENDING_HIT, e.table) || e.type === 'REFRESH'); })) {
+      pend.doneAt = 0;
+      App.refreshPending();
+    }
     quietRefresh().then(function () { notifyScreen(evt); });
   }, 400);
+
+  // ---------- purchase pending receipts (📥 입고 대기, SPEC §2.6) ----------
+  // The KSM intranet's purchase QC creates rows in mat_pending_receipts (mat_pending_create); warehouse staff complete them
+  // in 📥 입고 (mat_receive … pending_id). Core keeps the open list for the nav badge + the receive screen, and a lot → done
+  // pending map so history / unit cards can say "구매 입고 <ref>". Every load is non-fatal: before the SQL re-run the RPC is
+  // missing (SETUP) and the app simply shows no pending UI (re-tried every 5 min).
+  var PENDING_HIT = { mat_pending_receipts: 1, mat_item_links: 1, mat_lots: 1, '*': 1 };
+  var pend = { busy: null, again: false, setupUntil: 0, sig: '', doneMap: null, doneAt: 0, doneBusy: null, gen: 0 };
+  var DONE_TTL = 120000;
+  function pendSort(a, b) {
+    var x = String(a.received_on || ''), y = String(b.received_on || '');
+    return (x < y ? -1 : x > y ? 1 : 0) || (Number(a.id) || 0) - (Number(b.id) || 0);
+  }
+  function setPending(rows) {
+    rows = rows.filter(function (r) { return r && r.id != null && (r.status == null || r.status === 'pending'); }).sort(pendSort);
+    var sig = JSON.stringify(rows);
+    if (sig === pend.sig) return;
+    var countChanged = rows.length !== (App.state.pending || []).length;
+    pend.sig = sig;
+    App.state.pending = rows;
+    if (countChanged) renderNav();
+    App.emit('pending', rows);
+  }
+  App.pendingAvailable = function () { return !!App.state.me && Data.has('pendingList'); };
+  App.pendingCount = function () { return (App.state.pending || []).length; };
+  App.pendingById = function (id) {
+    var a = App.state.pending || [];
+    for (var i = 0; i < a.length; i++) if (String(a[i].id) === String(id)) return a[i];
+    return null;
+  };
+  /** reload the open pending list (staff+; the list feeds the 📥 입고 badge). Never rejects. */
+  App.refreshPending = function (opts) {
+    opts = opts || {};
+    if (!App.state.me || !App.can('staff') || !Data.has('pendingList')) return Promise.resolve(App.state.pending);
+    if (!opts.force && pend.setupUntil > Date.now()) return Promise.resolve(App.state.pending);
+    if (pend.busy) { pend.again = true; return pend.busy; }
+    var gen = pend.gen;
+    pend.busy = (async function () {
+      try {
+        do {
+          pend.again = false;
+          var rows;
+          try { rows = await Data.pendingList({ status: 'pending' }); }
+          catch (e) {
+            if (e && e.code === 'SETUP') pend.setupUntil = Date.now() + 300000;
+            else if (e && e.code !== 'NETWORK' && e.code !== 'AUTH') logErr(e);
+            return App.state.pending;
+          }
+          if (gen !== pend.gen || !App.state.me) return App.state.pending;
+          pend.setupUntil = 0;
+          setPending(pendingRowsOf(rows) || []);
+        } while (pend.again);
+      } finally { pend.busy = null; }
+      return App.state.pending;
+    })();
+    return pend.busy;
+  };
+  /** a receive with pending_id succeeded: drop the row locally at once (the reload / realtime confirms it) */
+  App.markPendingDone = function (id) {
+    var rows = (App.state.pending || []).filter(function (r) { return String(r.id) !== String(id); });
+    pend.doneAt = 0;
+    setPending(rows);
+  };
+  /** {[lot_id]: done pending row} — which lots were received from a purchase (cached DONE_TTL; viewer+) */
+  App.purchaseLotMap = function (force) {
+    if (!App.state.me || !Data.has('pendingList')) return Promise.resolve({});
+    if (!force && pend.doneMap && (Date.now() - pend.doneAt < DONE_TTL || pend.setupUntil > Date.now())) return Promise.resolve(pend.doneMap);
+    if (pend.doneBusy) return pend.doneBusy;
+    var gen = pend.gen;
+    pend.doneBusy = Data.pendingList({ status: 'done', limit: 2000 }).then(function (rows) {
+      if (gen !== pend.gen) return {};
+      var map = {};
+      (pendingRowsOf(rows) || []).forEach(function (r) { if (r.lot_id != null && (r.status == null || r.status === 'done')) map[r.lot_id] = r; });
+      var changed = JSON.stringify(map) !== JSON.stringify(pend.doneMap || {});
+      pend.doneMap = map; pend.doneAt = Date.now();
+      if (changed) App.emit('purchaseLots', map);
+      return map;
+    }, function (e) {
+      if (e && e.code === 'SETUP') { pend.setupUntil = Date.now() + 300000; if (!pend.doneMap) pend.doneMap = {}; }
+      else if (e && e.code !== 'NETWORK' && e.code !== 'AUTH') logErr(e);
+      return pend.doneMap || {};
+    }).then(function (m) { pend.doneBusy = null; return m; });
+    return pend.doneBusy;
+  };
+  /** cached done-pending row of a lot (null when unknown); refreshes the cache in the background when stale */
+  App.purchaseLotOf = function (lotId) {
+    if (lotId == null || !App.state.me || !Data.has('pendingList')) return null;
+    if (!pend.doneMap || Date.now() - pend.doneAt >= DONE_TTL) App.purchaseLotMap();
+    return pend.doneMap && hasOwn(pend.doneMap, lotId) ? pend.doneMap[lotId] : null;
+  };
+  /** "구매 입고 PO-123" chip for a lot received from a purchase pending receipt ('' when not) */
+  UI.purchaseChip = function (lotId) {
+    var r = App.purchaseLotOf(lotId);
+    if (!r) return '';
+    var ref = String(r.ref_no || r.src_ref || ('#' + r.id)).trim();
+    return '<span class="badge info pur-chip" title="' + esc(t('pur.fromTitle', { id: r.id })) + '">' + esc(t('pur.from', { ref: ref })) + '</span>';
+  };
+  function resetPending() {
+    pend.gen++;
+    pend.busy = null; pend.again = false; pend.setupUntil = 0; pend.sig = '';
+    pend.doneMap = null; pend.doneAt = 0; pend.doneBusy = null;
+    App.state.pending = [];
+  }
   // ---------- live role changes ----------
   // An admin changing someone's access (⚙ 설정 → 사용자 권한, or 기본 권한) must reach that person's OPEN app without a
   // re-login: re-read whoami when mat_members / default_role change (realtime) and, throttled, on focus / periodic refresh.
@@ -6141,6 +6521,7 @@ body.modal-open { overflow: hidden; }
     if (rtPending.length > 500) rtPending.splice(0, rtPending.length - 500);
     flushRealtime();
   }
+  App.renderNav = function () { renderNav(); };
   /** queue a debounced master refresh + screen onData (evt.type may be 'REFRESH' with row null) */
   App.requestRefresh = function (evt) { onRealtime(evt || { table: '*', type: 'REFRESH', row: null }); };
 
@@ -6191,9 +6572,13 @@ body.modal-open { overflow: hidden; }
     if (ad && ad.hidden) active = ad.navParent || (active === 'item' ? 'dashboard' : active);
     nav.innerHTML = navList().map(function (n) {
       var d = App.screens[n];
+      var bn = 0;
+      if (typeof d.badge === 'function') { try { bn = Math.max(0, Math.floor(Number(d.badge()) || 0)); } catch (e) { bn = 0; } }
       return '<a href="' + esc(buildHash(n)) + '" class="nav-item' + (n === active ? ' active' : '') + '" data-route="' + esc(n) + '"' +
         (n === active ? ' aria-current="page"' : '') + '>' +
-        '<span class="ico" aria-hidden="true">' + esc(d.icon || '•') + '</span><span class="lbl">' + esc(t(d.navKey || ('nav.' + n))) + '</span></a>';
+        '<span class="ico" aria-hidden="true">' + esc(d.icon || '•') + '</span><span class="lbl">' + esc(t(d.navKey || ('nav.' + n))) + '</span>' +
+        (bn ? '<span class="nav-badge" title="' + esc(t('nav.badge', { n: bn })) + '" aria-label="' + esc(t('nav.badge', { n: bn })) + '">' + esc(bn > 99 ? '99+' : String(bn)) + '</span>' : '') +
+        '</a>';
     }).join('');
   }
 
@@ -6403,6 +6788,7 @@ body.modal-open { overflow: hidden; }
     if (!App.state.me) return;
     renderHeader();
     startTimers();
+    App.refreshPending();
     var r = parseHash(W.location.hash);
     if (r.name) showScreen(r.name, r.params);
     else App.go(defaultRoute());
@@ -6414,6 +6800,7 @@ body.modal-open { overflow: hidden; }
       if (!App.state.me || Data.mode !== 'cloud') return;
       if (D.visibilityState === 'hidden') return;
       quietRefresh().then(function () { if (App.state.rt !== 'live') notifyScreen({ table: '*', type: 'REFRESH', row: null }); });
+      App.refreshPending();
     }, 60000);
     timers.qflush = setInterval(function () {
       if (App.state.me && Data.mode === 'cloud' && Queue.count()) Queue.flush({ auto: true }).catch(logErr);
@@ -6433,6 +6820,7 @@ body.modal-open { overflow: hidden; }
     App.state.me = null;
     App.state.cats = []; App.state.catMap = {}; App.state.items = []; App.state.itemMap = {};
     App.state.summary = {}; App.state.settings = {};
+    resetPending();
   }
   function sessionLost() {
     if (loggingOut || !App.state.me) return;
@@ -7190,7 +7578,8 @@ body.modal-open { overflow: hidden; }
         id: lot.id, seq: u.seq == null ? '?' : u.seq, n: lot.unit_count == null ? '?' : lot.unit_count })) + '</dd>');
       dl.push('<dt>' + esc(t('view.unit.received')) + '</dt><dd>' + esc(UI.fmtDate(lot.received_on)) + '</dd>');
       if (lot.supplier) dl.push('<dt>' + esc(t('view.unit.supplier')) + '</dt><dd>' + esc(lot.supplier) + '</dd>');
-      if (lot.ref_no) dl.push('<dt>' + esc(t('view.unit.ref')) + '</dt><dd>' + esc(lot.ref_no) + '</dd>');
+      var purChip = UI.purchaseChip ? UI.purchaseChip(lot.id) : '';   // received from a purchase pending receipt (SPEC §2.6)
+      if (lot.ref_no || purChip) dl.push('<dt>' + esc(t('view.unit.ref')) + '</dt><dd>' + esc(lot.ref_no || '') + (purChip ? ' ' + purChip : '') + '</dd>');
       if (lot.memo) dl.push('<dt>' + esc(t('view.unit.lotMemo')) + '</dt><dd>' + esc(lot.memo) + '</dd>');
     } else if (u.lot_id != null) {
       dl.push('<dt>' + esc(t('view.unit.lot')) + '</dt><dd>#' + esc(u.lot_id) + (u.seq != null ? ' · ' + esc(u.seq) : '') + '</dd>');
@@ -8236,7 +8625,7 @@ body.modal-open { overflow: hidden; }
       if (mgr) acts += '<button type="button" class="btn sm" data-act="lot-edit" data-lot="' + esc(l.id) + '">' + esc(t('view.lot.edit')) + '</button>';
       return '<tr data-lot="' + esc(l.id) + '"><td class="mono nowrap"><b>#' + esc(l.id) + '</b></td>' +
         '<td class="nowrap">' + esc(UI.fmtDate(l.received_on)) + '</td><td>' + esc(l.supplier || '') + '</td>' +
-        '<td class="hide-sm">' + esc(l.ref_no || '') + '</td><td class="hide-sm small">' + esc(UI.specSummary(cat, l.spec)) + '</td>' +
+        '<td class="hide-sm">' + esc(l.ref_no || '') + (UI.purchaseChip ? ' ' + UI.purchaseChip(l.id) : '') + '</td><td class="hide-sm small">' + esc(UI.specSummary(cat, l.spec)) + '</td>' +
         (l.qty_total != null
           // pack lot: received pieces (Σ pack qty) + how many packs (barcodes) — same basis as the 재고 column
           ? '<td class="num">' + esc(UI.pieces(l.qty_total, cat)) + '<div class="small muted">' + esc(t('lot.packs', { n: UI.fmtNum(l.unit_count, 0) })) + '</div></td>'
@@ -9052,13 +9441,14 @@ body.modal-open { overflow: hidden; }
   // RECEIVE (📥 입고)
   // =================================================================================================
   var R = null;              // receive model (survives language re-render)
-  var rcv = { el: null, lastParams: null, busy: false, lotTok: 0, qtyTimer: null };
+  var rcv = { el: null, lastParams: null, busy: false, lotTok: 0, qtyTimer: null, pendOpen: true, recentDone: [] };
 
   function newRcvModel(itemId) {
     return {
       op_id: UI.uuid(), attempted: false, item_id: itemId == null ? '' : String(itemId), received_on: UI.todayStr(),
       supplier: '', supplierTouched: false, ref_no: '', location: '', memo: '', lotSpec: {}, specTouched: false, specSource: null,
-      qty: '1', units: [{}], n: 1, fill: {}, suppliers: [], lastLotDate: '', result: null, errors: []
+      qty: '1', units: [{}], n: 1, fill: {}, suppliers: [], lastLotDate: '', result: null, errors: [],
+      pending: null, pendPlan: null, pendGone: false      // purchase pending receipt being completed (SPEC §2.6)
     };
   }
   function rcvItem() { return App.item(R && R.item_id); }
@@ -9195,7 +9585,7 @@ body.modal-open { overflow: hidden; }
         if (q == null) qblank++; else qsum += q;
       }
       return esc(t('rcv.totals')) + ': ' + esc(t('lot.packs', { n: UI.fmtNum(n, 0) })) + ' · <b>' + esc(UI.pieces(qsum, cat)) + '</b>' +
-        (qblank ? ' · <span class="warn-text">' + esc(t('rcv.blankQty', { n: qblank })) + '</span>' : '');
+        (qblank ? ' · <span class="warn-text">' + esc(t('rcv.blankQty', { n: qblank })) + '</span>' : '') + pendVsHtml(cat, n);
     }
     var parts = [esc(t('rcv.totals')) + ': ' + esc(countTxt(n, cat))];
     var uom = uomOf(cat);
@@ -9210,7 +9600,7 @@ body.modal-open { overflow: hidden; }
       parts.push(esc(UI.fmtAmount(r6(sum), uom)));
       if (blank) parts.push('<span class="warn-text">' + esc(t('rcv.blankAmounts', { n: blank })) + '</span>');
     }
-    return parts.join(' · ');
+    return parts.join(' · ') + pendVsHtml(cat, n);
   }
   function rcvUpdateTotals() {
     if (!rcv.el) return;
@@ -9218,12 +9608,18 @@ body.modal-open { overflow: hidden; }
     if (box) box.innerHTML = rcvTotalsHtml(rcvCat());
   }
 
+  function rcvItemSelectHtml() {
+    var locked = !!(R && R.pending);
+    return UI.itemSelectHtml(R.item_id, { activeOnly: true, id: 'rcv-item', cls: 'rcv-item',
+      attrs: 'data-fk="rcv-item" data-m="item_id"' + (locked ? ' disabled title="' + esc(t('pend.itemLocked')) + '"' : '') });
+  }
   function rcvFormHtml() {
     var items = (App.state.items || []).filter(function (it) { return it && it.active !== false; });
     var canNew = App.can('manager');
     var it = rcvItem();
     var cat = it ? App.catOfItem(it) : null;
     var h = '<div class="card rcv-card">';
+    if (R.pending && it) { h += pendBannerHtml(cat); canNew = false; }
     if (!items.length && !it) {
       h += '<div class="empty">' + esc(t('rcv.noItems')) + '</div>';
       if (canNew) h += '<div class="row center" style="margin-top:12px"><button type="button" class="btn primary" data-act="new-item">' + esc(t('rcv.newItem')) + '</button></div>';
@@ -9231,7 +9627,7 @@ body.modal-open { overflow: hidden; }
     }
     h += '<div class="grid-3">' +
       '<div class="field span-2"><label for="rcv-item">' + esc(t('rcv.item')) + ' <b class="danger-text">*</b></label>' +
-      '<div class="row nowrap">' + UI.itemSelectHtml(R.item_id, { activeOnly: true, id: 'rcv-item', cls: 'rcv-item', attrs: 'data-fk="rcv-item" data-m="item_id"' }) +
+      '<div class="row nowrap">' + rcvItemSelectHtml() +
       (canNew ? '<button type="button" class="btn" data-act="new-item">' + esc(t('rcv.newItem')) + '</button>' : '') + '</div>' +
       '<div class="rcv-item-info small">' + rcvItemInfoHtml(it) + '</div></div>' +
       '<label class="field" for="rcv-date"><span>' + esc(t('rcv.date')) + ' <b class="danger-text">*</b></span>' +
@@ -9284,7 +9680,8 @@ body.modal-open { overflow: hidden; }
     var range = codes.length ? (codes.length > 1 ? codes[0] + ' ~ ' + codes[codes.length - 1] : codes[0]) : '';
     return '<div class="card rcv-res">' +
       '<div class="notice ' + (res.dup ? 'warn' : 'ok') + '" role="status"><b>✓ ' + esc(t('rcv.done')) + '</b>' +
-      (res.dup ? ' — ' + esc(t('rcv.dup')) : '') + '</div>' +
+      (res.dup ? ' — ' + esc(t('rcv.dup')) : '') +
+      (res.pending ? '<div class="small rcv-res-pend">📥 ' + esc(t('pend.resDone', { id: res.pending.id, ref: res.pending.ref })) + '</div>' : '') + '</div>' +
       '<dl class="dl">' +
       '<dt>' + esc(t('rcv.res.item')) + '</dt><dd>' + catBadge(cat) + ' ' + esc(it ? it.name : (res.item_id != null ? '#' + res.item_id : '')) + '</dd>' +
       '<dt>' + esc(t('rcv.res.lot')) + '</dt><dd class="mono">#' + esc(res.lot_id) + '</dd>' +
@@ -9322,13 +9719,17 @@ body.modal-open { overflow: hidden; }
       else if (R.item_id && rcvItem() && !R.suppliers.length) loadLotsFor(R.item_id);
     }
     if (R.item_id && !rcvItem() && !R.result) R.item_id = '';
-    el.innerHTML = '<div class="screen-head flow-head"><h1>' + esc(t('nav.icon.receive') + ' ' + t('nav.receive')) + '</h1></div><div class="rcv-body"></div>';
+    el.innerHTML = '<div class="screen-head flow-head"><h1>' + esc(t('nav.icon.receive') + ' ' + t('nav.receive')) + '</h1></div>' +
+      '<div class="rcv-pend-box"></div><div class="rcv-body"></div>';
     el.addEventListener('click', rcvOnClick);
     el.addEventListener('change', rcvOnChange);
     el.addEventListener('input', rcvOnInput);
     el.addEventListener('keydown', rcvOnKey);
     el.addEventListener('paste', rcvOnPaste);
     rcvDraw();
+    pendDraw();
+    App.onScreen('pending', pendDraw);
+    App.refreshPending();
     if (!R.result && !R.item_id) {
       setTimeout(function () { var s = el.querySelector('#rcv-item'); if (s && !modalOpen() && D.contains(s)) { try { s.focus(); } catch (e) { /* ignore */ } } }, 0);
     }
@@ -9338,6 +9739,7 @@ body.modal-open { overflow: hidden; }
     var b = e.target && e.target.closest ? e.target.closest('[data-act]') : null;
     if (!b || !rcv.el || !rcv.el.contains(b)) return;
     var act = b.getAttribute('data-act');
+    if (pendOnClick(e)) return;
     if (act === 'new-item') { e.preventDefault(); openNewItem(); }
     else if (act === 'submit-print' || act === 'submit-only') { e.preventDefault(); submitReceive(act === 'submit-print'); }
     else if (act === 'fill-all') { e.preventDefault(); rcvFillAll(); }
@@ -9569,7 +9971,10 @@ body.modal-open { overflow: hidden; }
     if (trim(R.ref_no)) p.ref_no = trim(R.ref_no);
     if (trim(R.location)) p.location = trim(R.location);
     if (trim(R.memo)) p.memo = trim(R.memo);
+    if (R.pending && R.pending.id != null) p.pending_id = isFinite(Number(R.pending.id)) ? Number(R.pending.id) : R.pending.id;
     var msgs = [];
+    var pdiff = pendDiffMsg(cat, n, units);
+    if (pdiff) msgs.push(pdiff);
     if (R.received_on > UI.todayStr()) msgs.push(t('rcv.confirmFuture', { date: R.received_on }));
     if (blank) msgs.push(t('rcv.confirmBlank', { n: blank, uom: uomOf(cat) }));
     if (n >= 100) msgs.push(t('rcv.confirmQty', { n: n }));
@@ -9600,8 +10005,13 @@ body.modal-open { overflow: hidden; }
       rcv.busy = false;
       if (e && e.code !== 'NETWORK' && e.code !== 'UNKNOWN') model.attempted = false;   // definitely not saved
       model.errors = [e && e.code === 'NETWORK' ? t('rcv.netErr') : UI.errMsg(e)];
+      if (model.pending && isPendingErr(e) && (e.code === 'CONFLICT' || e.code === 'NOT_FOUND')) {
+        model.errors.unshift(t('pend.err.stale'));
+        App.refreshPending({ force: true });
+      }
       if (R === model) rcvDraw();
-      UI.toast(e && e.code === 'NETWORK' ? t('rcv.netErr') : UI.errMsg(e), 'err', 8000);
+      UI.toast(e && e.code === 'NETWORK' ? t('rcv.netErr')
+        : (model.pending && isPendingErr(e) && (e.code === 'CONFLICT' || e.code === 'NOT_FOUND') ? t('pend.err.stale') : UI.errMsg(e)), 'err', 8000);
       UI.beep('err');
       return;
     }
@@ -9622,6 +10032,7 @@ body.modal-open { overflow: hidden; }
       } catch (x) { /* keep requested values */ }
       if (gen !== flowGen) return;
     }
+    if (col.payload.pending_id != null) pendCompleted(model, result);
     model.result = result;
     model.errors = [];
     model.op_id = UI.uuid();      // the next receive is a new operation
@@ -9630,7 +10041,8 @@ body.modal-open { overflow: hidden; }
     UI.beep('ok');
     var rcat = App.catOfItem(App.item(result.item_id));
     UI.toast(t('rcv.done') + ' — #' + result.lot_id + ' · ' + (result.pieces != null ?
-      UI.pieces(result.pieces, rcat) + ' (' + t('lot.packs', { n: result.codes.length }) + ')' : countTxt(result.codes.length, rcat)), 'ok');
+      UI.pieces(result.pieces, rcat) + ' (' + t('lot.packs', { n: result.codes.length }) + ')' : countTxt(result.codes.length, rcat)) +
+      (result.pending ? ' · ' + t('pend.done', { ref: result.pending.ref }) : ''), 'ok');
     App.refreshMaster().catch(noop);
     if (withPrint) {
       var btn = rcv.el && rcv.el.querySelector('[data-act="print-lot"]');
@@ -9657,12 +10069,13 @@ body.modal-open { overflow: hidden; }
   }
 
   function receiveOnData() {
+    pendDraw();
     if (!rcv.el || !R || R.result) return;
     var it = rcvItem();
     var sel = rcv.el.querySelector('#rcv-item');
     if (!sel) { rcvDraw(); return; }
     var wrap = D.createElement('div');
-    wrap.innerHTML = UI.itemSelectHtml(R.item_id, { activeOnly: true, id: 'rcv-item', cls: 'rcv-item', attrs: 'data-fk="rcv-item" data-m="item_id"' });
+    wrap.innerHTML = rcvItemSelectHtml();
     var fresh = wrap.firstChild;
     if (fresh && sel.parentNode) {
       var hadFocus = D.activeElement === sel;
@@ -9673,8 +10086,432 @@ body.modal-open { overflow: hidden; }
     if (info) info.innerHTML = rcvItemInfoHtml(it);
   }
 
+  // =================================================================================================
+  // RECEIVE ← purchase pending receipts (📥 입고 대기, SPEC §2.6)
+  // The KSM intranet's purchase QC (pass) creates mat_pending_receipts rows; here staff pick one → the receive form is
+  // prefilled (item, qty / packs, supplier, ref, date, cost info) → per-hide sqft / grade … → mat_receive(…, pending_id).
+  // =================================================================================================
+  I18N.add({
+    ko: {
+      'pend.title': '구매 입고 대기', 'pend.count': '{n}건',
+      'pend.hint': 'KSM 인트라넷 구매 QC 합격분입니다. [입고 처리]를 누르면 입고 양식이 채워집니다 — 장별 양·등급 등을 입력하고 라벨을 인쇄하세요.',
+      'pend.col.date': '입고일', 'pend.col.supplier': '공급처', 'pend.col.ref': 'PO / 입고번호', 'pend.col.item': '품목',
+      'pend.col.qty': '구매 수량', 'pend.col.cost': '단가',
+      'pend.process': '입고 처리', 'pend.cancel': '취소', 'pend.active': '처리 중', 'pend.doneRow': '✓ 입고 완료 · 로트 #{lot}',
+      'pend.unlinked': '품목 연결 안 됨', 'pend.srcItem': '구매 품목: {name}', 'pend.fx': '환율 {fx}', 'pend.by': '등록 {by}',
+      'pend.pick.title': '바코드 품목 선택', 'pend.pick.body': '이 구매 품목은 아직 바코드 품목과 연결되어 있지 않습니다. 입고할 바코드 품목을 고르세요.',
+      'pend.pick.item': '바코드 품목', 'pend.pick.remember': '이 품목을 연결로 기억 (다음 구매부터 자동 선택)', 'pend.pick.next': '다음',
+      'pend.pick.need': '품목을 선택하세요.', 'pend.linkSaved': '연결을 기억했습니다: {src} → {item}',
+      'pend.linkFail': '연결을 저장하지 못했습니다 ({msg}) — 이번 입고는 계속 진행합니다.',
+      'pend.cancel.title': '입고 대기 취소', 'pend.cancel.body': '{ref} · {item} — 이 입고 대기를 취소합니다. 취소 사유는 기록에 남습니다.',
+      'pend.cancel.reason': '취소 사유', 'pend.cancel.need': '취소 사유를 입력하세요.', 'pend.cancel.ok': '입고 대기 취소',
+      'pend.cancelled': '입고 대기를 취소했습니다.',
+      'pend.banner': '구매 입고 대기 #{id} 처리 중', 'pend.detach': '대기와 분리 (일반 입고)',
+      'pend.gone': '이 입고 대기가 목록에서 사라졌습니다 — 다른 곳에서 처리되었거나 취소되었을 수 있습니다. 등록하면 서버가 다시 확인합니다.',
+      'pend.f.ref': 'PO / 입고번호', 'pend.f.src': '구매 품목', 'pend.f.qty': '구매 수량', 'pend.f.cost': '단가', 'pend.f.supplier': '공급처',
+      'pend.f.note': '비고',
+      'pend.qtyMeasure': '구매 수량 {qty}은(는) 총량입니다 — 받은 {unit} 수를 입력하고 아래 표에 장별 {uom}를 입력하세요.',
+      'pend.qtyPieces': '구매 수량 {qty}을(를) 묶음 1개로 채웠습니다. 여러 묶음으로 왔으면 묶음 수와 각 수량을 고치세요.',
+      'pend.qtyCount': '구매 수량({qty})에 맞춰 바코드 수를 채웠습니다.',
+      'pend.qtyUnknown': '구매 수량 {qty} — 받은 수량을 직접 입력하세요.',
+      'pend.vs': '구매 {qty}', 'pend.confirmDiff': '입력한 수량({got})이 구매 수량({want})과 다릅니다.',
+      'pend.itemLocked': '입고 대기의 품목으로 고정됩니다. 바꾸려면 [대기와 분리]를 누르세요.',
+      'pend.done': '구매 입고 대기 처리 완료 ({ref})', 'pend.resDone': '구매 입고 대기 #{id} ({ref}) — 입고 완료로 표시했습니다.',
+      'pend.err.stale': '이 입고 대기는 이미 처리되었거나 취소되었습니다. 목록을 새로 고칩니다.',
+      'pend.err.gone': '입고 대기를 찾을 수 없습니다 — 이미 처리되었거나 취소되었습니다.',
+      'pend.replace': '작성 중인 입고 양식이 있습니다. 입고 대기 내용으로 바꿀까요?',
+      'pend.unapproved': '⚠ 미승인 (긴급 입고)',
+      'pend.unapproved.tip': '구매 결재(PO 최종 승인) 전에 긴급으로 받은 물품입니다 (인트라넷이 보낼 때 기준). 입고·라벨 인쇄는 해도 되지만, 회계 정산은 승인 후에만 됩니다. 지금 승인 상태는 인트라넷에서 확인하세요.',
+      'pend.unapproved.reason': '긴급 입고 사유: {reason}'
+    },
+    en: {
+      'pend.title': 'Purchase receipts waiting', 'pend.count': '{n}',
+      'pend.hint': 'QC-passed purchases from the KSM intranet. [Receive] fills in the receive form — enter each piece\'s amount / grade etc. and print the labels.',
+      'pend.col.date': 'Received', 'pend.col.supplier': 'Supplier', 'pend.col.ref': 'PO / receipt no.', 'pend.col.item': 'Item',
+      'pend.col.qty': 'Purchase qty', 'pend.col.cost': 'Unit cost',
+      'pend.process': 'Receive', 'pend.cancel': 'Cancel', 'pend.active': 'In progress', 'pend.doneRow': '✓ Received · lot #{lot}',
+      'pend.unlinked': 'Not linked', 'pend.srcItem': 'Purchase item: {name}', 'pend.fx': 'FX {fx}', 'pend.by': 'by {by}',
+      'pend.pick.title': 'Choose the barcode item', 'pend.pick.body': 'This purchase item is not linked to a barcode item yet. Choose the barcode item to receive it as.',
+      'pend.pick.item': 'Barcode item', 'pend.pick.remember': 'Remember this link (pre-selected for future purchases)', 'pend.pick.next': 'Next',
+      'pend.pick.need': 'Select an item.', 'pend.linkSaved': 'Link remembered: {src} → {item}',
+      'pend.linkFail': 'Could not save the link ({msg}) — this receipt continues anyway.',
+      'pend.cancel.title': 'Cancel waiting receipt', 'pend.cancel.body': '{ref} · {item} — this waiting receipt will be cancelled. The reason is kept on record.',
+      'pend.cancel.reason': 'Reason', 'pend.cancel.need': 'Enter a reason.', 'pend.cancel.ok': 'Cancel waiting receipt',
+      'pend.cancelled': 'Waiting receipt cancelled.',
+      'pend.banner': 'Completing purchase receipt #{id}', 'pend.detach': 'Detach (normal receipt)',
+      'pend.gone': 'This waiting receipt left the list — it may have been completed or cancelled elsewhere. Saving re-checks it on the server.',
+      'pend.f.ref': 'PO / receipt no.', 'pend.f.src': 'Purchase item', 'pend.f.qty': 'Purchase qty', 'pend.f.cost': 'Unit cost', 'pend.f.supplier': 'Supplier',
+      'pend.f.note': 'Note',
+      'pend.qtyMeasure': 'The purchase quantity {qty} is a total — enter how many {unit} arrived, then each one\'s {uom} in the table.',
+      'pend.qtyPieces': 'Filled the purchase quantity {qty} as one pack. If it came in several packs, fix the pack count and each quantity.',
+      'pend.qtyCount': 'Filled the barcode count to match the purchase quantity ({qty}).',
+      'pend.qtyUnknown': 'Purchase quantity {qty} — enter the received quantity yourself.',
+      'pend.vs': 'purchase {qty}', 'pend.confirmDiff': 'The entered quantity ({got}) differs from the purchase quantity ({want}).',
+      'pend.itemLocked': 'Fixed to the waiting receipt\'s item. Press [Detach] to change it.',
+      'pend.done': 'Purchase receipt completed ({ref})', 'pend.resDone': 'Purchase receipt #{id} ({ref}) — marked as received.',
+      'pend.err.stale': 'This waiting receipt was already completed or cancelled. Reloading the list.',
+      'pend.err.gone': 'Waiting receipt not found — it was already completed or cancelled.',
+      'pend.replace': 'A receive form is being filled in. Replace it with the waiting receipt?',
+      'pend.unapproved': '⚠ UNAPPROVED (emergency receive)',
+      'pend.unapproved.tip': 'These goods were received in an emergency before the purchase (PO) had final approval (as of when the intranet sent them). You may receive and label them, but accounting cannot settle them until they are approved. Check the current approval in the intranet.',
+      'pend.unapproved.reason': 'Emergency reason: {reason}'
+    }
+  });
+  App.addStyle(
+    '.nav-badge{margin-left:auto;flex:none;min-width:20px;height:20px;padding:0 6px;border-radius:10px;background:var(--err);color:#fff;' +
+    'font-size:.72rem;font-weight:800;line-height:20px;text-align:center}' +
+    '.rcv-pend{margin-bottom:14px;border-left:4px solid var(--warn)}' +
+    '.rcv-pend>summary{cursor:pointer;display:flex;align-items:center;gap:8px;font-weight:800;font-size:1.02rem;list-style:none}' +
+    '.rcv-pend>summary::-webkit-details-marker{display:none}' +
+    '.rcv-pend>summary::before{content:"▸";color:var(--muted)}.rcv-pend[open]>summary::before{content:"▾"}' +
+    '.rcv-pend .table-wrap{margin-top:8px;max-height:46vh}' +
+    '.rcv-pend tr.pend-active td{background:#fff7ed !important}' +
+    '.rcv-pend tr.pend-done td{color:var(--muted)}' +
+    '.rcv-pend-banner{margin-bottom:12px}.rcv-pend-banner .dl{margin:6px 0 0}' +
+    '@media (max-width:760px){.nav-badge{position:absolute;top:2px;right:8px;margin:0}.nav-item{position:relative}}',
+    'screens-flow-pending');
+
+  var PSRC = 'ksm_purchase';
+  function canCancelPending(row) {
+    if (App.can('manager')) return true;
+    var me = App.state.me;
+    return !!(me && me.email && row && row.created_by && String(row.created_by).trim().toLowerCase() === me.email);
+  }
+  /** link-table key of a purchase item: its code, else the normalized name (lower case, single spaces) */
+  function pendSrcKey(row) {
+    var c = trim(row && row.src_item_code);
+    if (c) return c;
+    return trim(row && row.src_item_name).toLowerCase().replace(/\s+/g, ' ');
+  }
+  // KSM intranet marks receipts sent while still UNAPPROVED (P1 emergency receive) with a note prefix:
+  //   '⚠ UNAPPROVED — emergency receive: <reason> · <rest of the note>'
+  function pendUnapproved(row) {
+    var n = row && row.note != null ? String(row.note) : '';
+    if (!/^\s*⚠?\s*UNAPPROVED\b/i.test(n)) return null;
+    var m = /emergency receive:\s*([^·|]*)/i.exec(n);
+    return { reason: m ? trim(m[1]) : '' };
+  }
+  /** the note without the UNAPPROVED marker (memo prefill: the flag is about the moment of hand-off, not the lot) */
+  function pendNoteClean(row) {
+    var n = trim(row && row.note);
+    if (!pendUnapproved(row)) return n;
+    var i = n.indexOf(' · ');
+    var rest = i >= 0 ? n.slice(i + 3) : '';
+    // the reason itself may not contain ' · ' (the intranet strips it); drop the marker segment only
+    return trim(rest);
+  }
+  function pendUnapprovedBadge(row) {
+    var u = pendUnapproved(row);
+    if (!u) return '';
+    var tip = t('pend.unapproved.tip') + (u.reason ? ' ' + t('pend.unapproved.reason', { reason: u.reason }) : '');
+    return '<span class="badge err pend-unapproved" title="' + esc(tip) + '">' + esc(t('pend.unapproved')) + '</span>';
+  }
+  function pendRef(row) { return trim(row && row.ref_no) || trim(row && row.src_ref) || (row && row.id != null ? '#' + row.id : ''); }
+  function pendSrcName(row) {
+    var n = trim(row && row.src_item_name), c = trim(row && row.src_item_code);
+    return n && c ? n + ' (' + c + ')' : (n || c);
+  }
+  function pendQtyTxt(row) {
+    if (!row || row.qty == null || row.qty === '') return '';
+    return UI.fmtNum(row.qty, 3) + (trim(row.uom) ? ' ' + trim(row.uom) : '');
+  }
+  function pendCostTxt(row) {
+    if (!row || row.unit_price == null || row.unit_price === '') return '';
+    var cur = trim(row.currency).toUpperCase();
+    var s = (cur ? cur + ' ' : '') + UI.fmtNum(row.unit_price, 4) + (trim(row.uom) ? ' / ' + trim(row.uom) : '');
+    var fx = Number(row.fx_rate);
+    if (row.fx_rate != null && row.fx_rate !== '' && isFinite(fx) && fx > 0 && fx !== 1) s += ' · ' + t('pend.fx', { fx: UI.fmtNum(fx, 4) });
+    return s;
+  }
+  var UOM_SYN = {
+    sqft: ['sqft', 'sf', 'ft2', 'ft²', 'squarefeet', 'squarefoot', 'sqfeet'], m: ['m', 'meter', 'meters', 'metre', 'metres', 'mtr', 'mtrs'],
+    yd: ['yd', 'yds', 'yard', 'yards'], kg: ['kg', 'kgs', 'kilo', 'kilos', 'kilogram', 'kilograms'], g: ['g', 'gr', 'gram', 'grams'],
+    cm: ['cm'], mm: ['mm'], l: ['l', 'liter', 'liters', 'litre', 'litres'],
+    ea: ['ea', 'pc', 'pcs', 'piece', 'pieces', 'unit', 'units', '개', 'each']
+  };
+  var UOM_MAP = {};
+  Object.keys(UOM_SYN).forEach(function (k) { UOM_SYN[k].forEach(function (s) { UOM_MAP[s] = k; }); });
+  function normUom(u) {
+    var s = trim(u).toLowerCase().replace(/[\s.]/g, '');
+    return s ? (hasOwn(UOM_MAP, s) ? UOM_MAP[s] : s) : '';
+  }
+  /** how the purchase quantity maps onto this category's receive form */
+  function pendQtyPlan(row, cat) {
+    var q = Number(row && row.qty);
+    if (!cat || row == null || row.qty == null || row.qty === '' || !isFinite(q) || q <= 0) return { mode: 'none' };
+    var u = normUom(row.uom);
+    if (App.isLotCat(cat)) return Math.floor(q) === q && q <= 1000000 && (!u || !hasOwn(UOM_SYN, u) || u === 'ea') ? { mode: 'pieces', q: q } : { mode: 'none' };
+    var meas = normUom(uomOf(cat));
+    if (meas && u && u === meas) return { mode: 'measure', amount: q };
+    var lbls = [cat.unit_label, cat.unit_label_en].map(function (x) { return normUom(x).replace(/s$/, ''); }).filter(Boolean);
+    var countUom = !u || u === 'ea' || lbls.indexOf(u.replace(/s$/, '')) >= 0 || !hasOwn(UOM_SYN, u);
+    if (countUom && Math.floor(q) === q && q >= 1 && q <= 1000) return { mode: 'count', n: q };
+    return { mode: 'none' };
+  }
+  function pendPlanHint(m, cat) {
+    var p = m.pendPlan || { mode: 'none' }, row = m.pending;
+    if (p.mode === 'measure') return t('pend.qtyMeasure', { qty: pendQtyTxt(row), unit: App.unitLabel(cat) || '', uom: uomOf(cat) });
+    if (p.mode === 'pieces') return t('pend.qtyPieces', { qty: UI.pieces(p.q, cat) });
+    if (p.mode === 'count') return t('pend.qtyCount', { qty: countTxt(p.n, cat) });
+    return pendQtyTxt(row) ? t('pend.qtyUnknown', { qty: pendQtyTxt(row) }) : '';
+  }
+  /** totals-line suffix comparing the form with the purchase quantity */
+  function pendVsHtml(cat, n) {
+    if (!R || !R.pending || !R.pendPlan) return '';
+    var p = R.pendPlan, got, want, same;
+    if (p.mode === 'pieces') {
+      got = 0;
+      for (var i = 0; i < n; i++) { var q = posInt(R.units[i] && R.units[i].q); if (q != null) got += q; }
+      want = UI.pieces(p.q, cat); same = got === p.q;
+    } else if (p.mode === 'count') { want = countTxt(p.n, cat); same = n === p.n; }
+    else if (p.mode === 'measure') {
+      got = 0;
+      for (var j = 0; j < n; j++) { var v = num(trim(R.units[j] && R.units[j].a)); if (v != null) got += v; }
+      want = UI.fmtAmount(p.amount, uomOf(cat)); same = Math.abs(r6(got) - p.amount) < 1e-6;
+    } else return '';
+    return ' · <span class="' + (same ? 'ok-text' : 'warn-text') + ' rcv-pend-vs">' + esc(t('pend.vs', { qty: want })) + '</span>';
+  }
+  /** confirm message when the entered quantity differs from the purchase quantity (count / pieces plans) */
+  function pendDiffMsg(cat, n, units) {
+    if (!R || !R.pending || !R.pendPlan) return null;
+    var p = R.pendPlan;
+    if (p.mode === 'pieces') {
+      var got = units.reduce(function (s, u) { return s + (u && u.qty != null ? Number(u.qty) : 0); }, 0);
+      return got !== p.q ? t('pend.confirmDiff', { got: UI.pieces(got, cat), want: UI.pieces(p.q, cat) }) : null;
+    }
+    if (p.mode === 'count') return n !== p.n ? t('pend.confirmDiff', { got: countTxt(n, cat), want: countTxt(p.n, cat) }) : null;
+    return null;
+  }
+  function pendBannerHtml(cat) {
+    var row = R.pending;
+    var dl = [];
+    function add(k, v) { if (trim(v)) dl.push('<dt>' + esc(t(k)) + '</dt><dd>' + esc(v) + '</dd>'); }
+    add('pend.f.ref', pendRef(row));
+    add('pend.f.src', pendSrcName(row));
+    add('pend.f.qty', pendQtyTxt(row));
+    add('pend.f.cost', pendCostTxt(row));
+    add('pend.f.supplier', trim(row.supplier));
+    add('pend.f.note', pendNoteClean(row));
+    var hint = pendPlanHint(R, cat);
+    var un = pendUnapproved(row);
+    return '<div class="notice ' + (R.pendGone ? 'warn' : (un ? 'err' : 'info')) + ' rcv-pend-banner" role="status">' +
+      '<div class="row between"><b>📥 ' + esc(t('pend.banner', { id: row.id })) + '</b>' +
+      '<button type="button" class="btn sm ghost" data-act="pend-detach">' + esc(t('pend.detach')) + '</button></div>' +
+      (un ? '<div class="rcv-pend-unapproved">' + pendUnapprovedBadge(row) + ' <span class="small">' + esc(t('pend.unapproved.tip')) +
+        (un.reason ? ' ' + esc(t('pend.unapproved.reason', { reason: un.reason })) : '') + '</span></div>' : '') +
+      (dl.length ? '<dl class="dl">' + dl.join('') + '</dl>' : '') +
+      (hint ? '<div class="small rcv-pend-hint">' + esc(hint) + '</div>' : '') +
+      (R.pendGone ? '<div class="small warn-text rcv-pend-gone">' + esc(t('pend.gone')) + '</div>' : '') +
+      '</div>';
+  }
+
+  function pendItemCell(row) {
+    var it = row.item_id != null ? App.item(row.item_id) : null;
+    var src = pendSrcName(row);
+    var h = it ? catBadge(App.catOfItem(it)) + ' ' + esc(it.name || '') : '<span class="badge warn">' + esc(t('pend.unlinked')) + '</span>';
+    if (src) h += '<div class="small muted">' + esc(t('pend.srcItem', { name: src })) + '</div>';
+    var ub = pendUnapprovedBadge(row);
+    if (ub) h += '<div>' + ub + '</div>';
+    return h;
+  }
+  function pendPanelHtml() {
+    var rows = App.pendingAvailable() && App.can('staff') ? (App.state.pending || []) : [];
+    var done = rcv.recentDone.filter(function (d) { return !App.pendingById(d.row.id); });
+    if (!rows.length && !done.length) return '';
+    var activeId = R && R.pending && !R.result ? String(R.pending.id) : null;
+    var body = rows.map(function (row) {
+      var active = activeId != null && String(row.id) === activeId;
+      return '<tr class="pend-row' + (active ? ' pend-active' : '') + '" data-pend="' + esc(row.id) + '">' +
+        '<td class="nowrap">' + esc(row.received_on ? UI.fmtDate(row.received_on) : '') + '</td>' +
+        '<td>' + esc(trim(row.supplier)) + '</td>' +
+        '<td class="mono">' + esc(pendRef(row)) + (trim(row.created_by) ? '<div class="small muted">' + esc(t('pend.by', { by: trim(row.created_by) })) + '</div>' : '') + '</td>' +
+        '<td>' + pendItemCell(row) + '</td>' +
+        '<td class="num nowrap"><b>' + esc(pendQtyTxt(row)) + '</b></td>' +
+        '<td class="num small">' + esc(pendCostTxt(row)) + '</td>' +
+        '<td class="nowrap right">' +
+        (active ? '<span class="badge warn">' + esc(t('pend.active')) + '</span> ' : '') +
+        '<button type="button" class="btn sm primary" data-act="pend-process" data-id="' + esc(row.id) + '">' + esc(t('pend.process')) + '</button>' +
+        (canCancelPending(row) ? ' <button type="button" class="btn sm ghost danger-text" data-act="pend-cancel" data-id="' + esc(row.id) + '">' + esc(t('pend.cancel')) + '</button>' : '') +
+        '</td></tr>';
+    }).join('') + done.map(function (d) {
+      var row = d.row;
+      return '<tr class="pend-done" data-pend-done="' + esc(row.id) + '">' +
+        '<td class="nowrap">' + esc(row.received_on ? UI.fmtDate(row.received_on) : '') + '</td>' +
+        '<td>' + esc(trim(row.supplier)) + '</td><td class="mono">' + esc(pendRef(row)) + '</td>' +
+        '<td>' + pendItemCell(row) + '</td><td class="num nowrap">' + esc(pendQtyTxt(row)) + '</td><td></td>' +
+        '<td class="nowrap right"><span class="badge ok">' + esc(t('pend.doneRow', { lot: d.lot_id == null ? '?' : d.lot_id })) + '</span></td></tr>';
+    }).join('');
+    return '<details class="card rcv-pend"' + (rcv.pendOpen ? ' open' : '') + '>' +
+      '<summary>📥 ' + esc(t('pend.title')) + ' <span class="badge ' + (rows.length ? 'warn' : 'ok') + ' rcv-pend-n">' + esc(t('pend.count', { n: rows.length })) + '</span></summary>' +
+      '<div class="small muted" style="margin-top:6px">' + esc(t('pend.hint')) + '</div>' +
+      '<div class="table-wrap"><table class="table compact rcv-pend-table"><thead><tr>' +
+      '<th>' + esc(t('pend.col.date')) + '</th><th>' + esc(t('pend.col.supplier')) + '</th><th>' + esc(t('pend.col.ref')) + '</th>' +
+      '<th>' + esc(t('pend.col.item')) + '</th><th class="num">' + esc(t('pend.col.qty')) + '</th><th class="num">' + esc(t('pend.col.cost')) + '</th><th></th>' +
+      '</tr></thead><tbody>' + body + '</tbody></table></div></details>';
+  }
+  function pendDraw() {
+    if (!rcv.el) return;
+    var box = rcv.el.querySelector('.rcv-pend-box');
+    if (!box) return;
+    var gone = !!(R && R.pending && !R.result && !rcv.busy && !App.pendingById(R.pending.id) && App.state.pending);
+    var html = pendPanelHtml();
+    if (box._pendHtml !== html) {     // unchanged → keep the DOM (no flicker on every data refresh)
+      withFocus(box, function () { box.innerHTML = html; });
+      box._pendHtml = html;
+      var det = box.querySelector('details.rcv-pend');
+      if (det) det.addEventListener('toggle', function () { rcv.pendOpen = !!det.open; });
+    }
+    if (R && R.pending && !R.result && gone !== !!R.pendGone) { R.pendGone = gone; rcvDraw(); }
+  }
+  function rcvFormDirty() {
+    if (!R || R.result || !R.item_id) return false;
+    if (R.pending) return false;
+    if (trim(R.ref_no) || trim(R.memo) || R.specTouched) return true;
+    return shownUnits().some(function (u) { return Object.keys(u || {}).some(function (k) { return trim(u[k]); }); });
+  }
+  function scrollToForm() {
+    setTimeout(function () {
+      var c = rcv.el && rcv.el.querySelector('.rcv-card');
+      if (c && c.scrollIntoView) { try { c.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (x) { /* ignore */ } }
+    }, 0);
+  }
+  /** start a receive form for a pending row with the given barcode item */
+  function startFromPending(row, itemId) {
+    R = newRcvModel('');
+    setRcvItem(itemId);
+    var cat = rcvCat();
+    R.pending = Object.assign({}, row);
+    R.pendGone = false;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trim(row.received_on))) R.received_on = trim(row.received_on);
+    if (trim(row.supplier)) { R.supplier = trim(row.supplier); R.supplierTouched = true; }
+    R.ref_no = pendRef(row);
+    if (pendNoteClean(row)) R.memo = pendNoteClean(row);
+    var plan = R.pendPlan = pendQtyPlan(row, cat);
+    if (plan.mode === 'pieces') { R.qty = '1'; R.units = [{ q: String(plan.q) }]; R.n = 1; }
+    else if (plan.mode === 'count') { R.qty = String(plan.n); R.units = []; resizeUnits(plan.n); }
+    else if (plan.mode === 'measure') { R.qty = ''; R.units = [{}]; R.n = 1; }
+    rcvDraw();
+    pendDraw();
+    scrollToForm();
+    setTimeout(function () {
+      if (!rcv.el || modalOpen()) return;
+      var q = rcv.el.querySelector(plan.mode === 'measure' || plan.mode === 'none' ? '#rcv-qty' : '[data-r="0"][data-c="0"]') || rcv.el.querySelector('#rcv-qty');
+      if (q) { try { q.focus({ preventScroll: true }); if (q.select) q.select(); } catch (x) { /* ignore */ } }
+    }, 0);
+  }
+  function pendDetach() {
+    if (!R || !R.pending) return;
+    R.pending = null; R.pendPlan = null; R.pendGone = false;
+    rcvDraw();
+    pendDraw();
+  }
+  async function pendProcess(id) {
+    if (rcv.busy) return;
+    var row = App.pendingById(id);
+    if (!row) { UI.toast(t('pend.err.gone'), 'warn'); App.refreshPending({ force: true }); return; }
+    if (R && R.pending && String(R.pending.id) === String(id) && !R.result) { scrollToForm(); return; }
+    if (rcvFormDirty() && !(await UI.confirm(t('pend.replace')))) return;
+    if (!rcv.el) return;
+    row = App.pendingById(id) || row;
+    if (row.item_id != null && !App.item(row.item_id)) { try { await App.refreshMaster(); } catch (e) { /* use what we have */ } }
+    if (!rcv.el) return;
+    if (row.item_id != null && App.item(row.item_id)) startFromPending(row, row.item_id);
+    else pendPickItem(row);
+  }
+  /** pre-select an item whose sku / name matches the purchase item */
+  function pendGuessItem(row) {
+    var code = trim(row.src_item_code).toLowerCase(), name = trim(row.src_item_name).toLowerCase().replace(/\s+/g, ' ');
+    var items = (App.state.items || []).filter(function (it) { return it && it.active !== false; });
+    var hit = code ? find(items, function (it) { return trim(it.sku).toLowerCase() === code; }) : null;
+    if (!hit && name) hit = find(items, function (it) { return trim(it.name).toLowerCase().replace(/\s+/g, ' ') === name; });
+    return hit ? hit.id : '';
+  }
+  function pendPickItem(row) {
+    var key = pendSrcKey(row);
+    var body = '<p class="small">' + esc(t('pend.pick.body')) + '</p>' +
+      '<div class="qf-unit"><div><b>' + esc(pendSrcName(row) || '—') + '</b></div><div class="small muted">' +
+      esc([pendRef(row), trim(row.supplier), pendQtyTxt(row)].filter(Boolean).join(' · ')) + '</div></div>' +
+      '<label class="field" for="pend-item"><span>' + esc(t('pend.pick.item')) + ' <b class="danger-text">*</b></span>' +
+      UI.itemSelectHtml(pendGuessItem(row), { activeOnly: true, id: 'pend-item', cls: 'pend-item' }) + '</label>' +
+      (key ? '<label class="row small" style="margin-top:8px"><input type="checkbox" id="pend-remember" checked> <span>' + esc(t('pend.pick.remember')) + '</span></label>' : '') +
+      '<div class="qf-err small danger-text" role="alert"></div>';
+    var m = UI.modal({
+      title: t('pend.pick.title'), body: body,
+      buttons: [{ label: t('btn.cancel') }, {
+        label: t('pend.pick.next'), kind: 'primary', attrs: { 'data-act': 'pend-pick-next' }, onClick: function () {
+          var sel = m.el.querySelector('#pend-item'), errEl = m.el.querySelector('.qf-err');
+          var itemId = sel ? sel.value : '';
+          var it = App.item(itemId);
+          if (!it) { if (errEl) errEl.textContent = t('pend.pick.need'); if (sel) { sel.setAttribute('aria-invalid', 'true'); try { sel.focus(); } catch (x) { /* ignore */ } } return false; }
+          var rem = m.el.querySelector('#pend-remember');
+          var link = key && rem && rem.checked;
+          var gen = flowGen;
+          var idNum = isFinite(Number(it.id)) ? Number(it.id) : it.id;
+          return (link ? Data.linkItem({ src: trim(row.src) || PSRC, src_key: key, item_id: idNum }).then(function () {
+            UI.toast(t('pend.linkSaved', { src: pendSrcName(row) || key, item: it.name || '' }), 'ok');
+          }, function (e) {
+            UI.toast(t('pend.linkFail', { msg: UI.errMsg(e) }), 'warn', 7000);
+          }) : Promise.resolve()).then(function () {
+            if (gen !== flowGen || !rcv.el) return;
+            var cur = App.pendingById(row.id) || row;
+            startFromPending(Object.assign({}, cur, { item_id: cur.item_id != null ? cur.item_id : idNum }), it.id);
+          });
+        }
+      }]
+    });
+  }
+  function pendCancel(id) {
+    var row = App.pendingById(id);
+    if (!row) { UI.toast(t('pend.err.gone'), 'warn'); return; }
+    var it = row.item_id != null ? App.item(row.item_id) : null;
+    var body = '<p>' + esc(t('pend.cancel.body', { ref: pendRef(row), item: it ? it.name : pendSrcName(row) })) + '</p>' +
+      '<label class="field" for="pend-reason"><span>' + esc(t('pend.cancel.reason')) + ' <b class="danger-text">*</b></span>' +
+      '<textarea class="textarea" id="pend-reason" rows="3" maxlength="500"></textarea></label>' +
+      '<div class="qf-err small danger-text" role="alert"></div>';
+    var m = UI.modal({
+      title: t('pend.cancel.title'), body: body,
+      buttons: [{ label: t('btn.close') }, {
+        label: t('pend.cancel.ok'), kind: 'danger', attrs: { 'data-act': 'pend-cancel-ok' }, onClick: function () {
+          var ta = m.el.querySelector('#pend-reason'), errEl = m.el.querySelector('.qf-err');
+          var reason = trim(ta && ta.value);
+          if (!reason) { if (errEl) errEl.textContent = t('pend.cancel.need'); if (ta) { ta.setAttribute('aria-invalid', 'true'); try { ta.focus(); } catch (x) { /* ignore */ } } return false; }
+          var idNum = isFinite(Number(row.id)) ? Number(row.id) : row.id;
+          return Data.pendingCancel({ id: idNum, reason: reason }).then(function () {
+            UI.toast(t('pend.cancelled'), 'ok');
+            if (R && R.pending && String(R.pending.id) === String(row.id) && !R.result) pendDetach();
+            App.refreshPending({ force: true });
+          }, function (e) {
+            if (errEl) errEl.textContent = UI.errMsg(e);
+            if (e && (e.code === 'CONFLICT' || e.code === 'NOT_FOUND')) App.refreshPending({ force: true });
+            return false;
+          });
+        }
+      }]
+    });
+  }
+  function pendOnClick(e) {
+    var b = e.target && e.target.closest ? e.target.closest('[data-act^="pend-"]') : null;
+    if (!b || !rcv.el || !rcv.el.contains(b)) return false;
+    var act = b.getAttribute('data-act'), id = b.getAttribute('data-id');
+    if (act === 'pend-process') { e.preventDefault(); pendProcess(id); return true; }
+    if (act === 'pend-cancel') { e.preventDefault(); pendCancel(id); return true; }
+    if (act === 'pend-detach') { e.preventDefault(); pendDetach(); return true; }
+    return false;
+  }
+  /** a pending-tagged receive succeeded */
+  function pendCompleted(model, result) {
+    var row = model.pending;
+    if (!row) return;
+    result.pending = { id: row.id, ref: pendRef(row) };
+    rcv.recentDone = [{ row: row, lot_id: result.lot_id }].concat(rcv.recentDone.filter(function (d) { return String(d.row.id) !== String(row.id); })).slice(0, 5);
+    App.markPendingDone(row.id);
+    App.refreshPending({ force: true });
+  }
+  function isPendingErr(e) { return !!(e && /pending/i.test(String(e.detail || '') + ' ' + String(e.message || ''))); }
+
   App.register('receive', {
     navKey: 'nav.receive', icon: '📥', minRole: 'staff',
+    badge: function () { return App.pendingCount ? App.pendingCount() : 0; },
     render: renderReceive,
     onData: receiveOnData,
     destroy: function () {
@@ -11114,6 +11951,7 @@ body.modal-open { overflow: hidden; }
     if (rcv.qtyTimer) { clearTimeout(rcv.qtyTimer); rcv.qtyTimer = null; }
     rcv.lotTok++;                    // discard in-flight lot lookups
     rcv.busy = false;
+    rcv.recentDone = []; rcv.pendOpen = true;
     [IS, RS].forEach(function (st) {
       if (!st) return;
       st.rows.forEach(function (r) { r.removed = true; r.tok++; });   // in-flight lookups / sends are ignored
@@ -11936,6 +12774,11 @@ body.modal-open { overflow: hidden; }
     histBind(el);
     histRenderExport();
     histLoad(true);
+    // "구매 입고 <ref>" chips on IN rows of lots completed from a purchase pending receipt (SPEC §2.6)
+    if (App.purchaseLotMap) {
+      App.onScreen('purchaseLots', function () { if (hist && hist.el === el && hist.rows.length && !hist.loading) histRenderTable(); });
+      App.purchaseLotMap();
+    }
   }
 
   function histRenderFilters() {
@@ -12114,13 +12957,14 @@ body.modal-open { overflow: hidden; }
     if (m.type === 'OUT' && Number(m.count_delta) === 0) amt += ' <span class="badge warn">' + esc(t('adm.hist.partial')) + '</span>';
     if (App.isLotMove(m) && Number(m.count_delta)) amt = '<b>' + esc(UI.signedPieces(m.count_delta, cat)) + '</b>';    // pack: "−10 콘"
     var diff = m.type === 'EDIT' ? diffText(m.before, m.after, cat) : '';
+    var pur = m.type === 'IN' && m.lot_id != null && UI.purchaseChip ? UI.purchaseChip(m.lot_id) : '';   // SPEC §2.6
     return '<tr>' +
       '<td class="nowrap small">' + esc(UI.fmtDateTime(m.at)) + '</td>' +
       '<td>' + UI.moveTypeBadge(m.type) + '</td>' +
       '<td class="nowrap">' + codeCell + '</td>' +
       '<td>' + itemCell(m.item_id) + '</td>' +
       '<td class="num">' + amt + '</td>' +
-      '<td>' + esc(m.dest || '') + '</td>' +
+      '<td>' + esc(m.dest || '') + pur + '</td>' +
       '<td>' + esc(m.person || '') + '</td>' +
       '<td>' + esc(m.purpose || '') + '</td>' +
       '<td class="small">' + esc(m.memo || '') + (diff ? '<span class="adm-diff">' + esc(diff) + '</span>' : '') + '</td>' +
